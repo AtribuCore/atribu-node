@@ -1,6 +1,6 @@
 <p align="center">
-  <a href="https://atribu.app">
-    <img src="https://atribu.app/brand/atribu-wordmark-square-800.png" alt="Atribu" width="120">
+  <a href="https://www.atribu.app">
+    <img src="https://www.atribu.app/brand/atribu-wordmark-square-800.png" alt="Atribu" width="120">
   </a>
 </p>
 
@@ -15,7 +15,7 @@
   <strong>Authorize users, send WhatsApp & Instagram messages, and verify signed webhook deliveries — through one API.</strong>
 </p>
 
-The official Node.js SDK for the [Atribu API](https://atribu.app) — typed access to messaging, IG comment replies, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
+The official Node.js SDK for the [Atribu API](https://www.atribu.app) — typed access to messaging, IG comment replies, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
 
 ## Installation
 
@@ -410,12 +410,12 @@ Uses Web Crypto throughout — no `node:crypto` imports.
 ## Requirements
 
 - Node.js 18+ (or any WinterCG-compatible runtime)
-- An [Atribu API key](https://atribu.app)
+- An [Atribu API key](https://www.atribu.app)
 
 ## Links
 
-- [Documentation](https://atribu.app/docs)
-- [Dashboard](https://atribu.app)
+- [Documentation](https://www.atribu.app/docs)
+- [Dashboard](https://www.atribu.app/login)
 - [Changelog](./CHANGELOG.md)
 
 ## License

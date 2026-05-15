@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-05-15
+
+Metadata-only patch:
+- Corrected all `atribu.app` URLs to `www.atribu.app` (consistent with the canonical domain).
+- `homepage` now points at the docs (`www.atribu.app/docs`).
+
 ## [0.1.1] — 2026-05-15
 
 Metadata-only patch: corrected the `repository` and `bugs` URLs to point at [AtribuCore/atribu-node](https://github.com/AtribuCore/atribu-node) (the lowercase `atribu` org doesn't exist on GitHub). No code changes.

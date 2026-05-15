@@ -13,6 +13,13 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Trusted-publisher environment configured in npmjs.com.
+    # Protect this environment in repo Settings → Environments → npm-publish:
+    #   - Deployment branches/tags: restrict to tags matching `v*` only
+    #   - (Optional) Required reviewers: a human approval before publish
+    # Without the environment gate, *any* tag push could publish a malicious
+    # build. With it, only protected ref+approval combinations can.
+    environment: npm-publish
     steps:
       - uses: actions/checkout@v4
 
