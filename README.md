@@ -1,0 +1,423 @@
+<p align="center">
+  <a href="https://atribu.app">
+    <img src="https://atribu.app/brand/atribu-wordmark-square-800.png" alt="Atribu" width="120">
+  </a>
+</p>
+
+<h1 align="center">Atribu Node.js SDK</h1>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/@atribu/node"><img src="https://img.shields.io/npm/v/@atribu/node.svg" alt="npm version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+</p>
+
+<p align="center">
+  <strong>Authorize users, send WhatsApp & Instagram messages, and verify signed webhook deliveries — through one API.</strong>
+</p>
+
+The official Node.js SDK for the [Atribu API](https://atribu.app) — typed access to messaging, IG comment replies, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
+
+## Installation
+
+```bash
+npm install @atribu/node
+
+# Optional peer deps:
+npm install jose      # only if you use the @atribu/node/oauth helpers
+npm install msw       # only if you use @atribu/node/test
+```
+
+## Quick Start
+
+```typescript
+import { AtribuClient } from "@atribu/node";
+
+const atribu = new AtribuClient({ apiKey: process.env.ATRIBU_API_KEY });
+
+const result = await atribu.messages.send({
+  connection_id: "11111111-1111-1111-1111-111111111111",
+  channel: "whatsapp",
+  to: "+15551234567",
+  content: { type: "text", text: "Hello from @atribu/node!" },
+});
+
+console.log("Sent:", result.provider_message_id);
+```
+
+## Configuration
+
+```typescript
+const atribu = new AtribuClient({
+  apiKey: "atb_live_...",            // required
+  baseUrl: "https://www.atribu.app", // default
+  fetch: customFetch,                // optional — bring your own (tracing, edge)
+  timeoutMs: 30_000,                 // default 30s
+  userAgent: "MyApp/1.0",            // appended after the SDK User-Agent
+});
+```
+
+`Idempotency-Key` is auto-sent on every mutating POST. `request_id` is surfaced on every error.
+
+## Examples
+
+### Send a WhatsApp template
+
+```typescript
+await atribu.messages.send({
+  connection_id: connectionId,
+  channel: "whatsapp",
+  to: "+15551234567",
+  content: {
+    type: "template",
+    template_name: "appointment_reminder",
+    language_code: "en_US",
+    components: [
+      { type: "body", parameters: [{ type: "text", text: "Tuesday at 3pm" }] },
+    ],
+  },
+});
+```
+
+### Send a WhatsApp image
+
+```typescript
+// Either pre-uploaded media (recommended for high fanout):
+await atribu.messages.send({
+  connection_id: connectionId,
+  channel: "whatsapp",
+  to: "+15551234567",
+  content: {
+    type: "image",
+    media: { media_id: "1234567890" },
+    caption: "Your invoice",
+  },
+});
+
+// Or by public HTTPS link (Meta fetches once per send, no caching):
+await atribu.messages.send({
+  connection_id: connectionId,
+  channel: "whatsapp",
+  to: "+15551234567",
+  content: {
+    type: "image",
+    media: { link: "https://cdn.example.com/invoice.png" },
+  },
+});
+```
+
+### Reply to an Instagram comment
+
+```typescript
+// Public reply on the comment thread:
+await atribu.comments.reply({
+  comment_id: "ig_comment_id",
+  connection_id: connectionId,
+  text: "Thanks! DMing you now.",
+});
+
+// Private DM to the commenter:
+await atribu.comments.privateReply({
+  comment_id: "ig_comment_id",
+  connection_id: connectionId,
+  text: "Here are the details you asked about ...",
+});
+```
+
+### Manage webhook subscriptions
+
+```typescript
+// One subscription per (app, profile, URL):
+const sub = await atribu.webhooks.subscriptions.create({
+  url: "https://your.app/api/atribu-webhook",
+  events: ["message.received", "message.delivery"],
+  providers: ["whatsapp", "instagram"],
+});
+console.log("Webhook secret (shown once):", sub.secret);
+
+// Rotate the HMAC secret with a grace window — deploy dual-verify BEFORE calling this:
+const rotated = await atribu.webhooks.subscriptions.rotateSecret(sub.id, {
+  grace_days: 14,
+});
+
+// Fire a synthetic event to verify your handler:
+await atribu.webhooks.subscriptions.test(sub.id);
+
+// Re-deliver a dead webhook:
+await atribu.webhooks.deliveries.replay(deadDeliveryId);
+```
+
+## Verifying Webhooks
+
+Atribu signs every outbound delivery as `X-Atribu-Signature: t=<unix>,v1=<hex_hmac_sha256>` over `<t>.<rawBody>` (Stripe-style). The verifier handles parsing, timestamp tolerance, constant-time HMAC comparison, and rotation grace.
+
+### Next.js App Router
+
+```typescript
+// app/api/atribu-webhook/route.ts
+import { withAtribuWebhook } from "@atribu/node/next";
+
+export const POST = withAtribuWebhook({
+  secret: process.env.ATRIBU_WEBHOOK_SECRET!,
+  previousSecret: process.env.ATRIBU_WEBHOOK_PREVIOUS_SECRET,
+  onEvent: async (event) => {
+    if (event.type === "message.received" && event.provider === "whatsapp") {
+      // event.data.wa_message_id is typed string
+      console.log(`WA message from ${event.data.from}: ${event.data.text}`);
+    }
+  },
+});
+```
+
+### Manual verification
+
+```typescript
+import { verifyWebhook } from "@atribu/node/webhooks";
+
+export async function POST(req: Request) {
+  try {
+    const event = await verifyWebhook({
+      rawBody: await req.text(),
+      signature: req.headers.get("x-atribu-signature"),
+      secret: process.env.ATRIBU_WEBHOOK_SECRET!,
+      previousSecret: process.env.ATRIBU_WEBHOOK_PREVIOUS_SECRET, // during rotation
+      tolerance: 300, // seconds; default 5 min
+    });
+    // ... handle the typed event
+    return new Response(null, { status: 200 });
+  } catch {
+    return new Response("invalid signature", { status: 401 });
+  }
+}
+```
+
+The unique `event.id` and the `X-Atribu-Delivery-Id` header give you idempotency keys for safe redelivery.
+
+## OAuth Flow
+
+If you're building an app that connects your end-users' WhatsApp/Instagram accounts via Atribu, `@atribu/node/oauth` has every helper for the consumer-side flow.
+
+```typescript
+import {
+  buildAuthorizeUrl,
+  signIdTokenHint,
+  exchangeCode,
+  revokeToken,
+  generateCodeVerifier,
+  computeCodeChallenge,
+} from "@atribu/node/oauth";
+
+// 1. Redirect to consent
+const codeVerifier = generateCodeVerifier();
+const idTokenHint = await signIdTokenHint({
+  jwtSigningSecret: process.env.ATRIBU_APP_JWT_SECRET!,
+  subject: user.id,
+  email: user.email,
+  expiresIn: "5m",
+});
+
+const url = buildAuthorizeUrl({
+  clientId: "your-app-id",
+  redirectUri: "https://your.app/integrations/atribu/callback",
+  provider: "whatsapp",
+  scope: "whatsapp",
+  state: csrfToken,
+  idTokenHint,
+  codeChallenge: await computeCodeChallenge(codeVerifier),
+  codeChallengeMethod: "S256",
+});
+// Redirect the user to `url`.
+
+// 2. Handle the callback
+const { accessToken, connectionId, scope } = await exchangeCode({
+  clientId: "your-app-id",
+  clientSecret: process.env.ATRIBU_APP_CLIENT_SECRET!,
+  code: callbackQuery.code,
+  redirectUri: "https://your.app/integrations/atribu/callback",
+  codeVerifier,
+});
+
+// Persist accessToken + connectionId per user. accessToken IS the API key.
+
+// 3. Revoke later (e.g. user disconnects)
+await revokeToken({
+  clientId: "your-app-id",
+  clientSecret: process.env.ATRIBU_APP_CLIENT_SECRET!,
+  token: accessToken,
+});
+```
+
+## Error Handling
+
+```typescript
+import { AtribuClient, AtribuApiError } from "@atribu/node";
+
+try {
+  await atribu.messages.send({ /* ... */ });
+} catch (err) {
+  if (err instanceof AtribuApiError) {
+    switch (err.retry.action) {
+      case "retry":           return queue.retry(job, { delay: 5_000 });
+      case "retry_after":     return queue.retry(job, { delay: err.retry.retryAfterMs });
+      case "refresh_token":   return refreshOAuthAndRetry();
+      case "fix_and_retry":   logger.error("bad payload", { requestId: err.requestId }); break;
+      case "do_not_retry":    logger.error("permanent failure", { requestId: err.requestId }); break;
+    }
+  }
+}
+```
+
+| Error | Thrown when |
+| --- | --- |
+| `AtribuApiError` | `/api/v1/*` returned non-2xx. Has `code`, `status`, `requestId`, `retry`, `responseBody`. |
+| `AtribuOauthError` | RFC 6749/7009 error from `/oauth/*`. Has `code`, `description`, `status`. |
+| `AtribuWebhookError` | Signature verification failed. Has `code: "missing_signature" \| "malformed_header" \| "expired_timestamp" \| "invalid_signature"`. |
+| `AtribuTransportError` | Network glitch / timeout / abort. Has `cause`. |
+| `AtribuConfigError` | Bad client configuration. |
+
+The server's `X-Request-Id` is surfaced as `err.requestId` so you can grep server logs.
+
+## Retries
+
+The SDK doesn't retry automatically — hiding retries amplifies load on a failing server and obscures backpressure. Opt in per-client:
+
+```typescript
+const atribu = new AtribuClient({ apiKey: "..." }).withRetry({
+  maxAttempts: 3,             // initial + 2 retries
+  backoff: "exponential",     // or "fixed" or "none"
+  baseDelayMs: 500,
+  maxDelayMs: 30_000,
+  jitter: 0.3,
+});
+```
+
+The wrapper respects the typed `retry` hint exactly:
+
+| Condition | Behavior |
+|---|---|
+| 5xx, 408, network glitch | Exponential / fixed backoff with jitter |
+| 429 / 503 with `Retry-After` | Honored exactly, no jitter |
+| 401 (`refresh_token`) | Not retried — refresh credentials, don't retry |
+| 422 (`fix_and_retry`) | Not retried — your input is bad |
+| 403 (`do_not_retry`) | Not retried — permission denied |
+
+## Testing
+
+```typescript
+import { setupServer } from "msw/node";
+import { atribuMockHandlers, eventFixtures } from "@atribu/node/test";
+
+const server = setupServer(...atribuMockHandlers({
+  // Override specific endpoints; everything else gets a realistic default.
+  messages: {
+    send: { status: 422, body: { error: { code: "validation_error", message: "...", status: 422 } } },
+  },
+}));
+
+// Drive your webhook handler tests with realistic event shapes:
+const event = eventFixtures.whatsappMessageReceived({
+  data: { text: "Custom test message" },
+});
+```
+
+`msw@^2.0.0` must be installed.
+
+## OpenTelemetry / Datadog APM / Sentry
+
+Inject your own `fetch` to trace every SDK call. No SDK change needed:
+
+```typescript
+import { trace, context, propagation } from "@opentelemetry/api";
+import { AtribuClient } from "@atribu/node";
+
+const tracer = trace.getTracer("my-app");
+
+const tracedFetch: typeof fetch = (input, init) =>
+  tracer.startActiveSpan(`atribu.${(init?.method ?? "GET").toLowerCase()}`, async (span) => {
+    const headers = new Headers(init?.headers);
+    propagation.inject(context.active(), headers, { set: (h, k, v) => h.set(k, v) });
+    try {
+      const res = await fetch(input, { ...init, headers });
+      span.setAttribute("http.status_code", res.status);
+      const requestId = res.headers.get("x-request-id");
+      if (requestId) span.setAttribute("atribu.request_id", requestId);
+      return res;
+    } finally { span.end(); }
+  });
+
+const atribu = new AtribuClient({ apiKey: "...", fetch: tracedFetch });
+```
+
+The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation out of the box.
+
+## SDK Reference
+
+### Messaging — `@atribu/node`
+| Method | Description |
+|---|---|
+| `messages.send()` | Send a WhatsApp or Instagram message |
+| `comments.reply()` | Public reply on an IG comment thread |
+| `comments.privateReply()` | Send a DM to the user who left an IG comment |
+| `webhooks.subscriptions.list()` | List your webhook subscriptions |
+| `webhooks.subscriptions.create()` | Create a webhook subscription (secret shown once) |
+| `webhooks.subscriptions.update()` | Update URL / events / providers / status |
+| `webhooks.subscriptions.delete()` | Delete a webhook subscription |
+| `webhooks.subscriptions.rotateSecret()` | Rotate the HMAC secret with a grace window |
+| `webhooks.subscriptions.test()` | Fire a synthetic event to test your handler |
+| `webhooks.deliveries.replay()` | Re-deliver a dead webhook |
+| `withRetry()` | Return a new client that retries transient errors |
+
+### Webhook verification — `@atribu/node/webhooks`
+| Symbol | Description |
+|---|---|
+| `verifyWebhook()` | Verify a signed payload — Web Crypto, rotation grace, constant-time |
+| `AtribuWebhookEvent` | Discriminated union — every event shape, fully typed |
+
+### OAuth helpers — `@atribu/node/oauth`
+| Symbol | Description |
+|---|---|
+| `buildAuthorizeUrl()` | Construct the `/oauth/authorize` redirect URL |
+| `exchangeCode()` | Trade an authorization code for an access token |
+| `revokeToken()` | RFC 7009 revocation |
+| `signIdTokenHint()` | Sign an `id_token_hint` JWT (HS256, requires `jose`) |
+| `generateCodeVerifier()` | PKCE verifier (RFC 7636) |
+| `computeCodeChallenge()` | PKCE challenge (SHA-256, base64url) |
+
+### Next.js — `@atribu/node/next`
+| Symbol | Description |
+|---|---|
+| `withAtribuWebhook()` | Wrap a Next.js App Router route handler in signature verification |
+
+### Test helpers — `@atribu/node/test`
+| Symbol | Description |
+|---|---|
+| `atribuMockHandlers()` | MSW v2 handlers for every endpoint (with overrides) |
+| `eventFixtures` | Pre-canned event shapes — deep-merge any field |
+| `responseFixtures` | Pre-canned API response envelopes |
+
+## Runtime Support
+
+| Runtime | Supported |
+|---|---|
+| Node 18+ | ✅ |
+| Bun | ✅ |
+| Deno | ✅ — `npm:@atribu/node` |
+| Vercel Edge | ✅ |
+| Cloudflare Workers | ✅ |
+| Browser | ❌ by design — API keys don't belong in client JS |
+
+Uses Web Crypto throughout — no `node:crypto` imports.
+
+## Requirements
+
+- Node.js 18+ (or any WinterCG-compatible runtime)
+- An [Atribu API key](https://atribu.app)
+
+## Links
+
+- [Documentation](https://atribu.app/docs)
+- [Dashboard](https://atribu.app)
+- [Changelog](./CHANGELOG.md)
+
+## License
+
+MIT
