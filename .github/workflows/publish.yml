@@ -28,6 +28,11 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Upgrade npm
+        # Default npm in Node 20 is too old for OIDC trusted publishing of
+        # scoped packages — needs >= 11.5.1.
+        run: npm install -g npm@latest
+
       - name: Install
         run: npm ci
 

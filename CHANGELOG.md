@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] — 2026-05-15
+
+First release to land via OIDC trusted publishing. Provenance attestation now signs every release.
+
+### Internal
+
+- Workflow upgrades npm to latest before publishing (Node 20's default npm is too old for OIDC trusted publishing of scoped packages).
+
 ## [0.1.2] — 2026-05-15
 
 Metadata-only patch:
