@@ -398,6 +398,7 @@ export const responseFixtures = {
             status: "pending" as const,
             wamid: null,
             error_message: null,
+            error_reason_code: null,
             sent_at: null,
           },
         ],

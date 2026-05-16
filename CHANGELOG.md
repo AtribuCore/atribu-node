@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-16
+
+Server-side Meta error classification reaches the SDK. WhatsApp + Instagram failures from the underlying Meta APIs now arrive with the right HTTP status code + `code` field instead of being flattened to `502 provider_error`. **Observable API surface change** — consumers that switched on status `502` for Meta failures should add `401`/`403`/`429` handling. The error shape (`{ code, status, message, request_id }`) is unchanged.
+
+### Changed
+
+- **`401 unauthorized`** for token revoked / app uninstalled. The server flips `data_connections.status='error'` when this fires from within `whatsapp/broadcasts/{id}/send` so the next call 409s cleanly until reconnect.
+- **`429 rate_limit_exceeded`** for Meta-side throttle. Response carries a `Retry-After` header (seconds) derived from Meta's `X-Business-Use-Case-Usage` block. The SDK surfaces it as `err.retry.retryAfterMs`.
+- **`403 forbidden`** for permissions pending Meta App Review (code 270 + variants).
+- **`400 invalid_request`** for "request too complex" (caller must split).
+- **`422 invalid_request`** for fatal Meta errors that won't recover on retry (e.g. malformed payload).
+- **`502 provider_error`** stays for transient Meta failures — retry with backoff.
+- **`whatsapp_broadcast_recipients`** gains an `error_reason_code` column (e.g. `"meta_131050"` = recipient stopped marketing on WA). Permanently-failed recipients carry the stable classifier code so consumers can dedupe them on the next broadcast create instead of re-parsing `error_message` strings.
+
+### Broadcast send loop hardening
+
+- **Rate-limit mid-send**: aborts the loop, resets the broadcast to `draft`, returns `429 + Retry-After`. The next `POST /send` claims where the prior run left off (already-sent recipients stay sent; pending recipients stay pending).
+- **Auth revoked mid-send**: aborts the loop, resets to `draft`, flips the underlying `data_connections.status='error'`, returns `401 unauthorized`. Subsequent `/send` calls 409 cleanly until reconnect.
+- **Per-recipient failure** (opt-out, invalid number, transient): unchanged behavior. Now also stamps `error_reason_code` on the recipient row from `MetaApiError.classification.reasonCode`.
+
+### Internal
+
+- New shared helper `mapMetaErrorToApiError(err, op)` at `src/lib/api/meta-error.ts` (Atribu server-side; not exported from the SDK package). Every v1 route's Meta-catch block collapses to one line.
+- `ApiError` gains optional `retryAfter` (number, seconds) + `metaRequiresReconnect` (boolean). `apiErrorResponse()` emits `Retry-After` header when `retryAfter` is set. Backwards-compatible.
+- `withApiAuth` forwards `retryAfter` from caught `ApiError`s to the response.
+
+### PR A internal (no consumer-facing change)
+
+- WhatsApp + Instagram messaging helpers in `src/lib/integrations/{whatsapp,instagram}/client.ts` now route through `metaApiFetch` from `@atribu/analytics-enrichment`. Failures throw `MetaApiError` / `MetaAuthError` / `MetaRateLimitError` / `MetaComplexityError` instead of plain `Error("WhatsApp API error: ...")`.
+- WhatsApp BUC pool + Instagram Page pool observations now land in `meta_rate_limit_state` automatically — same proactive throttle behavior as Marketing API.
+- New shared singleton at `src/lib/integrations/shared/meta-state-store.ts` for the rate-limit state store.
+- WhatsApp `uploadMedia` + `downloadMedia` stay on raw fetch (FormData / binary), but now classify errors via `classifyMetaError` and throw `MetaApiError` for parity.
+
 ## [0.2.0] — 2026-05-16
 
 Phase 1 of the WhatsApp + Instagram surface expansion. Adds 11 new endpoints and 2 new channel-prefixed namespaces. Backwards-compatible — no existing call signatures change.

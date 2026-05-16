@@ -6400,6 +6400,13 @@
                                   "null"
                                 ]
                               },
+                              "error_reason_code": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Stable machine-readable reason code from the Meta classifier (e.g. 'meta_131050' = recipient stopped marketing). Useful for de-duping permanently-failed recipients on the next broadcast create."
+                              },
                               "sent_at": {
                                 "type": [
                                   "string",
@@ -6414,6 +6421,7 @@
                               "status",
                               "wamid",
                               "error_message",
+                              "error_reason_code",
                               "sent_at"
                             ]
                           }

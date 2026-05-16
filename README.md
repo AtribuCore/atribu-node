@@ -389,6 +389,19 @@ try {
 
 The server's `X-Request-Id` is surfaced as `err.requestId` so you can grep server logs.
 
+### Meta-classified errors (v0.3.0+)
+
+WhatsApp + Instagram failures from the underlying Meta APIs now arrive with the right HTTP status + code instead of a flat `502 provider_error`:
+
+| Cause | Status + code | Notes |
+| --- | --- | --- |
+| Token revoked / app uninstalled | `401 unauthorized` | The server flips `data_connections.status='error'` automatically when this fires mid-broadcast. User must re-OAuth. |
+| Rate-limited by Meta | `429 rate_limit_exceeded` | `Retry-After` header surfaces as `err.retry.retryAfterMs`. For broadcasts, the broadcast resets to `draft` so retrying `send` after Retry-After picks up where it left off. |
+| Meta App Review pending | `403 forbidden` | The capability needs Meta App Review for non-tester users. No retry. |
+| Permanently rejected (e.g. recipient stopped marketing on WA — code 131050) | Recipient row only — broadcast keeps going. `whatsapp_broadcast_recipients.error_reason_code` carries the stable Meta classifier code (e.g. `"meta_131050"`) so you can dedupe permanently-failed recipients on the next broadcast create. |
+| Request too complex | `400 invalid_request` | Caller must split into smaller batches. |
+| Transient Meta failure | `502 provider_error` | Retry with backoff (`err.retry.action === "retry"`). |
+
 ## Retries
 
 The SDK doesn't retry automatically — hiding retries amplifies load on a failing server and obscures backpressure. Opt in per-client:

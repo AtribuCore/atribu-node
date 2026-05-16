@@ -3002,6 +3002,8 @@ export interface paths {
                                     status: "pending" | "sent" | "delivered" | "read" | "failed" | "cancelled";
                                     wamid: string | null;
                                     error_message: string | null;
+                                    /** @description Stable machine-readable reason code from the Meta classifier (e.g. 'meta_131050' = recipient stopped marketing). Useful for de-duping permanently-failed recipients on the next broadcast create. */
+                                    error_reason_code: string | null;
                                     sent_at: string | null;
                                 }[];
                             };
