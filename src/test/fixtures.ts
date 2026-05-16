@@ -289,6 +289,180 @@ export const responseFixtures = {
   apiError(code: string, message: string, status: number) {
     return { error: { code, message, status, request_id: "req_fixture" } };
   },
+
+  // ----- Connections (Phase 1) -----
+  connectionList(overrides?: { items?: number }) {
+    const items = overrides?.items ?? 1;
+    return {
+      data: Array.from({ length: items }, (_, i) => ({
+        id: i === 0 ? SAMPLE_CONNECTION_ID : `00000000-0000-0000-0000-${String(items + i).padStart(12, "0")}`,
+        channel: "whatsapp" as const,
+        status: "connected",
+        display_name: "Atribu Test",
+        external_id: "12345678901234",
+        provider_subtype: null,
+        authorized_at: "2026-05-15T12:00:00Z",
+        created_at: "2026-05-15T11:00:00Z",
+      })),
+      meta: { profile_id: SAMPLE_PROFILE_ID },
+    };
+  },
+
+  connectionDetail(overrides?: { id?: string; channel?: "whatsapp" | "instagram" }) {
+    return {
+      data: {
+        id: overrides?.id ?? SAMPLE_CONNECTION_ID,
+        channel: overrides?.channel ?? "whatsapp",
+        status: "connected",
+        display_name: "Atribu Test",
+        external_id: "12345678901234",
+        provider_subtype: null,
+        authorized_at: "2026-05-15T12:00:00Z",
+        created_at: "2026-05-15T11:00:00Z",
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID },
+    };
+  },
+
+  // ----- WhatsApp templates (Phase 1) -----
+  whatsappTemplateList(overrides?: { items?: number }) {
+    const items = overrides?.items ?? 1;
+    return {
+      data: Array.from({ length: items }, (_, i) => ({
+        id: `template_${i}`,
+        name: `welcome_message_${i}`,
+        language: "en_US",
+        category: "MARKETING",
+        status: i === 0 ? "APPROVED" : "PENDING",
+        components: [{ type: "BODY", text: "Hello {{1}}!" }],
+      })),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappTemplateCreated(overrides?: { id?: string; status?: string }) {
+    return {
+      data: {
+        id: overrides?.id ?? "00000000-0000-0000-0000-000000000aaa",
+        status: overrides?.status ?? "PENDING",
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  // ----- WhatsApp broadcasts (Phase 1) -----
+  whatsappBroadcast(overrides?: { id?: string; status?: string }) {
+    return {
+      id: overrides?.id ?? "00000000-0000-0000-0000-000000000fff",
+      name: "Test Broadcast",
+      template_name: "welcome_message_0",
+      template_language: "en_US",
+      status: (overrides?.status ?? "draft") as "draft" | "sending" | "completed" | "cancelled" | "failed",
+      total_recipients: 3,
+      sent_count: 0,
+      delivered_count: 0,
+      read_count: 0,
+      failed_count: 0,
+      started_at: null,
+      completed_at: null,
+      created_at: "2026-05-16T10:00:00Z",
+    };
+  },
+
+  whatsappBroadcastList(overrides?: { items?: number }) {
+    const items = overrides?.items ?? 1;
+    return {
+      data: Array.from({ length: items }, (_, i) =>
+        this.whatsappBroadcast({ id: `00000000-0000-0000-0000-${String(i).padStart(12, "f")}` }),
+      ),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappBroadcastCreated() {
+    return {
+      data: this.whatsappBroadcast(),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappBroadcastDetail() {
+    return {
+      data: {
+        ...this.whatsappBroadcast(),
+        recipients: [
+          {
+            id: "00000000-0000-0000-0000-000000000001",
+            phone_number: "+15551234567",
+            template_params: null,
+            status: "pending" as const,
+            wamid: null,
+            error_message: null,
+            sent_at: null,
+          },
+        ],
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappBroadcastUpdated(overrides?: { status?: string }) {
+    return {
+      data: this.whatsappBroadcast({ status: overrides?.status ?? "cancelled" }),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  // ----- Instagram triggers (Phase 1) -----
+  instagramTrigger(overrides?: { id?: string; keyword?: string; enabled?: boolean }) {
+    return {
+      id: overrides?.id ?? "00000000-0000-0000-0000-000000000aaa",
+      connection_id: SAMPLE_CONNECTION_ID,
+      keyword: overrides?.keyword ?? "PRICE",
+      keyword_match_mode: "contains" as const,
+      case_sensitive: false,
+      post_id_allowlist: null,
+      opening_message: "Here's our pricing — happy to chat!",
+      public_comment_reply: "Sent you a DM!",
+      agent_context_hint: null,
+      enabled: overrides?.enabled ?? true,
+      trigger_count: 0,
+      last_triggered_at: null,
+      created_at: "2026-05-16T10:00:00Z",
+      updated_at: "2026-05-16T10:00:00Z",
+    };
+  },
+
+  instagramTriggerList(overrides?: { items?: number }) {
+    const items = overrides?.items ?? 1;
+    return {
+      data: Array.from({ length: items }, (_, i) =>
+        this.instagramTrigger({ id: `00000000-0000-0000-0000-${String(i).padStart(12, "0")}` }),
+      ),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  instagramTriggerCreated() {
+    return {
+      data: this.instagramTrigger(),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  instagramTriggerTestDm() {
+    return {
+      data: { provider_message_id: "mid.fixture" },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  instagramTriggerResumed() {
+    return {
+      data: { resumed: true },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
 };
 
 /** Combined export so consumers can `import { fixtures } from "@atribu/node/test"`. */

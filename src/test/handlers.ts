@@ -31,6 +31,11 @@ export interface MockOverrides {
     reply?: EndpointOverride;
     privateReply?: EndpointOverride;
   };
+  connections?: {
+    list?: EndpointOverride;
+    get?: EndpointOverride;
+    revoke?: EndpointOverride;
+  };
   webhooks?: {
     subscriptions?: {
       list?: EndpointOverride;
@@ -42,6 +47,30 @@ export interface MockOverrides {
     };
     deliveries?: {
       replay?: EndpointOverride;
+    };
+  };
+  whatsapp?: {
+    templates?: {
+      list?: EndpointOverride;
+      create?: EndpointOverride;
+      delete?: EndpointOverride;
+    };
+    broadcasts?: {
+      list?: EndpointOverride;
+      create?: EndpointOverride;
+      get?: EndpointOverride;
+      cancel?: EndpointOverride;
+      send?: EndpointOverride;
+    };
+  };
+  instagram?: {
+    triggers?: {
+      list?: EndpointOverride;
+      create?: EndpointOverride;
+      update?: EndpointOverride;
+      delete?: EndpointOverride;
+      testDm?: EndpointOverride;
+      resume?: EndpointOverride;
     };
   };
   oauth?: {
@@ -149,6 +178,69 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
         },
         meta: { profile_id: "00000000-0000-0000-0000-000000000ccc" },
       }),
+    ),
+
+    // ----- Connections -----
+    http.get(u("/api/v1/connections"), () =>
+      resolve(overrides.connections?.list, 200, responseFixtures.connectionList()),
+    ),
+    http.get(u("/api/v1/connections/:id"), () =>
+      resolve(overrides.connections?.get, 200, responseFixtures.connectionDetail()),
+    ),
+    http.delete(u("/api/v1/connections/:id"), () =>
+      resolve(overrides.connections?.revoke, 204, null),
+    ),
+
+    // ----- WhatsApp templates -----
+    http.get(u("/api/v1/whatsapp/templates"), () =>
+      resolve(overrides.whatsapp?.templates?.list, 200, responseFixtures.whatsappTemplateList()),
+    ),
+    http.post(u("/api/v1/whatsapp/templates"), () =>
+      resolve(overrides.whatsapp?.templates?.create, 201, responseFixtures.whatsappTemplateCreated()),
+    ),
+    http.delete(u("/api/v1/whatsapp/templates/:name"), () =>
+      resolve(overrides.whatsapp?.templates?.delete, 204, null),
+    ),
+
+    // ----- WhatsApp broadcasts -----
+    http.get(u("/api/v1/whatsapp/broadcasts"), () =>
+      resolve(overrides.whatsapp?.broadcasts?.list, 200, responseFixtures.whatsappBroadcastList()),
+    ),
+    http.post(u("/api/v1/whatsapp/broadcasts"), () =>
+      resolve(overrides.whatsapp?.broadcasts?.create, 201, responseFixtures.whatsappBroadcastCreated()),
+    ),
+    http.get(u("/api/v1/whatsapp/broadcasts/:id"), () =>
+      resolve(overrides.whatsapp?.broadcasts?.get, 200, responseFixtures.whatsappBroadcastDetail()),
+    ),
+    http.patch(u("/api/v1/whatsapp/broadcasts/:id"), () =>
+      resolve(overrides.whatsapp?.broadcasts?.cancel, 200, responseFixtures.whatsappBroadcastUpdated()),
+    ),
+    http.post(u("/api/v1/whatsapp/broadcasts/:id/send"), () =>
+      resolve(
+        overrides.whatsapp?.broadcasts?.send,
+        200,
+        responseFixtures.whatsappBroadcastUpdated({ status: "completed" }),
+      ),
+    ),
+
+    // ----- Instagram triggers -----
+    http.get(u("/api/v1/instagram/triggers"), () =>
+      resolve(overrides.instagram?.triggers?.list, 200, responseFixtures.instagramTriggerList()),
+    ),
+    http.post(u("/api/v1/instagram/triggers"), () =>
+      resolve(overrides.instagram?.triggers?.create, 201, responseFixtures.instagramTriggerCreated()),
+    ),
+    http.patch(u("/api/v1/instagram/triggers/:id"), () =>
+      resolve(overrides.instagram?.triggers?.update, 200, responseFixtures.instagramTriggerCreated()),
+    ),
+    http.delete(u("/api/v1/instagram/triggers/:id"), () =>
+      resolve(overrides.instagram?.triggers?.delete, 204, null),
+    ),
+    http.post(u("/api/v1/instagram/triggers/:id/test-dm"), () =>
+      resolve(overrides.instagram?.triggers?.testDm, 200, responseFixtures.instagramTriggerTestDm()),
+    ),
+    http.post(u("/api/v1/instagram/triggers/resume"), () =>
+      resolve(overrides.instagram?.triggers?.resume, 200, responseFixtures.instagramTriggerResumed()),
     ),
 
     // ----- OAuth -----

@@ -54,3 +54,20 @@ export type {
   WebhookDeliveryReplayResult,
   ReplayOptions,
 } from "./resources/webhook-deliveries";
+
+export type { Connection } from "./resources/connections";
+
+export type {
+  WhatsAppTemplate,
+  WhatsAppTemplateCreateInput,
+  WhatsAppTemplateCreateResult,
+  WhatsAppBroadcast,
+  WhatsAppBroadcastDetail,
+  WhatsAppBroadcastCreateInput,
+} from "./resources/whatsapp";
+
+export type {
+  InstagramTrigger,
+  InstagramTriggerCreateInput,
+  InstagramTriggerUpdateInput,
+} from "./resources/instagram";

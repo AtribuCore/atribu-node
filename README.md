@@ -123,6 +123,119 @@ await atribu.comments.privateReply({
 });
 ```
 
+### Send WhatsApp reply buttons (interactive)
+
+```typescript
+await atribu.messages.send({
+  connection_id: connectionId,
+  channel: "whatsapp",
+  to: "+15551234567",
+  content: {
+    type: "interactive_buttons",
+    body: "Pick a plan:",
+    header: "Pricing",
+    buttons: [
+      { id: "plan_basic", title: "Basic" },
+      { id: "plan_pro", title: "Pro" },
+      { id: "plan_enterprise", title: "Enterprise" },
+    ],
+  },
+});
+// Tap returns the chosen `id` on the `messaging_postbacks` webhook field.
+```
+
+### Manage WhatsApp templates
+
+```typescript
+// List every template on the WABA (all statuses).
+const templates = await atribu.whatsapp.templates.list({ connectionId });
+
+// Create one — submits to Meta for review.
+// Body text uses `{{param_name}}` placeholders; named example block is auto-generated.
+const { id, status } = await atribu.whatsapp.templates.create({
+  connection_id: connectionId,
+  name: "appointment_reminder",
+  category: "UTILITY",
+  language: "en_US",
+  body_text: "Hi {{customer_name}}, your appointment is at {{appointment_time}}.",
+});
+
+// Once status === "APPROVED" you can send it via messages.send({ type: "template", ... }).
+
+// Delete by name when you're done with it:
+await atribu.whatsapp.templates.delete("appointment_reminder", { connectionId });
+```
+
+### Send a WhatsApp broadcast
+
+```typescript
+// 1. Create a draft (capped at 1,000 recipients per broadcast).
+const broadcast = await atribu.whatsapp.broadcasts.create({
+  connection_id: connectionId,
+  template_name: "appointment_reminder",
+  template_language: "en_US",
+  recipients: customers.map((c) => ({
+    phone_number: c.phone,
+    template_params: { customer_name: c.name, appointment_time: c.timeIso },
+  })),
+  name: "Q2 appointment reminders",
+});
+
+// 2. Send it. This is a long-running call (100ms pacing between recipients).
+//    The Atribu server caps the route at 5 minutes — wrap your fetch with a
+//    matching timeout, or extend `timeoutMs` on AtribuClient.
+const completed = await atribu.whatsapp.broadcasts.send(broadcast.id);
+console.log(`sent: ${completed.sent_count}, failed: ${completed.failed_count}`);
+
+// Cancel an in-flight broadcast (already-sent messages are NOT recalled):
+await atribu.whatsapp.broadcasts.cancel(broadcast.id);
+```
+
+### Manage Instagram comment-to-DM triggers
+
+```typescript
+// Create a trigger — when an inbound comment matches the keyword,
+// the commenter gets `opening_message` as a DM (HUMAN_AGENT tag).
+const trigger = await atribu.instagram.triggers.create({
+  connection_id: connectionId,
+  keyword: "PRICE",
+  keyword_match_mode: "contains",          // or "exact" | "regex"
+  case_sensitive: false,
+  opening_message: "Here's our pricing — happy to chat!",
+  public_comment_reply: "Sent you a DM!",  // optional public reply on the comment
+  enabled: true,
+});
+
+// QA the opening_message against a real IGSID (must have DMed your account in last 7d):
+await atribu.instagram.triggers.testDm(trigger.id, {
+  recipient_igsid: "1234567890",
+});
+
+// Update / pause / delete:
+await atribu.instagram.triggers.update(trigger.id, { enabled: false });
+await atribu.instagram.triggers.delete(trigger.id);
+
+// Clear the circuit-breaker if it tripped after a comment-spam wave:
+await atribu.instagram.triggers.resumeCircuit({ connectionId });
+```
+
+### List authorized connections
+
+```typescript
+// What can this key act on?
+const connections = await atribu.connections.list();
+for (const conn of connections) {
+  console.log(`${conn.channel} — ${conn.display_name} (${conn.id})`);
+}
+
+// Filter by channel:
+const igOnly = await atribu.connections.list({ channel: "instagram" });
+
+// Revoke this OAuth app's authorization for one connection (other consumers
+// + the Atribu app UI continue to use it; only this app loses access):
+await atribu.connections.revoke(connectionId);
+```
+
 ### Manage webhook subscriptions
 
 ```typescript
@@ -351,12 +464,15 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 
 ## SDK Reference
 
-### Messaging — `@atribu/node`
+### Messaging + cross-channel — `@atribu/node`
 | Method | Description |
 |---|---|
-| `messages.send()` | Send a WhatsApp or Instagram message |
+| `messages.send()` | Send a WhatsApp or Instagram message (text / template / image / video / audio / document / interactive_buttons / quick_replies) |
 | `comments.reply()` | Public reply on an IG comment thread |
 | `comments.privateReply()` | Send a DM to the user who left an IG comment |
+| `connections.list()` | List the connections this OAuth app is authorized for |
+| `connections.get()` | Fetch one connection by id |
+| `connections.revoke()` | Revoke this OAuth app's authorization for a connection |
 | `webhooks.subscriptions.list()` | List your webhook subscriptions |
 | `webhooks.subscriptions.create()` | Create a webhook subscription (secret shown once) |
 | `webhooks.subscriptions.update()` | Update URL / events / providers / status |
@@ -365,6 +481,28 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `webhooks.subscriptions.test()` | Fire a synthetic event to test your handler |
 | `webhooks.deliveries.replay()` | Re-deliver a dead webhook |
 | `withRetry()` | Return a new client that retries transient errors |
+
+### WhatsApp namespace — `client.whatsapp`
+| Method | Description |
+|---|---|
+| `whatsapp.templates.list()` | List every message template on the WABA (all statuses) |
+| `whatsapp.templates.create()` | Submit a new template for Meta review |
+| `whatsapp.templates.delete()` | Delete a template by name |
+| `whatsapp.broadcasts.list()` | List up to 50 most-recent broadcasts |
+| `whatsapp.broadcasts.create()` | Create a draft broadcast with recipients |
+| `whatsapp.broadcasts.get()` | Get a broadcast + its recipients (max 200 returned) |
+| `whatsapp.broadcasts.cancel()` | Cancel an in-flight broadcast |
+| `whatsapp.broadcasts.send()` | Start sending a draft broadcast (long-running) |
+
+### Instagram namespace — `client.instagram`
+| Method | Description |
+|---|---|
+| `instagram.triggers.list()` | List comment-to-DM triggers for a connection |
+| `instagram.triggers.create()` | Create a new comment-to-DM trigger |
+| `instagram.triggers.update()` | Partial-update a trigger |
+| `instagram.triggers.delete()` | Delete a trigger |
+| `instagram.triggers.testDm()` | Send the opening_message as a one-off DM to a test IGSID |
+| `instagram.triggers.resumeCircuit()` | Manually clear a tripped comment-to-DM circuit |
 
 ### Webhook verification — `@atribu/node/webhooks`
 | Symbol | Description |

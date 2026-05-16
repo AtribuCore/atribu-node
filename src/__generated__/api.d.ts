@@ -2182,6 +2182,19 @@ export interface paths {
                             caption?: string;
                         } | {
                             /** @enum {string} */
+                            type: "interactive_buttons";
+                            /** @description Body text shown above the buttons (1024 char max). */
+                            body: string;
+                            /** @description Optional text header (60 char max). */
+                            header?: string;
+                            buttons: {
+                                /** @description Postback ID returned when tapped. */
+                                id: string;
+                                /** @description Button label (20 char max). */
+                                title: string;
+                            }[];
+                        } | {
+                            /** @enum {string} */
                             type: "quick_replies";
                             text: string;
                             quick_replies: {
@@ -2412,6 +2425,1134 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List authorized data connections
+         * @description Returns the WhatsApp + Instagram connections this API key is authorized to act on. For OAuth-flow-minted keys, restricted to the active `oauth_app_authorizations` set. For direct admin keys, returns every connection on the profile.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Filter by channel; omit for both. */
+                    channel?: "whatsapp" | "instagram";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Connections list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                channel: "whatsapp" | "instagram";
+                                status: string;
+                                /** @description Human-readable connection label (WA: phone number; IG: @username). */
+                                display_name: string | null;
+                                /** @description WA phone_number_id or IG ig_business_account_id. */
+                                external_id: string | null;
+                                /** @description Instagram only: 'fb_login' or 'ig_login'. */
+                                provider_subtype: string | null;
+                                authorized_at: string | null;
+                                created_at: string;
+                            }[];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a single connection
+         * @description Returns one connection by id. 404 if not found or not authorized.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Connection */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                channel: "whatsapp" | "instagram";
+                                status: string;
+                                /** @description Human-readable connection label (WA: phone number; IG: @username). */
+                                display_name: string | null;
+                                /** @description WA phone_number_id or IG ig_business_account_id. */
+                                external_id: string | null;
+                                /** @description Instagram only: 'fb_login' or 'ig_login'. */
+                                provider_subtype: string | null;
+                                authorized_at: string | null;
+                                created_at: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Connection not found or not authorized */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Revoke this OAuth app's authorization for a connection
+         * @description Marks the `oauth_app_authorizations` row as revoked. Does NOT disconnect the underlying `data_connection` — other OAuth apps (or the workspace UI) continue to use it. OAuth-flow keys for the affected connection start failing with 403 immediately after this call. Direct admin keys do not have an `oauth_app_authorizations` row and reject this call with 400.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Authorization revoked */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Direct admin keys cannot self-revoke */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authorization or connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List WhatsApp message templates
+         * @description Returns up to 100 templates from the WABA, all statuses. Newly created templates may take minutes to hours to leave `PENDING`. Templates can be sent via `POST /api/v1/messages` with `content.type='template'` only when `status='APPROVED'`.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Templates list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                id?: string;
+                                name: string;
+                                language: string;
+                                category: string;
+                                /** @description One of APPROVED, PENDING, REJECTED, IN_APPEAL, PAUSED, DISABLED. */
+                                status: string;
+                                components?: {
+                                    [key: string]: unknown;
+                                }[];
+                            }[];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a WhatsApp message template
+         * @description Submits a new template for Meta review. Returns immediately with `status: PENDING`. Use `GET /api/v1/whatsapp/templates` to poll the approval status. Body text supports `{{param_name}}` placeholders — when provided, the SDK auto-generates the required `body_text_named_params` example block and sets `parameter_format=NAMED` on the Meta payload.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        /** @description Lowercase letters, digits and underscores only. */
+                        name: string;
+                        /** @enum {string} */
+                        category: "AUTHENTICATION" | "MARKETING" | "UTILITY";
+                        /** @description BCP-47 (e.g. 'en_US', 'es'). */
+                        language: string;
+                        /** @description `{{param_name}}` placeholders auto-generate a NAMED `example` block. */
+                        body_text: string;
+                        header_text?: string;
+                        footer_text?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Template submitted */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                id: string;
+                                status: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta template create failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/templates/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a WhatsApp message template by name
+         * @description Deletes the template at Meta. Cannot be undone.
+         */
+        delete: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path: {
+                    /** @description Template name. Must match `^[a-z0-9_]+$`. */
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Template deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid template name */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta template delete failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/broadcasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List broadcasts
+         * @description Returns up to 50 most-recent broadcasts for the connection, newest first.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Broadcasts list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string | null;
+                                template_name: string;
+                                template_language: string;
+                                /** @enum {string} */
+                                status: "draft" | "sending" | "completed" | "cancelled" | "failed";
+                                total_recipients: number;
+                                sent_count: number;
+                                delivered_count: number;
+                                read_count: number;
+                                failed_count: number;
+                                started_at: string | null;
+                                completed_at: string | null;
+                                created_at: string;
+                            }[];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a broadcast
+         * @description Creates a `draft` broadcast row + recipient rows. Does NOT start sending — call `POST /api/v1/whatsapp/broadcasts/{id}/send` to dispatch. Recipients are capped at 1,000 per broadcast (matches the internal UI cap).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        template_name: string;
+                        template_language: string;
+                        template_components?: {
+                            [key: string]: unknown;
+                        }[];
+                        recipients: {
+                            phone_number: string;
+                            template_params?: {
+                                [key: string]: unknown;
+                            };
+                        }[];
+                        name?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Broadcast created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string | null;
+                                template_name: string;
+                                template_language: string;
+                                /** @enum {string} */
+                                status: "draft" | "sending" | "completed" | "cancelled" | "failed";
+                                total_recipients: number;
+                                sent_count: number;
+                                delivered_count: number;
+                                read_count: number;
+                                failed_count: number;
+                                started_at: string | null;
+                                completed_at: string | null;
+                                created_at: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/broadcasts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a broadcast + recipients
+         * @description Returns the broadcast row plus up to 200 recipients with delivery state.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Broadcast detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string | null;
+                                template_name: string;
+                                template_language: string;
+                                /** @enum {string} */
+                                status: "draft" | "sending" | "completed" | "cancelled" | "failed";
+                                total_recipients: number;
+                                sent_count: number;
+                                delivered_count: number;
+                                read_count: number;
+                                failed_count: number;
+                                started_at: string | null;
+                                completed_at: string | null;
+                                created_at: string;
+                                recipients: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    phone_number: string;
+                                    template_params: {
+                                        [key: string]: unknown;
+                                    } | null;
+                                    /** @enum {string} */
+                                    status: "pending" | "sent" | "delivered" | "read" | "failed" | "cancelled";
+                                    wamid: string | null;
+                                    error_message: string | null;
+                                    sent_at: string | null;
+                                }[];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Broadcast not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cancel a broadcast
+         * @description Marks an in-flight broadcast as `cancelled`. Recipients not yet sent stay `pending` permanently. Already-sent messages are NOT recalled.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "cancelled";
+                    };
+                };
+            };
+            responses: {
+                /** @description Broadcast cancelled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string | null;
+                                template_name: string;
+                                template_language: string;
+                                /** @enum {string} */
+                                status: "draft" | "sending" | "completed" | "cancelled" | "failed";
+                                total_recipients: number;
+                                sent_count: number;
+                                delivered_count: number;
+                                read_count: number;
+                                failed_count: number;
+                                started_at: string | null;
+                                completed_at: string | null;
+                                created_at: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Broadcast not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Broadcast is not in a cancellable status */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/whatsapp/broadcasts/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start sending a broadcast
+         * @description Transitions the broadcast to `sending` and iterates recipients with a 100ms inter-send pacing. Per-recipient sends call the WhatsApp Cloud API; failures mark the recipient `failed` without aborting the run. **Long-running**: this endpoint blocks until all recipients have been attempted. For broadcasts over a few hundred recipients prefer to leave the connection open longer than your client's default timeout.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Broadcast send completed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string | null;
+                                template_name: string;
+                                template_language: string;
+                                /** @enum {string} */
+                                status: "draft" | "sending" | "completed" | "cancelled" | "failed";
+                                total_recipients: number;
+                                sent_count: number;
+                                delivered_count: number;
+                                read_count: number;
+                                failed_count: number;
+                                started_at: string | null;
+                                completed_at: string | null;
+                                created_at: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Broadcast not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Broadcast is not in a sendable status */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instagram/triggers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List comment-to-DM triggers
+         * @description Returns every trigger for the Instagram account behind the supplied `connection_id`, oldest first. Triggers fire on inbound comments where the comment text matches `keyword` per `keyword_match_mode`; the matching commenter receives `opening_message` as a DM and (optionally) `public_comment_reply` as a public reply.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Triggers list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                connection_id: string;
+                                keyword: string;
+                                /** @enum {string} */
+                                keyword_match_mode: "contains" | "exact" | "regex";
+                                case_sensitive: boolean;
+                                post_id_allowlist: string[] | null;
+                                opening_message: string;
+                                public_comment_reply: string | null;
+                                agent_context_hint: string | null;
+                                enabled: boolean;
+                                trigger_count: number;
+                                last_triggered_at: string | null;
+                                created_at: string;
+                                updated_at: string;
+                            }[];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a comment-to-DM trigger
+         * @description Inserts a new trigger row. Each (ig_account, keyword) is unique — duplicates 409.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        keyword: string;
+                        /**
+                         * @default contains
+                         * @enum {string}
+                         */
+                        keyword_match_mode?: "contains" | "exact" | "regex";
+                        /** @default false */
+                        case_sensitive?: boolean;
+                        post_id_allowlist?: string[] | null;
+                        opening_message: string;
+                        public_comment_reply?: string | null;
+                        agent_context_hint?: string | null;
+                        /** @default true */
+                        enabled?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Trigger created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                connection_id: string;
+                                keyword: string;
+                                /** @enum {string} */
+                                keyword_match_mode: "contains" | "exact" | "regex";
+                                case_sensitive: boolean;
+                                post_id_allowlist: string[] | null;
+                                opening_message: string;
+                                public_comment_reply: string | null;
+                                agent_context_hint: string | null;
+                                enabled: boolean;
+                                trigger_count: number;
+                                last_triggered_at: string | null;
+                                created_at: string;
+                                updated_at: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description A trigger with this keyword already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instagram/triggers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a comment-to-DM trigger
+         * @description Hard-deletes the trigger row. Existing claim ledger rows expire naturally.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Trigger deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Trigger not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Update a comment-to-DM trigger
+         * @description Partial update. Any field from the create body is acceptable.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        keyword?: string;
+                        /**
+                         * @default contains
+                         * @enum {string}
+                         */
+                        keyword_match_mode?: "contains" | "exact" | "regex";
+                        /** @default false */
+                        case_sensitive?: boolean;
+                        post_id_allowlist?: string[] | null;
+                        opening_message?: string;
+                        public_comment_reply?: string | null;
+                        agent_context_hint?: string | null;
+                        /** @default true */
+                        enabled?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Trigger updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                connection_id: string;
+                                keyword: string;
+                                /** @enum {string} */
+                                keyword_match_mode: "contains" | "exact" | "regex";
+                                case_sensitive: boolean;
+                                post_id_allowlist: string[] | null;
+                                opening_message: string;
+                                public_comment_reply: string | null;
+                                agent_context_hint: string | null;
+                                enabled: boolean;
+                                trigger_count: number;
+                                last_triggered_at: string | null;
+                                created_at: string;
+                                updated_at: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Trigger not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/instagram/triggers/{id}/test-dm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the trigger's opening_message as a DM to a test IGSID
+         * @description Uses the HUMAN_AGENT message tag — recipient must have DMed the IG account within the past 7 days, otherwise Meta rejects the send. Intended for QA without polluting the comment trigger's `trigger_count`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        recipient_igsid: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Test DM sent */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                provider_message_id: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Trigger not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Meta rejected the send (recipient outside 7-day window) */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instagram/triggers/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Manually clear a tripped comment-to-DM circuit
+         * @description Clears the per-account `comment_to_dm_paused_until` and the Redis tripped flag, re-enabling trigger fires. The breaker normally clears itself once spam-pattern signals subside; this endpoint exists for ops intervention.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Circuit cleared */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                resumed: boolean;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
                     };
                 };
             };

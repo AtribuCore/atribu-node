@@ -4937,6 +4937,51 @@
                           "type": {
                             "type": "string",
                             "enum": [
+                              "interactive_buttons"
+                            ]
+                          },
+                          "body": {
+                            "type": "string",
+                            "description": "Body text shown above the buttons (1024 char max)."
+                          },
+                          "header": {
+                            "type": "string",
+                            "description": "Optional text header (60 char max)."
+                          },
+                          "buttons": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "description": "Postback ID returned when tapped."
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "Button label (20 char max)."
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "body",
+                          "buttons"
+                        ],
+                        "description": "WhatsApp only — up to 3 reply buttons. Lands as an `interactive` message; tap returns the button `id` on the `messaging_postbacks` webhook field."
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
                               "quick_replies"
                             ]
                           },
@@ -5322,6 +5367,2142 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections": {
+      "get": {
+        "summary": "List authorized data connections",
+        "description": "Returns the WhatsApp + Instagram connections this API key is authorized to act on. For OAuth-flow-minted keys, restricted to the active `oauth_app_authorizations` set. For direct admin keys, returns every connection on the profile.",
+        "tags": [
+          "Connections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "whatsapp",
+                "instagram"
+              ],
+              "description": "Filter by channel; omit for both."
+            },
+            "required": false,
+            "description": "Filter by channel; omit for both.",
+            "name": "channel",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connections list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "whatsapp",
+                              "instagram"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Human-readable connection label (WA: phone number; IG: @username)."
+                          },
+                          "external_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "WA phone_number_id or IG ig_business_account_id."
+                          },
+                          "provider_subtype": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Instagram only: 'fb_login' or 'ig_login'."
+                          },
+                          "authorized_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "channel",
+                          "status",
+                          "display_name",
+                          "external_id",
+                          "provider_subtype",
+                          "authorized_at",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connections/{id}": {
+      "get": {
+        "summary": "Get a single connection",
+        "description": "Returns one connection by id. 404 if not found or not authorized.",
+        "tags": [
+          "Connections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "channel": {
+                          "type": "string",
+                          "enum": [
+                            "whatsapp",
+                            "instagram"
+                          ]
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "display_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Human-readable connection label (WA: phone number; IG: @username)."
+                        },
+                        "external_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "WA phone_number_id or IG ig_business_account_id."
+                        },
+                        "provider_subtype": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Instagram only: 'fb_login' or 'ig_login'."
+                        },
+                        "authorized_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "channel",
+                        "status",
+                        "display_name",
+                        "external_id",
+                        "provider_subtype",
+                        "authorized_at",
+                        "created_at"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found or not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Revoke this OAuth app's authorization for a connection",
+        "description": "Marks the `oauth_app_authorizations` row as revoked. Does NOT disconnect the underlying `data_connection` — other OAuth apps (or the workspace UI) continue to use it. OAuth-flow keys for the affected connection start failing with 403 immediately after this call. Direct admin keys do not have an `oauth_app_authorizations` row and reject this call with 400.",
+        "tags": [
+          "Connections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Authorization revoked"
+          },
+          "400": {
+            "description": "Direct admin keys cannot self-revoke",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Authorization or connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/templates": {
+      "get": {
+        "summary": "List WhatsApp message templates",
+        "description": "Returns up to 100 templates from the WABA, all statuses. Newly created templates may take minutes to hours to leave `PENDING`. Templates can be sent via `POST /api/v1/messages` with `content.type='template'` only when `status='APPROVED'`.",
+        "tags": [
+          "WhatsApp Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Templates list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "language": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "One of APPROVED, PENDING, REJECTED, IN_APPEAL, PAUSED, DISABLED."
+                          },
+                          "components": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "language",
+                          "category",
+                          "status"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a WhatsApp message template",
+        "description": "Submits a new template for Meta review. Returns immediately with `status: PENDING`. Use `GET /api/v1/whatsapp/templates` to poll the approval status. Body text supports `{{param_name}}` placeholders — when provided, the SDK auto-generates the required `body_text_named_params` example block and sets `parameter_format=NAMED` on the Meta payload.",
+        "tags": [
+          "WhatsApp Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "description": "Lowercase letters, digits and underscores only."
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "AUTHENTICATION",
+                      "MARKETING",
+                      "UTILITY"
+                    ]
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 10,
+                    "description": "BCP-47 (e.g. 'en_US', 'es')."
+                  },
+                  "body_text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "`{{param_name}}` placeholders auto-generate a NAMED `example` block."
+                  },
+                  "header_text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "footer_text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "name",
+                  "category",
+                  "language",
+                  "body_text"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta template create failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/templates/{name}": {
+      "delete": {
+        "summary": "Delete a WhatsApp message template by name",
+        "description": "Deletes the template at Meta. Cannot be undone.",
+        "tags": [
+          "WhatsApp Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Template name. Must match `^[a-z0-9_]+$`."
+            },
+            "required": true,
+            "description": "Template name. Must match `^[a-z0-9_]+$`.",
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Template deleted"
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid template name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta template delete failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/broadcasts": {
+      "get": {
+        "summary": "List broadcasts",
+        "description": "Returns up to 50 most-recent broadcasts for the connection, newest first.",
+        "tags": [
+          "WhatsApp Broadcasts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Broadcasts list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "template_name": {
+                            "type": "string"
+                          },
+                          "template_language": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "sending",
+                              "completed",
+                              "cancelled",
+                              "failed"
+                            ]
+                          },
+                          "total_recipients": {
+                            "type": "integer"
+                          },
+                          "sent_count": {
+                            "type": "integer"
+                          },
+                          "delivered_count": {
+                            "type": "integer"
+                          },
+                          "read_count": {
+                            "type": "integer"
+                          },
+                          "failed_count": {
+                            "type": "integer"
+                          },
+                          "started_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "completed_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "template_name",
+                          "template_language",
+                          "status",
+                          "total_recipients",
+                          "sent_count",
+                          "delivered_count",
+                          "read_count",
+                          "failed_count",
+                          "started_at",
+                          "completed_at",
+                          "created_at"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a broadcast",
+        "description": "Creates a `draft` broadcast row + recipient rows. Does NOT start sending — call `POST /api/v1/whatsapp/broadcasts/{id}/send` to dispatch. Recipients are capped at 1,000 per broadcast (matches the internal UI cap).",
+        "tags": [
+          "WhatsApp Broadcasts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "template_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "template_language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 10
+                  },
+                  "template_components": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "recipients": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "phone_number": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 32
+                        },
+                        "template_params": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "phone_number"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 1000
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "template_name",
+                  "template_language",
+                  "recipients"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Broadcast created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "template_name": {
+                          "type": "string"
+                        },
+                        "template_language": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "sending",
+                            "completed",
+                            "cancelled",
+                            "failed"
+                          ]
+                        },
+                        "total_recipients": {
+                          "type": "integer"
+                        },
+                        "sent_count": {
+                          "type": "integer"
+                        },
+                        "delivered_count": {
+                          "type": "integer"
+                        },
+                        "read_count": {
+                          "type": "integer"
+                        },
+                        "failed_count": {
+                          "type": "integer"
+                        },
+                        "started_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "completed_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "template_name",
+                        "template_language",
+                        "status",
+                        "total_recipients",
+                        "sent_count",
+                        "delivered_count",
+                        "read_count",
+                        "failed_count",
+                        "started_at",
+                        "completed_at",
+                        "created_at"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/broadcasts/{id}": {
+      "get": {
+        "summary": "Get a broadcast + recipients",
+        "description": "Returns the broadcast row plus up to 200 recipients with delivery state.",
+        "tags": [
+          "WhatsApp Broadcasts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Broadcast detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "template_name": {
+                          "type": "string"
+                        },
+                        "template_language": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "sending",
+                            "completed",
+                            "cancelled",
+                            "failed"
+                          ]
+                        },
+                        "total_recipients": {
+                          "type": "integer"
+                        },
+                        "sent_count": {
+                          "type": "integer"
+                        },
+                        "delivered_count": {
+                          "type": "integer"
+                        },
+                        "read_count": {
+                          "type": "integer"
+                        },
+                        "failed_count": {
+                          "type": "integer"
+                        },
+                        "started_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "completed_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string"
+                        },
+                        "recipients": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "phone_number": {
+                                "type": "string"
+                              },
+                              "template_params": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "additionalProperties": {}
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "pending",
+                                  "sent",
+                                  "delivered",
+                                  "read",
+                                  "failed",
+                                  "cancelled"
+                                ]
+                              },
+                              "wamid": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "error_message": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "sent_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "phone_number",
+                              "template_params",
+                              "status",
+                              "wamid",
+                              "error_message",
+                              "sent_at"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "template_name",
+                        "template_language",
+                        "status",
+                        "total_recipients",
+                        "sent_count",
+                        "delivered_count",
+                        "read_count",
+                        "failed_count",
+                        "started_at",
+                        "completed_at",
+                        "created_at",
+                        "recipients"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Broadcast not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Cancel a broadcast",
+        "description": "Marks an in-flight broadcast as `cancelled`. Recipients not yet sent stay `pending` permanently. Already-sent messages are NOT recalled.",
+        "tags": [
+          "WhatsApp Broadcasts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "cancelled"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Broadcast cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "template_name": {
+                          "type": "string"
+                        },
+                        "template_language": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "sending",
+                            "completed",
+                            "cancelled",
+                            "failed"
+                          ]
+                        },
+                        "total_recipients": {
+                          "type": "integer"
+                        },
+                        "sent_count": {
+                          "type": "integer"
+                        },
+                        "delivered_count": {
+                          "type": "integer"
+                        },
+                        "read_count": {
+                          "type": "integer"
+                        },
+                        "failed_count": {
+                          "type": "integer"
+                        },
+                        "started_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "completed_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "template_name",
+                        "template_language",
+                        "status",
+                        "total_recipients",
+                        "sent_count",
+                        "delivered_count",
+                        "read_count",
+                        "failed_count",
+                        "started_at",
+                        "completed_at",
+                        "created_at"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Broadcast not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Broadcast is not in a cancellable status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/broadcasts/{id}/send": {
+      "post": {
+        "summary": "Start sending a broadcast",
+        "description": "Transitions the broadcast to `sending` and iterates recipients with a 100ms inter-send pacing. Per-recipient sends call the WhatsApp Cloud API; failures mark the recipient `failed` without aborting the run. **Long-running**: this endpoint blocks until all recipients have been attempted. For broadcasts over a few hundred recipients prefer to leave the connection open longer than your client's default timeout.",
+        "tags": [
+          "WhatsApp Broadcasts"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Broadcast send completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "template_name": {
+                          "type": "string"
+                        },
+                        "template_language": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "sending",
+                            "completed",
+                            "cancelled",
+                            "failed"
+                          ]
+                        },
+                        "total_recipients": {
+                          "type": "integer"
+                        },
+                        "sent_count": {
+                          "type": "integer"
+                        },
+                        "delivered_count": {
+                          "type": "integer"
+                        },
+                        "read_count": {
+                          "type": "integer"
+                        },
+                        "failed_count": {
+                          "type": "integer"
+                        },
+                        "started_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "completed_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "template_name",
+                        "template_language",
+                        "status",
+                        "total_recipients",
+                        "sent_count",
+                        "delivered_count",
+                        "read_count",
+                        "failed_count",
+                        "started_at",
+                        "completed_at",
+                        "created_at"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Broadcast not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Broadcast is not in a sendable status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/triggers": {
+      "get": {
+        "summary": "List comment-to-DM triggers",
+        "description": "Returns every trigger for the Instagram account behind the supplied `connection_id`, oldest first. Triggers fire on inbound comments where the comment text matches `keyword` per `keyword_match_mode`; the matching commenter receives `opening_message` as a DM and (optionally) `public_comment_reply` as a public reply.",
+        "tags": [
+          "Instagram Triggers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Triggers list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "connection_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "keyword": {
+                            "type": "string"
+                          },
+                          "keyword_match_mode": {
+                            "type": "string",
+                            "enum": [
+                              "contains",
+                              "exact",
+                              "regex"
+                            ]
+                          },
+                          "case_sensitive": {
+                            "type": "boolean"
+                          },
+                          "post_id_allowlist": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "opening_message": {
+                            "type": "string"
+                          },
+                          "public_comment_reply": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "agent_context_hint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "trigger_count": {
+                            "type": "integer"
+                          },
+                          "last_triggered_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "connection_id",
+                          "keyword",
+                          "keyword_match_mode",
+                          "case_sensitive",
+                          "post_id_allowlist",
+                          "opening_message",
+                          "public_comment_reply",
+                          "agent_context_hint",
+                          "enabled",
+                          "trigger_count",
+                          "last_triggered_at",
+                          "created_at",
+                          "updated_at"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a comment-to-DM trigger",
+        "description": "Inserts a new trigger row. Each (ig_account, keyword) is unique — duplicates 409.",
+        "tags": [
+          "Instagram Triggers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "keyword": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "keyword_match_mode": {
+                    "type": "string",
+                    "enum": [
+                      "contains",
+                      "exact",
+                      "regex"
+                    ],
+                    "default": "contains"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "post_id_allowlist": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "maxItems": 200
+                  },
+                  "opening_message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "public_comment_reply": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000
+                  },
+                  "agent_context_hint": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1000
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "keyword",
+                  "opening_message"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Trigger created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "connection_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "keyword": {
+                          "type": "string"
+                        },
+                        "keyword_match_mode": {
+                          "type": "string",
+                          "enum": [
+                            "contains",
+                            "exact",
+                            "regex"
+                          ]
+                        },
+                        "case_sensitive": {
+                          "type": "boolean"
+                        },
+                        "post_id_allowlist": {
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "opening_message": {
+                          "type": "string"
+                        },
+                        "public_comment_reply": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "agent_context_hint": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "trigger_count": {
+                          "type": "integer"
+                        },
+                        "last_triggered_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "connection_id",
+                        "keyword",
+                        "keyword_match_mode",
+                        "case_sensitive",
+                        "post_id_allowlist",
+                        "opening_message",
+                        "public_comment_reply",
+                        "agent_context_hint",
+                        "enabled",
+                        "trigger_count",
+                        "last_triggered_at",
+                        "created_at",
+                        "updated_at"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A trigger with this keyword already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/triggers/{id}": {
+      "patch": {
+        "summary": "Update a comment-to-DM trigger",
+        "description": "Partial update. Any field from the create body is acceptable.",
+        "tags": [
+          "Instagram Triggers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keyword": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "keyword_match_mode": {
+                    "type": "string",
+                    "enum": [
+                      "contains",
+                      "exact",
+                      "regex"
+                    ],
+                    "default": "contains"
+                  },
+                  "case_sensitive": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "post_id_allowlist": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "maxItems": 200
+                  },
+                  "opening_message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "public_comment_reply": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000
+                  },
+                  "agent_context_hint": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 1000
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trigger updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "connection_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "keyword": {
+                          "type": "string"
+                        },
+                        "keyword_match_mode": {
+                          "type": "string",
+                          "enum": [
+                            "contains",
+                            "exact",
+                            "regex"
+                          ]
+                        },
+                        "case_sensitive": {
+                          "type": "boolean"
+                        },
+                        "post_id_allowlist": {
+                          "type": [
+                            "array",
+                            "null"
+                          ],
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "opening_message": {
+                          "type": "string"
+                        },
+                        "public_comment_reply": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "agent_context_hint": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "trigger_count": {
+                          "type": "integer"
+                        },
+                        "last_triggered_at": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "created_at": {
+                          "type": "string"
+                        },
+                        "updated_at": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "connection_id",
+                        "keyword",
+                        "keyword_match_mode",
+                        "case_sensitive",
+                        "post_id_allowlist",
+                        "opening_message",
+                        "public_comment_reply",
+                        "agent_context_hint",
+                        "enabled",
+                        "trigger_count",
+                        "last_triggered_at",
+                        "created_at",
+                        "updated_at"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Trigger not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a comment-to-DM trigger",
+        "description": "Hard-deletes the trigger row. Existing claim ledger rows expire naturally.",
+        "tags": [
+          "Instagram Triggers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Trigger deleted"
+          },
+          "404": {
+            "description": "Trigger not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/triggers/{id}/test-dm": {
+      "post": {
+        "summary": "Send the trigger's opening_message as a DM to a test IGSID",
+        "description": "Uses the HUMAN_AGENT message tag — recipient must have DMed the IG account within the past 7 days, otherwise Meta rejects the send. Intended for QA without polluting the comment trigger's `trigger_count`.",
+        "tags": [
+          "Instagram Triggers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "recipient_igsid": {
+                    "type": "string",
+                    "pattern": "^\\d+$"
+                  }
+                },
+                "required": [
+                  "recipient_igsid"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test DM sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "provider_message_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "provider_message_id"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Trigger not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Meta rejected the send (recipient outside 7-day window)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/triggers/resume": {
+      "post": {
+        "summary": "Manually clear a tripped comment-to-DM circuit",
+        "description": "Clears the per-account `comment_to_dm_paused_until` and the Redis tripped flag, re-enabling trigger fires. The breaker normally clears itself once spam-pattern signals subside; this endpoint exists for ops intervention.",
+        "tags": [
+          "Instagram Triggers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Circuit cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "resumed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "resumed"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
                 }
               }
             }

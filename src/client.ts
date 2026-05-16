@@ -2,34 +2,46 @@ import { resolveConfig, type AtribuClientConfig } from "./config";
 import { HttpClient, type HttpClientLike } from "./http";
 import { MessagesResource } from "./resources/messages";
 import { CommentsResource } from "./resources/comments";
+import { ConnectionsResource } from "./resources/connections";
 import { WebhookSubscriptionsResource } from "./resources/webhook-subscriptions";
 import { WebhookDeliveriesResource } from "./resources/webhook-deliveries";
+import { WhatsAppNamespace } from "./resources/whatsapp";
+import { InstagramNamespace } from "./resources/instagram";
 import { RetryingHttpClient, type RetryOptions } from "./retry-wrapper";
 
 interface ResourceBundle {
   messages: MessagesResource;
   comments: CommentsResource;
+  connections: ConnectionsResource;
   webhooks: {
     subscriptions: WebhookSubscriptionsResource;
     deliveries: WebhookDeliveriesResource;
   };
+  whatsapp: WhatsAppNamespace;
+  instagram: InstagramNamespace;
 }
 
 function buildResources(http: HttpClientLike): ResourceBundle {
   return {
     messages: new MessagesResource(http),
     comments: new CommentsResource(http),
+    connections: new ConnectionsResource(http),
     webhooks: {
       subscriptions: new WebhookSubscriptionsResource(http),
       deliveries: new WebhookDeliveriesResource(http),
     },
+    whatsapp: new WhatsAppNamespace(http),
+    instagram: new InstagramNamespace(http),
   };
 }
 
 export class AtribuClient {
   readonly messages: MessagesResource;
   readonly comments: CommentsResource;
+  readonly connections: ConnectionsResource;
   readonly webhooks: ResourceBundle["webhooks"];
+  readonly whatsapp: WhatsAppNamespace;
+  readonly instagram: InstagramNamespace;
 
   /** @internal — exposed for `withRetry` chaining; do not depend on this. */
   protected readonly _http: HttpClientLike;
@@ -39,7 +51,10 @@ export class AtribuClient {
     const r = buildResources(this._http);
     this.messages = r.messages;
     this.comments = r.comments;
+    this.connections = r.connections;
     this.webhooks = r.webhooks;
+    this.whatsapp = r.whatsapp;
+    this.instagram = r.instagram;
   }
 
   /**
@@ -69,7 +84,10 @@ export class AtribuClient {
       _http: http,
       messages: r.messages,
       comments: r.comments,
+      connections: r.connections,
       webhooks: r.webhooks,
+      whatsapp: r.whatsapp,
+      instagram: r.instagram,
     });
     return proto as AtribuClient;
   }

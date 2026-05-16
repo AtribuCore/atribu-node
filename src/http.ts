@@ -185,7 +185,7 @@ function parseOauthError(parsed: unknown): { code: OauthErrorCode; description: 
 
 function mergeSignals(a: AbortSignal, b: AbortSignal): AbortSignal {
   if (typeof AbortSignal !== "undefined" && "any" in AbortSignal) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (AbortSignal as unknown as { any: (s: AbortSignal[]) => AbortSignal }).any([a, b]);
   }
   const c = new AbortController();
