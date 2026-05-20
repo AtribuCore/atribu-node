@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-20
+
+### Added
+
+- **`human_agent` on `messages.send()`** (Instagram only). Pass `human_agent: true` to send with Meta's `HUMAN_AGENT` tag, letting an authorized human agent reply outside the 24-hour window (up to 7 days). Set this **only** for messages genuinely sent by a human agent — never for automated/bot replies, which violates Meta's messaging policy. Ignored on WhatsApp (which uses approved templates outside its 24h window). Backwards-compatible: the field is optional and defaults off.
+
 ## [0.3.0] — 2026-05-16
 
 Server-side Meta error classification reaches the SDK. WhatsApp + Instagram failures from the underlying Meta APIs now arrive with the right HTTP status code + `code` field instead of being flattened to `502 provider_error`. **Observable API surface change** — consumers that switched on status `502` for Meta failures should add `401`/`403`/`429` handling. The error shape (`{ code, status, message, request_id }`) is unchanged.

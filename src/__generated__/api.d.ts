@@ -2202,6 +2202,8 @@ export interface paths {
                                 payload: string;
                             }[];
                         };
+                        /** @description Instagram only. When true, the message is sent with Meta's HUMAN_AGENT tag, letting an authorized human agent reply outside the 24-hour window (up to 7 days). Set this ONLY for messages genuinely sent by a human agent — never for automated/bot replies, which would violate Meta's messaging policy. Ignored on WhatsApp. */
+                        human_agent?: boolean;
                     };
                 };
             };
