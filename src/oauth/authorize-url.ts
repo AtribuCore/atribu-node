@@ -15,6 +15,12 @@ export interface BuildAuthorizeUrlInput {
   /** PKCE challenge (base64url of SHA-256). */
   codeChallenge?: string;
   codeChallengeMethod?: "S256" | "plain";
+  /**
+   * Instagram login type (only meaningful when provider/scope is `instagram`):
+   * `"facebook"` → Facebook Login (default; requires a linked Facebook Page),
+   * `"instagram"` → native Instagram Login (no Facebook Page).
+   */
+  instagramLogin?: "facebook" | "instagram";
   /** Forwards extra query params unchanged. */
   extras?: Record<string, string>;
 }
@@ -48,6 +54,9 @@ export function buildAuthorizeUrl(input: BuildAuthorizeUrlInput): string {
   if (input.codeChallenge && input.codeChallengeMethod) {
     url.searchParams.set("code_challenge", input.codeChallenge);
     url.searchParams.set("code_challenge_method", input.codeChallengeMethod);
+  }
+  if (input.instagramLogin) {
+    url.searchParams.set("instagram_login", input.instagramLogin);
   }
   if (input.extras) {
     for (const [k, v] of Object.entries(input.extras)) url.searchParams.set(k, v);

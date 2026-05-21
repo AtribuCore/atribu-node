@@ -69,6 +69,22 @@ describe("buildAuthorizeUrl", () => {
       buildAuthorizeUrl({ ...base, codeChallenge: "x" }),
     ).toThrow(/codeChallengeMethod/);
   });
+
+  it("sets instagram_login when instagramLogin is provided", () => {
+    const url = buildAuthorizeUrl({
+      ...base,
+      provider: "instagram",
+      scope: "instagram",
+      instagramLogin: "instagram",
+    });
+    expect(new URL(url).searchParams.get("instagram_login")).toBe("instagram");
+  });
+
+  it("omits instagram_login by default", () => {
+    expect(
+      new URL(buildAuthorizeUrl(base)).searchParams.has("instagram_login"),
+    ).toBe(false);
+  });
 });
 
 describe("PKCE helpers", () => {

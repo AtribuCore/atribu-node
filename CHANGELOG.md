@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-21
+
+### Added
+
+- **`instagramLogin` on `buildAuthorizeUrl()`** (Instagram only). Choose the Instagram connection method: `"facebook"` (Facebook Login — the default; requires the IG account be linked to a Facebook Page you admin) or `"instagram"` (native Instagram Login — log in directly at instagram.com, no Facebook Page needed). Emits the `instagram_login` query param. Backwards-compatible: optional, defaults to `"facebook"` (prior behavior). Only meaningful when `provider`/`scope` is `instagram`.
+
 ## [0.4.0] — 2026-05-20
 
 ### Added
