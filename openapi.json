@@ -4713,7 +4713,7 @@
     "/api/v1/messages": {
       "post": {
         "summary": "Send a channel-agnostic message",
-        "description": "Sends a WhatsApp or Instagram message via a connected `data_connection`. Requires the `whatsapp` or `instagram` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).\n\n**WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.\n\n**Instagram image** accepts `image_url` directly (Meta downloads the URL). Quick replies are IG-only.",
+        "description": "Sends a WhatsApp or Instagram message via a connected `data_connection`. Requires the `whatsapp` or `instagram` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).\n\n**WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.\n\n**Instagram image/video** accept `image_url` / `video_url` directly (Meta fetches the URL). Quick replies are IG-only.",
         "tags": [
           "Messaging"
         ],
@@ -4840,6 +4840,11 @@
                               "video"
                             ]
                           },
+                          "video_url": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "Instagram path — public HTTPS URL Meta fetches as a `video` attachment."
+                          },
                           "media": {
                             "type": "object",
                             "properties": {
@@ -4852,17 +4857,18 @@
                                 "format": "uri",
                                 "description": "Publicly accessible HTTPS URL. Meta fetches at send-time; no auth, no caching, size caps enforced server-side."
                               }
-                            }
+                            },
+                            "description": "WhatsApp path — either media_id or link."
                           },
                           "caption": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "WhatsApp only; ignored on Instagram."
                           }
                         },
                         "required": [
-                          "type",
-                          "media"
+                          "type"
                         ],
-                        "description": "WhatsApp only."
+                        "description": "WhatsApp (media) or Instagram (video_url)."
                       },
                       {
                         "type": "object",
@@ -7515,6 +7521,148 @@
                     "data",
                     "meta"
                   ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/contacts/{igsid}": {
+      "get": {
+        "summary": "Resolve an Instagram contact's profile",
+        "description": "Resolves an IGSID (the sender id Meta puts on inbound DM/comment webhooks) to that person's public profile — name, `@username`, avatar, follower count, and the mutual-follow flags — for the Instagram account behind the supplied `connection_id`. Backs an inbox so it can show `@jane` + an avatar instead of a bare numeric id. Requires the connection's messaging permission (`instagram_manage_messages` for fb_login, `instagram_business_manage_messages` for ig_login) and an active conversation with the user. Returns 404 when the profile can't be resolved (user blocked DMs, invalid IGSID, missing permission) — fall back to the raw IGSID.",
+        "tags": [
+          "Instagram"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Instagram-scoped user id from a webhook event."
+            },
+            "required": true,
+            "description": "Instagram-scoped user id from a webhook event.",
+            "name": "igsid",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contact profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "igsid": {
+                          "type": "string",
+                          "description": "The Instagram-scoped user id that was looked up."
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Display name, if visible."
+                        },
+                        "username": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "@handle, if visible."
+                        },
+                        "profile_pic": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Avatar URL (short-lived; re-fetch as needed)."
+                        },
+                        "is_verified_user": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "follower_count": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "is_user_follow_business": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ],
+                          "description": "Whether this user follows the connected account."
+                        },
+                        "is_business_follow_user": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ],
+                          "description": "Whether the connected account follows this user."
+                        }
+                      },
+                      "required": [
+                        "igsid",
+                        "name",
+                        "username",
+                        "profile_pic",
+                        "is_verified_user",
+                        "follower_count",
+                        "is_user_follow_business",
+                        "is_business_follow_user"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Profile could not be resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

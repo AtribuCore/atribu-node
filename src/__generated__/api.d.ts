@@ -2091,7 +2091,7 @@ export interface paths {
          *
          *     **WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.
          *
-         *     **Instagram image** accepts `image_url` directly (Meta downloads the URL). Quick replies are IG-only.
+         *     **Instagram image/video** accept `image_url` / `video_url` directly (Meta fetches the URL). Quick replies are IG-only.
          */
         post: {
             parameters: {
@@ -2144,7 +2144,13 @@ export interface paths {
                         } | {
                             /** @enum {string} */
                             type: "video";
-                            media: {
+                            /**
+                             * Format: uri
+                             * @description Instagram path — public HTTPS URL Meta fetches as a `video` attachment.
+                             */
+                            video_url?: string;
+                            /** @description WhatsApp path — either media_id or link. */
+                            media?: {
                                 /** @description Pre-uploaded handle from POST /{phone-number-id}/media. Valid 30 days. Meta-cached. */
                                 media_id?: string;
                                 /**
@@ -2153,6 +2159,7 @@ export interface paths {
                                  */
                                 link?: string;
                             };
+                            /** @description WhatsApp only; ignored on Instagram. */
                             caption?: string;
                         } | {
                             /** @enum {string} */
@@ -3561,6 +3568,86 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instagram/contacts/{igsid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve an Instagram contact's profile
+         * @description Resolves an IGSID (the sender id Meta puts on inbound DM/comment webhooks) to that person's public profile — name, `@username`, avatar, follower count, and the mutual-follow flags — for the Instagram account behind the supplied `connection_id`. Backs an inbox so it can show `@jane` + an avatar instead of a bare numeric id. Requires the connection's messaging permission (`instagram_manage_messages` for fb_login, `instagram_business_manage_messages` for ig_login) and an active conversation with the user. Returns 404 when the profile can't be resolved (user blocked DMs, invalid IGSID, missing permission) — fall back to the raw IGSID.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path: {
+                    /** @description Instagram-scoped user id from a webhook event. */
+                    igsid: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Contact profile */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description The Instagram-scoped user id that was looked up. */
+                                igsid: string;
+                                /** @description Display name, if visible. */
+                                name: string | null;
+                                /** @description @handle, if visible. */
+                                username: string | null;
+                                /** @description Avatar URL (short-lived; re-fetch as needed). */
+                                profile_pic: string | null;
+                                is_verified_user: boolean | null;
+                                follower_count: number | null;
+                                /** @description Whether this user follows the connected account. */
+                                is_user_follow_business: boolean | null;
+                                /** @description Whether the connected account follows this user. */
+                                is_business_follow_user: boolean | null;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Profile could not be resolved */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;

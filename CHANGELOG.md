@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-22
+
+### Added
+
+- **`client.instagram.contacts.get(igsid, { connectionId })`** — resolve an Instagram contact's profile (`name`, `@username`, avatar, follower count, and the mutual-follow flags) from an IGSID, the sender id Meta puts on inbound DM/comment webhooks. Backs an inbox so it can show "@jane" + an avatar instead of a bare numeric id. Throws `AtribuApiError` with status `404` when the profile can't be resolved (user blocked DMs, invalid IGSID, or the connection lacks the messaging permission) — fall back to the raw IGSID.
+- **Instagram video on `messages.send()`** — the `video` content type now accepts `video_url` (a public HTTPS URL Meta fetches as a `video` attachment) for Instagram, alongside the existing WhatsApp `media` (media_id / link) path. Backwards-compatible: WhatsApp video sends are unchanged; `caption` stays WhatsApp-only.
+
 ## [0.5.0] — 2026-05-21
 
 ### Added
