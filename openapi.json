@@ -253,6 +253,40 @@
           "data",
           "meta"
         ]
+      },
+      "MediaUploadResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "media_id": {
+                "type": "string",
+                "example": "1234567890123456"
+              },
+              "mime_type": {
+                "type": "string",
+                "example": "video/mp4"
+              },
+              "file_size": {
+                "type": "number",
+                "example": 452012
+              }
+            },
+            "required": [
+              "media_id",
+              "mime_type",
+              "file_size"
+            ]
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
       }
     },
     "parameters": {
@@ -5131,6 +5165,117 @@
           },
           "502": {
             "description": "Upstream Meta send failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/media": {
+      "post": {
+        "summary": "Upload WhatsApp media (pre-upload → media_id)",
+        "description": "Uploads a binary to Meta's WhatsApp `/{phone-number-id}/media` endpoint and returns a `media_id` (Meta-cached ~30 days). Reference it on `POST /api/v1/messages` as `content.media.media_id`.\n\nPrefer this over `media.link` for reliability: with a media_id Meta never fetches your URL, so origin-hosted, private, short-lived, or non-public media works — a `link` requires Meta to fetch a public HTTPS URL at send time. It's also the right path for high-fanout sends.\n\n**WhatsApp only** (Instagram fetches public URLs directly via `image_url` / `video_url`). Requires the `whatsapp` scope. Size caps: image 5MB, sticker 500KB, video/audio 16MB, document 100MB.",
+        "tags": [
+          "Messaging"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Target WhatsApp `data_connection`."
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The media binary."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaUploadResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `whatsapp` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (status != connected)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File exceeds the WhatsApp size cap for its type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing/invalid `file` or `connection_id`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta upload failed",
             "content": {
               "application/json": {
                 "schema": {

@@ -2288,6 +2288,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload WhatsApp media (pre-upload → media_id)
+         * @description Uploads a binary to Meta's WhatsApp `/{phone-number-id}/media` endpoint and returns a `media_id` (Meta-cached ~30 days). Reference it on `POST /api/v1/messages` as `content.media.media_id`.
+         *
+         *     Prefer this over `media.link` for reliability: with a media_id Meta never fetches your URL, so origin-hosted, private, short-lived, or non-public media works — a `link` requires Meta to fetch a public HTTPS URL at send time. It's also the right path for high-fanout sends.
+         *
+         *     **WhatsApp only** (Instagram fetches public URLs directly via `image_url` / `video_url`). Requires the `whatsapp` scope. Size caps: image 5MB, sticker 500KB, video/audio 16MB, document 100MB.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /**
+                         * Format: uuid
+                         * @description Target WhatsApp `data_connection`.
+                         */
+                        connection_id: string;
+                        /**
+                         * Format: binary
+                         * @description The media binary.
+                         */
+                        file: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Uploaded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaUploadResponse"];
+                    };
+                };
+                /** @description Missing `whatsapp` scope or OAuth-app not authorized for this connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (status != connected) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description File exceeds the WhatsApp size cap for its type */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing/invalid `file` or `connection_id` */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta upload failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/comments/{comment_id}/private-reply": {
         parameters: {
             query?: never;
@@ -4722,6 +4834,17 @@ export interface components {
                     cash_revenue: number;
                     cash_payments: number;
                 };
+            };
+            meta: components["schemas"]["Meta"];
+        };
+        MediaUploadResponse: {
+            data: {
+                /** @example 1234567890123456 */
+                media_id: string;
+                /** @example video/mp4 */
+                mime_type: string;
+                /** @example 452012 */
+                file_size: number;
             };
             meta: components["schemas"]["Meta"];
         };

@@ -27,6 +27,12 @@ export interface RequestOptions {
   body?: unknown;
   /** Form-urlencoded body (used by /oauth/token, /oauth/revoke). */
   form?: Record<string, string>;
+  /**
+   * multipart/form-data body (used by media uploads). Passed to fetch as-is;
+   * the runtime sets the `Content-Type` with the boundary, so we must NOT set
+   * it ourselves. Takes precedence over `body`/`form`.
+   */
+  multipart?: FormData;
   /** Override the Authorization header (used by /oauth/* with client-credentials). */
   authOverride?: string;
   idempotencyKey?: string;
@@ -62,7 +68,9 @@ export class HttpClient implements HttpClientLike {
     const headers = this.buildHeaders(opts);
 
     let body: BodyInit | undefined;
-    if (opts.form) {
+    if (opts.multipart) {
+      body = opts.multipart;
+    } else if (opts.form) {
       body = new URLSearchParams(opts.form).toString();
     } else if (opts.body !== undefined && opts.method !== "GET") {
       body = JSON.stringify(opts.body);
@@ -145,7 +153,9 @@ export class HttpClient implements HttpClientLike {
         ? `${SDK_UA} ${this.cfg.userAgentSuffix}`
         : SDK_UA,
     };
-    if (opts.form) {
+    if (opts.multipart) {
+      // Leave Content-Type unset — the runtime adds it with the boundary.
+    } else if (opts.form) {
       headers["Content-Type"] = "application/x-www-form-urlencoded";
     } else if (opts.body !== undefined && opts.method !== "GET") {
       headers["Content-Type"] = "application/json";

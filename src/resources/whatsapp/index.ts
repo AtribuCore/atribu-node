@@ -1,6 +1,7 @@
 import type { HttpClientLike } from "../../http";
 import { WhatsAppTemplatesResource } from "./templates";
 import { WhatsAppBroadcastsResource } from "./broadcasts";
+import { WhatsAppMediaResource } from "./media";
 
 /**
  * WhatsApp-specific resource namespace. Mounted on `AtribuClient.whatsapp`.
@@ -9,10 +10,12 @@ import { WhatsAppBroadcastsResource } from "./broadcasts";
 export class WhatsAppNamespace {
   readonly templates: WhatsAppTemplatesResource;
   readonly broadcasts: WhatsAppBroadcastsResource;
+  readonly media: WhatsAppMediaResource;
 
   constructor(http: HttpClientLike) {
     this.templates = new WhatsAppTemplatesResource(http);
     this.broadcasts = new WhatsAppBroadcastsResource(http);
+    this.media = new WhatsAppMediaResource(http);
   }
 }
 
@@ -26,3 +29,4 @@ export type {
   WhatsAppBroadcastDetail,
   WhatsAppBroadcastCreateInput,
 } from "./broadcasts";
+export type { WhatsAppMediaUpload, UploadMediaOptions } from "./media";

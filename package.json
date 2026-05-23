@@ -1,6 +1,6 @@
 {
   "name": "@atribu/node",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Official Node.js SDK for the Atribu API — authorize users, send WhatsApp & Instagram messages, and verify signed webhook deliveries.",
   "license": "MIT",
   "type": "module",

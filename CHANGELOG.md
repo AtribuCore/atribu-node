@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-23
+
+### Added
+
+- **`client.whatsapp.media.upload({ connectionId, file, contentType?, filename? })`** — pre-upload a WhatsApp media binary to Meta and get back a `media_id` to reference on `messages.send` as `content.media.media_id`. Accepts a `Blob`/`File` or raw bytes (`ArrayBuffer`/`Uint8Array`/`Buffer`). Prefer this over `media.link` for **video**: with a `media_id` Meta never fetches your URL, so origin-hosted / private / short-lived / dev-tunnelled media works (a `link` requires Meta to fetch a public HTTPS URL at send time, which fails for non-public origins — Meta error `131053`). The id is Meta-cached ~30 days, also ideal for high-fanout sends. Wraps the new `POST /api/v1/whatsapp/media` endpoint.
+
+### Internal
+
+- The transport now supports `multipart/form-data` request bodies (`RequestOptions.multipart`); the runtime sets the `Content-Type` boundary, so the SDK leaves it unset.
+
 ## [0.6.0] — 2026-05-22
 
 ### Added
