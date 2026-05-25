@@ -33,6 +33,21 @@ export type {
 } from "./resources/messages";
 
 export type {
+  EmailSearchInput,
+  EmailSearchResult,
+  EmailThread,
+  EmailThreadMessage,
+  EmailDraftInput,
+  EmailDraftResult,
+  EmailModifyLabelsInput,
+  EmailModifyLabelsResult,
+  EmailLabelsResult,
+  EmailLabel,
+  EmailMutationOptions,
+  EmailReadOptions,
+} from "./resources/email";
+
+export type {
   CommentReplyInput,
   CommentPrivateReplyInput,
   CommentReplyResponse,

@@ -4770,12 +4770,13 @@
                     "type": "string",
                     "enum": [
                       "whatsapp",
-                      "instagram"
+                      "instagram",
+                      "email"
                     ]
                   },
                   "to": {
                     "type": "string",
-                    "description": "E.164 phone for WhatsApp; IGSID for Instagram."
+                    "description": "E.164 phone for WhatsApp; IGSID for Instagram; recipient email address for Email."
                   },
                   "content": {
                     "anyOf": [
@@ -5053,6 +5054,59 @@
                           "quick_replies"
                         ],
                         "description": "Instagram only — up to 13 quick replies."
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "email"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string",
+                            "description": "Subject line. Omit on a reply to keep the thread subject."
+                          },
+                          "text": {
+                            "type": "string",
+                            "description": "Plain-text body."
+                          },
+                          "html": {
+                            "type": "string",
+                            "description": "HTML body. Provide text and/or html."
+                          },
+                          "in_reply_to": {
+                            "type": "string",
+                            "description": "RFC822 Message-ID being replied to (round-trip `rfc822_message_id` from the inbound event)."
+                          },
+                          "references": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "RFC822 References chain (round-trip from the inbound event)."
+                          },
+                          "thread_id": {
+                            "type": "string",
+                            "description": "Gmail threadId / Outlook conversationId — keeps the reply in-thread."
+                          },
+                          "reply_to_message_id": {
+                            "type": "string",
+                            "description": "Outlook: the inbound message id to `/reply` against (auto-threads). Ignored for Gmail."
+                          },
+                          "cc": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "CC recipient emails."
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ],
+                        "description": "Email only (Gmail/Outlook). Provide text and/or html; carry the thread anchors from the inbound event to reply in-thread."
                       }
                     ]
                   },
@@ -5090,7 +5144,8 @@
                           "type": "string",
                           "enum": [
                             "whatsapp",
-                            "instagram"
+                            "instagram",
+                            "email"
                           ]
                         },
                         "to": {
@@ -5518,6 +5573,787 @@
           },
           "404": {
             "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/email/search": {
+      "post": {
+        "summary": "Search threads in a connected mailbox",
+        "description": "Searches a connected Gmail/Outlook mailbox and returns matching threads. `query` is Gmail search syntax (`from:`, `subject:`, `is:unread`, `newer_than:7d`) or Outlook KQL. Gmail returns thread refs (snippet only); Outlook search returns messages deduped to conversations (subject + preview). Requires the `email` scope.",
+        "tags": [
+          "Email"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "max": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Max threads (default 25)."
+                  },
+                  "cursor": {
+                    "type": "string",
+                    "description": "Gmail pageToken passthrough; Outlook search is unpaginated."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "query"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching threads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "threads": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Provider thread key — Gmail threadId / Outlook conversationId."
+                              },
+                              "snippet": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "subject": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Populated for Outlook search; null for Gmail thread refs."
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "snippet",
+                              "subject"
+                            ]
+                          }
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "threads",
+                        "next_cursor"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `email` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/email/threads/{id}": {
+      "get": {
+        "summary": "Get a normalized email thread",
+        "description": "Returns every message in a thread, normalized to a provider-agnostic shape (oldest-first). `{id}` is the provider thread key (Gmail threadId / Outlook conversationId) — round-trip it from search results or the inbound `message.received` webhook. Requires the `email` scope.",
+        "tags": [
+          "Email"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thread messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "thread_id": {
+                          "type": "string"
+                        },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "message_id": {
+                                "type": "string"
+                              },
+                              "thread_id": {
+                                "type": "string"
+                              },
+                              "rfc822_message_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "in_reply_to": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "references": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "from": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "properties": {
+                                  "email": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "email",
+                                  "name"
+                                ]
+                              },
+                              "to": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "email": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "email",
+                                    "name"
+                                  ]
+                                }
+                              },
+                              "cc": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "email": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "email",
+                                    "name"
+                                  ]
+                                }
+                              },
+                              "subject": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "text_body": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "html_body": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "attachments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "filename": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "mime_type": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ]
+                                    },
+                                    "size_bytes": {
+                                      "type": [
+                                        "number",
+                                        "null"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "filename",
+                                    "mime_type",
+                                    "size_bytes"
+                                  ]
+                                }
+                              },
+                              "sent_at": {
+                                "type": "string"
+                              },
+                              "direction": {
+                                "type": "string",
+                                "enum": [
+                                  "inbound",
+                                  "outbound"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "message_id",
+                              "thread_id",
+                              "rfc822_message_id",
+                              "in_reply_to",
+                              "references",
+                              "from",
+                              "to",
+                              "cc",
+                              "subject",
+                              "text_body",
+                              "html_body",
+                              "attachments",
+                              "sent_at",
+                              "direction"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "thread_id",
+                        "messages"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `email` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/email/drafts": {
+      "post": {
+        "summary": "Create a draft (reply or new)",
+        "description": "Creates a draft in the connected mailbox. Gmail builds a raw RFC822 draft attached to `thread_id` (carry `in_reply_to`/`references` to thread in other clients). Outlook uses `/createReply` when `reply_to_message_id` is given (auto-threads + auto-fills recipients), else a standalone draft. Provide `text` and/or `html`. Requires the `email` scope.",
+        "tags": [
+          "Email"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "thread_id": {
+                    "type": "string",
+                    "description": "Gmail threadId / Outlook conversationId."
+                  },
+                  "reply_to_message_id": {
+                    "type": "string",
+                    "description": "Outlook: inbound message id to `/createReply` against."
+                  },
+                  "in_reply_to": {
+                    "type": "string",
+                    "description": "RFC822 Message-ID being replied to (Gmail headers)."
+                  },
+                  "references": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "RFC822 References chain (Gmail headers)."
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "html": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Recipient emails. Required for Gmail and for standalone Outlook drafts."
+                  },
+                  "cc": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "draft_id": {
+                          "type": "string"
+                        },
+                        "thread_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "draft_id",
+                        "thread_id"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `email` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (missing body or required recipients)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/email/threads/{id}/labels": {
+      "post": {
+        "summary": "Add/remove labels on a thread",
+        "description": "Applies label changes to every message in a thread. Pass label NAMES — they resolve to Gmail labelIds server-side (call `GET /api/v1/email/labels` for valid names). Unknown `add` names 422; unknown `remove` names are a no-op. Outlook category mapping is a fast-follow (501). Requires the `email` scope.",
+        "tags": [
+          "Email"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "add": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Label names to add."
+                  },
+                  "remove": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Label names to remove."
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Labels applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "thread_id": {
+                          "type": "string"
+                        },
+                        "added": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "removed": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "thread_id",
+                        "added",
+                        "removed"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `email` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown label name / empty change set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Outlook thread labeling is a fast-follow",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/email/labels": {
+      "get": {
+        "summary": "List a mailbox's labels",
+        "description": "Returns the connected mailbox's labels (Gmail) or master categories (Outlook — its label analog). Names map back to the thread-labels endpoint. Requires the `email` scope.",
+        "tags": [
+          "Email"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Labels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "labels": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Gmail: 'system'|'user'. Outlook: 'category'."
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "type"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "labels"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `email` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
             "content": {
               "application/json": {
                 "schema": {
@@ -7977,7 +8813,8 @@
                       "type": "string",
                       "enum": [
                         "whatsapp",
-                        "instagram"
+                        "instagram",
+                        "email"
                       ]
                     }
                   }

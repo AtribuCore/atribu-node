@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-25
+
+### Added
+
+- **`client.email`** — a dedicated email-management resource backing an agent's inbox tools (Gmail + Outlook). Conversational send stays on `client.messages.send({ channel: "email", … })`; this surface adds the read/manage ops:
+  - `email.search({ connection_id, query, max?, cursor? })` — search threads (Gmail search syntax / Outlook KQL).
+  - `email.getThread(id, { connectionId })` — fetch a normalized thread (provider-agnostic messages, oldest-first).
+  - `email.createDraft({ connection_id, thread_id?, reply_to_message_id?, in_reply_to?, references?, subject?, text?, html?, to?, cc? })` — create a draft reply (Gmail raw RFC822 / Outlook `createReply`) or a new draft.
+  - `email.modifyLabels(id, { connection_id, add?, remove? })` — add/remove labels on a thread by **name** (resolved → Gmail labelIds server-side). Gmail today; Outlook category mapping is a fast-follow (501).
+  - `email.listLabels({ connectionId })` — list labels (Gmail) / master categories (Outlook).
+
+  All require the `email` scope on the API key. New exported types: `EmailSearchInput`, `EmailSearchResult`, `EmailThread`, `EmailThreadMessage`, `EmailDraftInput`, `EmailDraftResult`, `EmailModifyLabelsInput`, `EmailModifyLabelsResult`, `EmailLabelsResult`, `EmailLabel`.
+
 ## [0.7.0] — 2026-05-23
 
 ### Added

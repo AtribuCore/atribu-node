@@ -1,6 +1,7 @@
 import { resolveConfig, type AtribuClientConfig } from "./config";
 import { HttpClient, type HttpClientLike } from "./http";
 import { MessagesResource } from "./resources/messages";
+import { EmailResource } from "./resources/email";
 import { CommentsResource } from "./resources/comments";
 import { ConnectionsResource } from "./resources/connections";
 import { WebhookSubscriptionsResource } from "./resources/webhook-subscriptions";
@@ -11,6 +12,7 @@ import { RetryingHttpClient, type RetryOptions } from "./retry-wrapper";
 
 interface ResourceBundle {
   messages: MessagesResource;
+  email: EmailResource;
   comments: CommentsResource;
   connections: ConnectionsResource;
   webhooks: {
@@ -24,6 +26,7 @@ interface ResourceBundle {
 function buildResources(http: HttpClientLike): ResourceBundle {
   return {
     messages: new MessagesResource(http),
+    email: new EmailResource(http),
     comments: new CommentsResource(http),
     connections: new ConnectionsResource(http),
     webhooks: {
@@ -37,6 +40,7 @@ function buildResources(http: HttpClientLike): ResourceBundle {
 
 export class AtribuClient {
   readonly messages: MessagesResource;
+  readonly email: EmailResource;
   readonly comments: CommentsResource;
   readonly connections: ConnectionsResource;
   readonly webhooks: ResourceBundle["webhooks"];
@@ -50,6 +54,7 @@ export class AtribuClient {
     this._http = new HttpClient(resolveConfig(config));
     const r = buildResources(this._http);
     this.messages = r.messages;
+    this.email = r.email;
     this.comments = r.comments;
     this.connections = r.connections;
     this.webhooks = r.webhooks;
@@ -83,6 +88,7 @@ export class AtribuClient {
     Object.assign(proto, {
       _http: http,
       messages: r.messages,
+      email: r.email,
       comments: r.comments,
       connections: r.connections,
       webhooks: r.webhooks,

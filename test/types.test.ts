@@ -68,8 +68,10 @@ describe("type narrowing — webhook event union", () => {
     expectTypeOf<IgChange>().toEqualTypeOf<InstagramIgLoginChangeData>();
   });
 
-  it("provider field is constrained to WhatsApp | Instagram", () => {
-    expectTypeOf<AtribuWebhookEvent["provider"]>().toEqualTypeOf<"whatsapp" | "instagram">();
+  it("provider field is constrained to WhatsApp | Instagram | Email", () => {
+    expectTypeOf<AtribuWebhookEvent["provider"]>().toEqualTypeOf<
+      "whatsapp" | "instagram" | "email"
+    >();
   });
 
   it("type field is constrained to known event types", () => {
@@ -89,7 +91,9 @@ describe("type narrowing — message content union", () => {
   });
 
   it("MessageSendInput.channel constrains the whole input shape", () => {
-    expectTypeOf<MessageSendInput["channel"]>().toEqualTypeOf<"whatsapp" | "instagram">();
+    expectTypeOf<MessageSendInput["channel"]>().toEqualTypeOf<
+      "whatsapp" | "instagram" | "email"
+    >();
     expectTypeOf<MessageSendInput["connection_id"]>().toEqualTypeOf<string>();
   });
 });

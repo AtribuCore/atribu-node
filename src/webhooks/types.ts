@@ -6,7 +6,7 @@
  * camelCase can convert in their handler.
  */
 
-export type WebhookProvider = "whatsapp" | "instagram";
+export type WebhookProvider = "whatsapp" | "instagram" | "email";
 
 export type WebhookEventType =
   | "message.received"
@@ -108,6 +108,47 @@ export interface InstagramMessageDeliveryEvent extends BaseEvent {
   };
 }
 
+export interface EmailEventAddress {
+  email: string;
+  name: string | null;
+}
+
+export interface EmailEventAttachment {
+  id: string | null;
+  filename: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+}
+
+/**
+ * An inbound email landed in a connected Gmail/Outlook mailbox. `thread_id` is
+ * the provider thread (Gmail threadId / Outlook conversationId) — the
+ * conversation key. To reply in-thread, round-trip `message_id` (Outlook
+ * `reply_to_message_id`) or the RFC822 anchors (`rfc822_message_id` /
+ * `references`) on `messages.send`.
+ */
+export interface EmailMessageReceivedEvent extends BaseEvent {
+  type: "message.received";
+  provider: "email";
+  data: {
+    email_provider: "gmail" | "outlook";
+    message_id: string;
+    thread_id: string;
+    rfc822_message_id: string | null;
+    in_reply_to: string | null;
+    references: string[];
+    from: EmailEventAddress | null;
+    to: EmailEventAddress[];
+    cc: EmailEventAddress[];
+    subject: string | null;
+    text_body: string | null;
+    html_body: string | null;
+    attachments: EmailEventAttachment[];
+    /** Full provider message envelope. */
+    raw: Record<string, unknown>;
+  };
+}
+
 /** Reserved — the server doesn't emit this today but the type is in the union. */
 export interface ConversationStartedEvent extends BaseEvent {
   type: "conversation.started";
@@ -120,4 +161,5 @@ export type AtribuWebhookEvent =
   | WhatsAppMessageDeliveryEvent
   | InstagramMessageReceivedEvent
   | InstagramMessageDeliveryEvent
+  | EmailMessageReceivedEvent
   | ConversationStartedEvent;

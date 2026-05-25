@@ -2106,8 +2106,8 @@ export interface paths {
                         /** Format: uuid */
                         connection_id: string;
                         /** @enum {string} */
-                        channel: "whatsapp" | "instagram";
-                        /** @description E.164 phone for WhatsApp; IGSID for Instagram. */
+                        channel: "whatsapp" | "instagram" | "email";
+                        /** @description E.164 phone for WhatsApp; IGSID for Instagram; recipient email address for Email. */
                         to: string;
                         content: {
                             /** @enum {string} */
@@ -2208,6 +2208,25 @@ export interface paths {
                                 title: string;
                                 payload: string;
                             }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "email";
+                            /** @description Subject line. Omit on a reply to keep the thread subject. */
+                            subject?: string;
+                            /** @description Plain-text body. */
+                            text?: string;
+                            /** @description HTML body. Provide text and/or html. */
+                            html?: string;
+                            /** @description RFC822 Message-ID being replied to (round-trip `rfc822_message_id` from the inbound event). */
+                            in_reply_to?: string;
+                            /** @description RFC822 References chain (round-trip from the inbound event). */
+                            references?: string[];
+                            /** @description Gmail threadId / Outlook conversationId — keeps the reply in-thread. */
+                            thread_id?: string;
+                            /** @description Outlook: the inbound message id to `/reply` against (auto-threads). Ignored for Gmail. */
+                            reply_to_message_id?: string;
+                            /** @description CC recipient emails. */
+                            cc?: string[];
                         };
                         /** @description Instagram only. When true, the message is sent with Meta's HUMAN_AGENT tag, letting an authorized human agent reply outside the 24-hour window (up to 7 days). Set this ONLY for messages genuinely sent by a human agent — never for automated/bot replies, which would violate Meta's messaging policy. Ignored on WhatsApp. */
                         human_agent?: boolean;
@@ -2226,7 +2245,7 @@ export interface paths {
                                 /** Format: uuid */
                                 connection_id: string;
                                 /** @enum {string} */
-                                channel: "whatsapp" | "instagram";
+                                channel: "whatsapp" | "instagram" | "email";
                                 to: string;
                                 provider_message_id: string;
                                 sent_at: string;
@@ -2550,6 +2569,441 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/email/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search threads in a connected mailbox
+         * @description Searches a connected Gmail/Outlook mailbox and returns matching threads. `query` is Gmail search syntax (`from:`, `subject:`, `is:unread`, `newer_than:7d`) or Outlook KQL. Gmail returns thread refs (snippet only); Outlook search returns messages deduped to conversations (subject + preview). Requires the `email` scope.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        query: string;
+                        /** @description Max threads (default 25). */
+                        max?: number;
+                        /** @description Gmail pageToken passthrough; Outlook search is unpaginated. */
+                        cursor?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Matching threads */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                threads: {
+                                    /** @description Provider thread key — Gmail threadId / Outlook conversationId. */
+                                    id: string;
+                                    snippet: string | null;
+                                    /** @description Populated for Outlook search; null for Gmail thread refs. */
+                                    subject: string | null;
+                                }[];
+                                next_cursor: string | null;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `email` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready / needs reconnection */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream provider error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/email/threads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a normalized email thread
+         * @description Returns every message in a thread, normalized to a provider-agnostic shape (oldest-first). `{id}` is the provider thread key (Gmail threadId / Outlook conversationId) — round-trip it from search results or the inbound `message.received` webhook. Requires the `email` scope.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Thread messages */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                thread_id: string;
+                                messages: {
+                                    message_id: string;
+                                    thread_id: string;
+                                    rfc822_message_id: string | null;
+                                    in_reply_to: string | null;
+                                    references: string[];
+                                    from: {
+                                        email: string;
+                                        name: string | null;
+                                    } | null;
+                                    to: {
+                                        email: string;
+                                        name: string | null;
+                                    }[];
+                                    cc: {
+                                        email: string;
+                                        name: string | null;
+                                    }[];
+                                    subject: string | null;
+                                    text_body: string | null;
+                                    html_body: string | null;
+                                    attachments: {
+                                        id: string | null;
+                                        filename: string | null;
+                                        mime_type: string | null;
+                                        size_bytes: number | null;
+                                    }[];
+                                    sent_at: string;
+                                    /** @enum {string} */
+                                    direction: "inbound" | "outbound";
+                                }[];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `email` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready / needs reconnection */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/email/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a draft (reply or new)
+         * @description Creates a draft in the connected mailbox. Gmail builds a raw RFC822 draft attached to `thread_id` (carry `in_reply_to`/`references` to thread in other clients). Outlook uses `/createReply` when `reply_to_message_id` is given (auto-threads + auto-fills recipients), else a standalone draft. Provide `text` and/or `html`. Requires the `email` scope.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        /** @description Gmail threadId / Outlook conversationId. */
+                        thread_id?: string;
+                        /** @description Outlook: inbound message id to `/createReply` against. */
+                        reply_to_message_id?: string;
+                        /** @description RFC822 Message-ID being replied to (Gmail headers). */
+                        in_reply_to?: string;
+                        /** @description RFC822 References chain (Gmail headers). */
+                        references?: string[];
+                        subject?: string;
+                        text?: string;
+                        html?: string;
+                        /** @description Recipient emails. Required for Gmail and for standalone Outlook drafts. */
+                        to?: string[];
+                        cc?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Draft created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                draft_id: string;
+                                thread_id: string | null;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `email` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready / needs reconnection */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error (missing body or required recipients) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/email/threads/{id}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add/remove labels on a thread
+         * @description Applies label changes to every message in a thread. Pass label NAMES — they resolve to Gmail labelIds server-side (call `GET /api/v1/email/labels` for valid names). Unknown `add` names 422; unknown `remove` names are a no-op. Outlook category mapping is a fast-follow (501). Requires the `email` scope.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        /** @description Label names to add. */
+                        add?: string[];
+                        /** @description Label names to remove. */
+                        remove?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Labels applied */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                thread_id: string;
+                                added: string[];
+                                removed: string[];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `email` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unknown label name / empty change set */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Outlook thread labeling is a fast-follow */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/email/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a mailbox's labels
+         * @description Returns the connected mailbox's labels (Gmail) or master categories (Outlook — its label analog). Names map back to the thread-labels endpoint. Requires the `email` scope.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Labels */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                labels: {
+                                    id: string;
+                                    name: string;
+                                    /** @description Gmail: 'system'|'user'. Outlook: 'category'. */
+                                    type: string | null;
+                                }[];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `email` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready / needs reconnection */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3848,7 +4302,7 @@ export interface paths {
                          */
                         url: string;
                         events: ("message.received" | "message.delivery" | "conversation.started")[];
-                        providers: ("whatsapp" | "instagram")[];
+                        providers: ("whatsapp" | "instagram" | "email")[];
                     };
                 };
             };
