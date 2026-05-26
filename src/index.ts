@@ -48,6 +48,19 @@ export type {
 } from "./resources/email";
 
 export type {
+  CalendarEventDateTimeInput,
+  CalendarAttendeeInput,
+  CalendarSendUpdates,
+  CalendarCreateEventInput,
+  CalendarUpdateEventInput,
+  CalendarEventDateTime,
+  CalendarEvent,
+  CalendarEventDeleted,
+  CalendarMutationOptions,
+  CalendarDeleteOptions,
+} from "./resources/calendar";
+
+export type {
   CommentReplyInput,
   CommentPrivateReplyInput,
   CommentReplyResponse,

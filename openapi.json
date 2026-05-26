@@ -6365,10 +6365,732 @@
         }
       }
     },
+    "/api/v1/calendar/events": {
+      "post": {
+        "summary": "Create a calendar event",
+        "description": "Creates an event on the connected Google Calendar. `start`/`end` are required — pass `date_time` (timed) or `date` (all-day). `extended_private` round-trips back on the inbound `calendar.event.changed` fan-out, so consumers can tag their own link id (e.g. `vitrina_appointment_id`). `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 8192
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "start": {
+                    "type": "object",
+                    "properties": {
+                      "date_time": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "RFC3339 timestamp for a timed event."
+                      },
+                      "date": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32,
+                        "description": "YYYY-MM-DD for an all-day event."
+                      },
+                      "time_zone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "IANA tz id (e.g. America/Santiago)."
+                      }
+                    },
+                    "description": "A timed (`date_time`) OR all-day (`date`) point."
+                  },
+                  "end": {
+                    "type": "object",
+                    "properties": {
+                      "date_time": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "RFC3339 timestamp for a timed event."
+                      },
+                      "date": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32,
+                        "description": "YYYY-MM-DD for an all-day event."
+                      },
+                      "time_zone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "IANA tz id (e.g. America/Santiago)."
+                      }
+                    },
+                    "description": "A timed (`date_time`) OR all-day (`date`) point."
+                  },
+                  "attendees": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "format": "email"
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "email"
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "extended_private": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "extendedProperties.private — your link / loop-prevention tag."
+                  },
+                  "send_updates": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "externalOnly",
+                      "none"
+                    ],
+                    "description": "Whether Google emails attendees about the change."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "start",
+                  "end"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Google event id — the stable dedup/match key."
+                        },
+                        "status": {
+                          "type": "string",
+                          "description": "confirmed | tentative | cancelled."
+                        },
+                        "html_link": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ical_uid": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "iCalUID — stable across copies/calendars."
+                        },
+                        "updated": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "RFC3339 last-modification time."
+                        },
+                        "start": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "date_time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "date": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "time_zone": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "date_time",
+                            "date",
+                            "time_zone"
+                          ]
+                        },
+                        "end": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "date_time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "date": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "time_zone": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "date_time",
+                            "date",
+                            "time_zone"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "html_link",
+                        "ical_uid",
+                        "updated",
+                        "start",
+                        "end"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (e.g. start/end missing date_time and date)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/events/{id}": {
+      "patch": {
+        "summary": "Update a calendar event",
+        "description": "Partial update (Google events.patch) — only the supplied fields change. Same body as create, but `start`/`end` are optional. `{id}` is the Google event id. Requires the `calendar` scope.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 8192
+                  },
+                  "location": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "start": {
+                    "type": "object",
+                    "properties": {
+                      "date_time": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "RFC3339 timestamp for a timed event."
+                      },
+                      "date": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32,
+                        "description": "YYYY-MM-DD for an all-day event."
+                      },
+                      "time_zone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "IANA tz id (e.g. America/Santiago)."
+                      }
+                    },
+                    "description": "A timed (`date_time`) OR all-day (`date`) point."
+                  },
+                  "end": {
+                    "type": "object",
+                    "properties": {
+                      "date_time": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "RFC3339 timestamp for a timed event."
+                      },
+                      "date": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32,
+                        "description": "YYYY-MM-DD for an all-day event."
+                      },
+                      "time_zone": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "IANA tz id (e.g. America/Santiago)."
+                      }
+                    },
+                    "description": "A timed (`date_time`) OR all-day (`date`) point."
+                  },
+                  "attendees": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "email": {
+                          "type": "string",
+                          "format": "email"
+                        },
+                        "display_name": {
+                          "type": "string",
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "email"
+                      ]
+                    },
+                    "maxItems": 100
+                  },
+                  "extended_private": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "send_updates": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "externalOnly",
+                      "none"
+                    ],
+                    "description": "Whether Google emails attendees about the change."
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Google event id — the stable dedup/match key."
+                        },
+                        "status": {
+                          "type": "string",
+                          "description": "confirmed | tentative | cancelled."
+                        },
+                        "html_link": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ical_uid": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "iCalUID — stable across copies/calendars."
+                        },
+                        "updated": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "RFC3339 last-modification time."
+                        },
+                        "start": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "date_time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "date": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "time_zone": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "date_time",
+                            "date",
+                            "time_zone"
+                          ]
+                        },
+                        "end": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "date_time": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "date": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "time_zone": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "date_time",
+                            "date",
+                            "time_zone"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "html_link",
+                        "ical_uid",
+                        "updated",
+                        "start",
+                        "end"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete (cancel) a calendar event",
+        "description": "Cancels the event on the connected Google Calendar. `connection_id` (and optional `send_updates`) are query params, not a body. `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
+              "description": "Whether Google emails attendees about the change."
+            },
+            "required": false,
+            "description": "Whether Google emails attendees about the change.",
+            "name": "send_updates",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "event_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "deleted",
+                        "event_id"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing connection_id query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connections": {
       "get": {
         "summary": "List authorized data connections",
-        "description": "Returns the WhatsApp + Instagram connections this API key is authorized to act on. For OAuth-flow-minted keys, restricted to the active `oauth_app_authorizations` set. For direct admin keys, returns every connection on the profile.",
+        "description": "Returns the WhatsApp, Instagram, email, and Google Calendar connections this API key is authorized to act on. For OAuth-flow-minted keys, restricted to the active `oauth_app_authorizations` set. For direct admin keys, returns every connection on the profile.",
         "tags": [
           "Connections"
         ],
@@ -6383,12 +7105,14 @@
               "type": "string",
               "enum": [
                 "whatsapp",
-                "instagram"
+                "instagram",
+                "email",
+                "google_calendar"
               ],
-              "description": "Filter by channel; omit for both."
+              "description": "Filter by channel; omit for all."
             },
             "required": false,
-            "description": "Filter by channel; omit for both.",
+            "description": "Filter by channel; omit for all.",
             "name": "channel",
             "in": "query"
           }
@@ -6414,7 +7138,9 @@
                             "type": "string",
                             "enum": [
                               "whatsapp",
-                              "instagram"
+                              "instagram",
+                              "email",
+                              "google_calendar"
                             ]
                           },
                           "status": {
@@ -6425,21 +7151,21 @@
                               "string",
                               "null"
                             ],
-                            "description": "Human-readable connection label (WA: phone number; IG: @username)."
+                            "description": "Human-readable connection label (WA: phone number; IG: @username; email: mailbox address; calendar: Google account email)."
                           },
                           "external_id": {
                             "type": [
                               "string",
                               "null"
                             ],
-                            "description": "WA phone_number_id or IG ig_business_account_id."
+                            "description": "WA phone_number_id, IG ig_business_account_id, email mailbox address, or Google account email."
                           },
                           "provider_subtype": {
                             "type": [
                               "string",
                               "null"
                             ],
-                            "description": "Instagram only: 'fb_login' or 'ig_login'."
+                            "description": "Instagram: 'fb_login'|'ig_login'. Email: 'gmail'|'outlook'. Null otherwise."
                           },
                           "authorized_at": {
                             "type": [
@@ -6520,7 +7246,9 @@
                           "type": "string",
                           "enum": [
                             "whatsapp",
-                            "instagram"
+                            "instagram",
+                            "email",
+                            "google_calendar"
                           ]
                         },
                         "status": {
@@ -6531,21 +7259,21 @@
                             "string",
                             "null"
                           ],
-                          "description": "Human-readable connection label (WA: phone number; IG: @username)."
+                          "description": "Human-readable connection label (WA: phone number; IG: @username; email: mailbox address; calendar: Google account email)."
                         },
                         "external_id": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "WA phone_number_id or IG ig_business_account_id."
+                          "description": "WA phone_number_id, IG ig_business_account_id, email mailbox address, or Google account email."
                         },
                         "provider_subtype": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "Instagram only: 'fb_login' or 'ig_login'."
+                          "description": "Instagram: 'fb_login'|'ig_login'. Email: 'gmail'|'outlook'. Null otherwise."
                         },
                         "authorized_at": {
                           "type": [
@@ -8803,7 +9531,8 @@
                       "enum": [
                         "message.received",
                         "message.delivery",
-                        "conversation.started"
+                        "conversation.started",
+                        "calendar.event.changed"
                       ]
                     }
                   },
@@ -8814,7 +9543,8 @@
                       "enum": [
                         "whatsapp",
                         "instagram",
-                        "email"
+                        "email",
+                        "google_calendar"
                       ]
                     }
                   }

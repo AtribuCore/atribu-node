@@ -18,6 +18,7 @@ import type {
   InstagramFbLoginMessageData,
   InstagramFbLoginPostbackData,
   InstagramIgLoginChangeData,
+  CalendarEventChangedEvent,
 } from "../src/webhooks/types";
 import type {
   AtribuApiError,
@@ -33,6 +34,7 @@ import type { MessageSendInput, MessageContent } from "../src/resources/messages
 type WaReceived = Extract<AtribuWebhookEvent, { type: "message.received"; provider: "whatsapp" }>;
 type WaDelivery = Extract<AtribuWebhookEvent, { type: "message.delivery"; provider: "whatsapp" }>;
 type IgReceived = Extract<AtribuWebhookEvent, { type: "message.received"; provider: "instagram" }>;
+type CalChanged = Extract<AtribuWebhookEvent, { type: "calendar.event.changed" }>;
 
 describe("type narrowing — webhook event union", () => {
   it("type+provider discriminator picks the WA received variant", () => {
@@ -68,15 +70,23 @@ describe("type narrowing — webhook event union", () => {
     expectTypeOf<IgChange>().toEqualTypeOf<InstagramIgLoginChangeData>();
   });
 
-  it("provider field is constrained to WhatsApp | Instagram | Email", () => {
+  it("type+provider picks the Google Calendar changed variant", () => {
+    expectTypeOf<CalChanged>().toEqualTypeOf<CalendarEventChangedEvent>();
+    expectTypeOf<CalChanged["provider"]>().toEqualTypeOf<"google_calendar">();
+    expectTypeOf<CalChanged["data"]["event_id"]>().toEqualTypeOf<string>();
+    expectTypeOf<CalChanged["data"]["change_type"]>().toEqualTypeOf<"upserted" | "deleted">();
+    expectTypeOf<CalChanged["data"]["extended_private"]>().toEqualTypeOf<Record<string, string>>();
+  });
+
+  it("provider field is constrained to WhatsApp | Instagram | Email | Google Calendar", () => {
     expectTypeOf<AtribuWebhookEvent["provider"]>().toEqualTypeOf<
-      "whatsapp" | "instagram" | "email"
+      "whatsapp" | "instagram" | "email" | "google_calendar"
     >();
   });
 
   it("type field is constrained to known event types", () => {
     expectTypeOf<AtribuWebhookEvent["type"]>().toEqualTypeOf<
-      "message.received" | "message.delivery" | "conversation.started"
+      "message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed"
     >();
   });
 });

@@ -9,7 +9,7 @@ type GetResponse =
 export type Connection = ListResponse["data"][number];
 
 export interface ListOptions {
-  channel?: "whatsapp" | "instagram" | "email";
+  channel?: "whatsapp" | "instagram" | "email" | "google_calendar";
   signal?: AbortSignal;
 }
 

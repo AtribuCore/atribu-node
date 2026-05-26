@@ -6,12 +6,13 @@
  * camelCase can convert in their handler.
  */
 
-export type WebhookProvider = "whatsapp" | "instagram" | "email";
+export type WebhookProvider = "whatsapp" | "instagram" | "email" | "google_calendar";
 
 export type WebhookEventType =
   | "message.received"
   | "message.delivery"
-  | "conversation.started";
+  | "conversation.started"
+  | "calendar.event.changed";
 
 interface BaseEvent {
   /** Stable event id for de-dup (also surfaced in `X-Atribu-Delivery-Id`). */
@@ -149,6 +150,66 @@ export interface EmailMessageReceivedEvent extends BaseEvent {
   };
 }
 
+export interface CalendarChangeDateTime {
+  date_time: string | null;
+  date: string | null;
+  time_zone: string | null;
+}
+
+export interface CalendarChangeAttendee {
+  email: string;
+  display_name: string | null;
+  /** needsAction | declined | tentative | accepted */
+  response_status: string | null;
+  organizer: boolean;
+  self: boolean;
+  optional: boolean;
+}
+
+/**
+ * The `calendar.event.changed` payload. Mirrors
+ * `packages/analytics-enrichment/src/integrations/calendar/types.ts`
+ * `CalendarEventChangedData` field-for-field (re-declared because the SDK is
+ * standalone). `change_type` is `'deleted'` when the event was cancelled, else
+ * `'upserted'`. Reconcile your own ledger on `event_id` (or `ical_uid` across
+ * calendars); read your link tag out of `extended_private`; use `updated` for
+ * loop-prevention (skip echoes of your own writes).
+ */
+export interface CalendarEventChangedData {
+  calendar_id: string;
+  event_id: string;
+  change_type: "upserted" | "deleted";
+  ical_uid: string | null;
+  status: "confirmed" | "tentative" | "cancelled";
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  start: CalendarChangeDateTime | null;
+  end: CalendarChangeDateTime | null;
+  attendees: CalendarChangeAttendee[];
+  organizer_email: string | null;
+  creator_email: string | null;
+  html_link: string | null;
+  hangout_link: string | null;
+  /** extendedProperties.private — the consumer's link / loop-prevention tag. */
+  extended_private: Record<string, string>;
+  created: string | null;
+  /** RFC3339 last-modification time — the consumer's loop-prevention anchor. */
+  updated: string | null;
+  recurring_event_id: string | null;
+}
+
+/**
+ * An event on a connected Google Calendar was created, updated, or cancelled —
+ * whether through the Atribu API, the Atribu UI, or directly on Google. Carries
+ * the full normalized event so a consumer can reconcile its own ledger.
+ */
+export interface CalendarEventChangedEvent extends BaseEvent {
+  type: "calendar.event.changed";
+  provider: "google_calendar";
+  data: CalendarEventChangedData;
+}
+
 /** Reserved — the server doesn't emit this today but the type is in the union. */
 export interface ConversationStartedEvent extends BaseEvent {
   type: "conversation.started";
@@ -162,4 +223,5 @@ export type AtribuWebhookEvent =
   | InstagramMessageReceivedEvent
   | InstagramMessageDeliveryEvent
   | EmailMessageReceivedEvent
+  | CalendarEventChangedEvent
   | ConversationStartedEvent;

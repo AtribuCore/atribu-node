@@ -3010,6 +3010,359 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calendar/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a calendar event
+         * @description Creates an event on the connected Google Calendar. `start`/`end` are required — pass `date_time` (timed) or `date` (all-day). `extended_private` round-trips back on the inbound `calendar.event.changed` fan-out, so consumers can tag their own link id (e.g. `vitrina_appointment_id`). `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        summary?: string;
+                        description?: string;
+                        location?: string;
+                        /** @description A timed (`date_time`) OR all-day (`date`) point. */
+                        start: {
+                            /** @description RFC3339 timestamp for a timed event. */
+                            date_time?: string;
+                            /** @description YYYY-MM-DD for an all-day event. */
+                            date?: string;
+                            /** @description IANA tz id (e.g. America/Santiago). */
+                            time_zone?: string;
+                        };
+                        /** @description A timed (`date_time`) OR all-day (`date`) point. */
+                        end: {
+                            /** @description RFC3339 timestamp for a timed event. */
+                            date_time?: string;
+                            /** @description YYYY-MM-DD for an all-day event. */
+                            date?: string;
+                            /** @description IANA tz id (e.g. America/Santiago). */
+                            time_zone?: string;
+                        };
+                        attendees?: {
+                            /** Format: email */
+                            email: string;
+                            display_name?: string;
+                        }[];
+                        /** @description extendedProperties.private — your link / loop-prevention tag. */
+                        extended_private?: {
+                            [key: string]: string;
+                        };
+                        /**
+                         * @description Whether Google emails attendees about the change.
+                         * @enum {string}
+                         */
+                        send_updates?: "all" | "externalOnly" | "none";
+                    };
+                };
+            };
+            responses: {
+                /** @description Event created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Google event id — the stable dedup/match key. */
+                                id: string;
+                                /** @description confirmed | tentative | cancelled. */
+                                status: string;
+                                html_link: string | null;
+                                /** @description iCalUID — stable across copies/calendars. */
+                                ical_uid: string | null;
+                                /** @description RFC3339 last-modification time. */
+                                updated: string | null;
+                                start: {
+                                    date_time: string | null;
+                                    date: string | null;
+                                    time_zone: string | null;
+                                } | null;
+                                end: {
+                                    date_time: string | null;
+                                    date: string | null;
+                                    time_zone: string | null;
+                                } | null;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `calendar` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready / needs reconnection */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error (e.g. start/end missing date_time and date) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream provider error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/events/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete (cancel) a calendar event
+         * @description Cancels the event on the connected Google Calendar. `connection_id` (and optional `send_updates`) are query params, not a body. `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.
+         */
+        delete: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    /** @description Whether Google emails attendees about the change. */
+                    send_updates?: "all" | "externalOnly" | "none";
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Event deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {boolean} */
+                                deleted: true;
+                                event_id: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `calendar` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready / needs reconnection */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing connection_id query param */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream provider error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Update a calendar event
+         * @description Partial update (Google events.patch) — only the supplied fields change. Same body as create, but `start`/`end` are optional. `{id}` is the Google event id. Requires the `calendar` scope.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        summary?: string;
+                        description?: string;
+                        location?: string;
+                        /** @description A timed (`date_time`) OR all-day (`date`) point. */
+                        start?: {
+                            /** @description RFC3339 timestamp for a timed event. */
+                            date_time?: string;
+                            /** @description YYYY-MM-DD for an all-day event. */
+                            date?: string;
+                            /** @description IANA tz id (e.g. America/Santiago). */
+                            time_zone?: string;
+                        };
+                        /** @description A timed (`date_time`) OR all-day (`date`) point. */
+                        end?: {
+                            /** @description RFC3339 timestamp for a timed event. */
+                            date_time?: string;
+                            /** @description YYYY-MM-DD for an all-day event. */
+                            date?: string;
+                            /** @description IANA tz id (e.g. America/Santiago). */
+                            time_zone?: string;
+                        };
+                        attendees?: {
+                            /** Format: email */
+                            email: string;
+                            display_name?: string;
+                        }[];
+                        extended_private?: {
+                            [key: string]: string;
+                        };
+                        /**
+                         * @description Whether Google emails attendees about the change.
+                         * @enum {string}
+                         */
+                        send_updates?: "all" | "externalOnly" | "none";
+                    };
+                };
+            };
+            responses: {
+                /** @description Event updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Google event id — the stable dedup/match key. */
+                                id: string;
+                                /** @description confirmed | tentative | cancelled. */
+                                status: string;
+                                html_link: string | null;
+                                /** @description iCalUID — stable across copies/calendars. */
+                                ical_uid: string | null;
+                                /** @description RFC3339 last-modification time. */
+                                updated: string | null;
+                                start: {
+                                    date_time: string | null;
+                                    date: string | null;
+                                    time_zone: string | null;
+                                } | null;
+                                end: {
+                                    date_time: string | null;
+                                    date: string | null;
+                                    time_zone: string | null;
+                                } | null;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `calendar` scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready / needs reconnection */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream provider error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/connections": {
         parameters: {
             query?: never;
@@ -3019,13 +3372,13 @@ export interface paths {
         };
         /**
          * List authorized data connections
-         * @description Returns the WhatsApp + Instagram connections this API key is authorized to act on. For OAuth-flow-minted keys, restricted to the active `oauth_app_authorizations` set. For direct admin keys, returns every connection on the profile.
+         * @description Returns the WhatsApp, Instagram, email, and Google Calendar connections this API key is authorized to act on. For OAuth-flow-minted keys, restricted to the active `oauth_app_authorizations` set. For direct admin keys, returns every connection on the profile.
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Filter by channel; omit for both. */
-                    channel?: "whatsapp" | "instagram";
+                    /** @description Filter by channel; omit for all. */
+                    channel?: "whatsapp" | "instagram" | "email" | "google_calendar";
                 };
                 header?: never;
                 path?: never;
@@ -3044,13 +3397,13 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                channel: "whatsapp" | "instagram";
+                                channel: "whatsapp" | "instagram" | "email" | "google_calendar";
                                 status: string;
-                                /** @description Human-readable connection label (WA: phone number; IG: @username). */
+                                /** @description Human-readable connection label (WA: phone number; IG: @username; email: mailbox address; calendar: Google account email). */
                                 display_name: string | null;
-                                /** @description WA phone_number_id or IG ig_business_account_id. */
+                                /** @description WA phone_number_id, IG ig_business_account_id, email mailbox address, or Google account email. */
                                 external_id: string | null;
-                                /** @description Instagram only: 'fb_login' or 'ig_login'. */
+                                /** @description Instagram: 'fb_login'|'ig_login'. Email: 'gmail'|'outlook'. Null otherwise. */
                                 provider_subtype: string | null;
                                 authorized_at: string | null;
                                 created_at: string;
@@ -3102,13 +3455,13 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                channel: "whatsapp" | "instagram";
+                                channel: "whatsapp" | "instagram" | "email" | "google_calendar";
                                 status: string;
-                                /** @description Human-readable connection label (WA: phone number; IG: @username). */
+                                /** @description Human-readable connection label (WA: phone number; IG: @username; email: mailbox address; calendar: Google account email). */
                                 display_name: string | null;
-                                /** @description WA phone_number_id or IG ig_business_account_id. */
+                                /** @description WA phone_number_id, IG ig_business_account_id, email mailbox address, or Google account email. */
                                 external_id: string | null;
-                                /** @description Instagram only: 'fb_login' or 'ig_login'. */
+                                /** @description Instagram: 'fb_login'|'ig_login'. Email: 'gmail'|'outlook'. Null otherwise. */
                                 provider_subtype: string | null;
                                 authorized_at: string | null;
                                 created_at: string;
@@ -4301,8 +4654,8 @@ export interface paths {
                          * @description HTTPS URL where Atribu will POST signed events.
                          */
                         url: string;
-                        events: ("message.received" | "message.delivery" | "conversation.started")[];
-                        providers: ("whatsapp" | "instagram" | "email")[];
+                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed")[];
+                        providers: ("whatsapp" | "instagram" | "email" | "google_calendar")[];
                     };
                 };
             };

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-25
+
+### Added
+
+- **`client.calendar`** — a Google Calendar management resource for the Google Calendar channel, backing an agent's create / reschedule / cancel tools on a connected calendar:
+  - `calendar.createEvent({ connection_id, start, end, summary?, description?, location?, attendees?, extended_private?, send_updates? })` — create an event (`start`/`end` are timed via `date_time` or all-day via `date`). `extended_private` round-trips back on the inbound `calendar.event.changed` event — tag your own link id (e.g. `vitrina_appointment_id`) there.
+  - `calendar.updateEvent(eventId, { connection_id, … })` — partial update (Google events.patch); only the supplied fields change (`start`/`end` optional).
+  - `calendar.deleteEvent(eventId, { connectionId, sendUpdates? })` — cancel the event; `connectionId`/`sendUpdates` go on the query string.
+
+  All require the `calendar` scope on the API key. New exported types: `CalendarCreateEventInput`, `CalendarUpdateEventInput`, `CalendarEventDateTimeInput`, `CalendarAttendeeInput`, `CalendarSendUpdates`, `CalendarEvent`, `CalendarEventDateTime`, `CalendarEventDeleted`, `CalendarMutationOptions`, `CalendarDeleteOptions`.
+- **`calendar.event.changed` webhook event** — fans out when an event on a connected Google Calendar is created, updated, or cancelled (via the API, the Atribu UI, or directly on Google). New `CalendarEventChangedEvent` member on the `AtribuWebhookEvent` union (provider `"google_calendar"`), carrying the full normalized event as snake_case `CalendarEventChangedData` (reconcile on `event_id`/`ical_uid`, read your tag from `extended_private`, use `updated` for loop-prevention). New exported webhook types: `CalendarEventChangedEvent`, `CalendarEventChangedData`, `CalendarChangeDateTime`, `CalendarChangeAttendee`. The webhook-subscription provider/event enums gain `"google_calendar"` / `"calendar.event.changed"`.
+
+### Fixed
+
+- **`connections` channel enum** now includes `"email"` and `"google_calendar"` (the `Connection.channel` response field and the `connections.list({ channel })` filter). The generated types previously lagged the live API at `"whatsapp" | "instagram"`, so email and calendar connections — returned at runtime since 0.8.0 — weren't typed.
+
 ## [0.8.0] — 2026-05-25
 
 ### Added

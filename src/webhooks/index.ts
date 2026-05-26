@@ -11,6 +11,10 @@ export {
   type InstagramFbLoginMessageData,
   type InstagramFbLoginPostbackData,
   type InstagramIgLoginChangeData,
+  type CalendarEventChangedEvent,
+  type CalendarEventChangedData,
+  type CalendarChangeDateTime,
+  type CalendarChangeAttendee,
   type ConversationStartedEvent,
 } from "./types";
 export { AtribuWebhookError, type WebhookErrorCode } from "../errors";
