@@ -77,7 +77,7 @@
     "openapi-typescript": "^7.0.0",
     "tsup": "^8.5.1",
     "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.1.7"
   },
   "publishConfig": {
     "access": "public",
