@@ -76,7 +76,7 @@
     "msw": "^2.14.6",
     "openapi-typescript": "^7.0.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.4.0",
+    "typescript": "^6.0.3",
     "vitest": "^2.0.0"
   },
   "publishConfig": {
