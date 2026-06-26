@@ -58,6 +58,12 @@ export type {
   CalendarEventDeleted,
   CalendarMutationOptions,
   CalendarDeleteOptions,
+  CalendarSummary,
+  CalendarCreateInput,
+  AclRule,
+  ShareCalendarInput,
+  CalendarListOptions,
+  CalendarRevokeShareOptions,
 } from "./resources/calendar";
 
 export type {

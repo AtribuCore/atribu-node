@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0]
+
+Atribu-managed booking calendars. Atribu now creates dedicated **booking
+calendars** in the connected Google account and CRUDs events only on those —
+the user's primary calendar is never written (GoHighLevel owns primary).
+
+### Breaking
+
+- **Calendar events now require `calendar_id`.** `calendar.createEvent` and
+  `calendar.updateEvent` inputs and `calendar.deleteEvent` options
+  (`{ calendarId }`) now require the Atribu booking calendar id. The API rejects
+  `primary`/unknown calendars with `calendar_unsupported` (422). The
+  `CalendarEvent` response gains a `calendar_id` field.
+- **Primary-calendar writes are removed.** There is no longer an implicit
+  `primary` target; you must create a booking calendar (`createCalendar`) and
+  pass its id.
+
+### Added
+
+- **`client.calendar` booking-calendar management** (requires the new
+  `calendar.manage` scope):
+  - `calendar.createCalendar({ connection_id, summary, description?, time_zone? }, { idempotencyKey? })` — create a dedicated Atribu booking calendar. Idempotent via `Idempotency-Key`.
+  - `calendar.listCalendars(connectionId)` — list the booking calendars for a connection.
+  - `calendar.shareCalendar(calendarId, { connection_id, email, role })` — share with a team member (`reader`|`writer`); idempotent.
+  - `calendar.listCalendarShares(calendarId, connectionId)` — list ACL rules.
+  - `calendar.revokeCalendarShare(calendarId, ruleId, { connectionId })` — revoke access; idempotent.
+
+  New exported types: `CalendarSummary`, `CalendarCreateInput`, `AclRule`,
+  `ShareCalendarInput`, `CalendarListOptions`, `CalendarRevokeShareOptions`.
+
+### Notes
+
+- New OAuth `calendar` connections mint both the `calendar` and `calendar.manage`
+  API-key scopes. Existing keys re-mint on Google re-consent.
+
 ## [0.9.0] — 2026-05-25
 
 ### Added

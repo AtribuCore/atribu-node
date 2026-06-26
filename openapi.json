@@ -3,7 +3,7 @@
   "info": {
     "title": "Atribu API",
     "version": "1.0.0",
-    "description": "Marketing attribution API. Get campaign ROAS, visitor analytics, customer journeys, and revenue attribution data.\n\n## Authentication\n\nAll requests require a Bearer token in the `Authorization` header:\n```\nAuthorization: Bearer atb_live_your_key_here\n```\n\nGet your API key from **Settings > API Keys** in the Atribu dashboard.\n\n## Scopes\n\nAPI keys have granular scopes:\n- `analytics:read` — Overview, timeseries, breakdowns, quality, keywords\n- `campaigns:read` — Campaign performance, ROAS, trends\n- `conversions:read` — Conversion counts, revenue\n- `customers:read` — Customer list, journey details (PII)\n- `visitors:read` — Visitor list (PII)\n- `realtime:read` — Live visitor count\n\n## Rate Limits\n\nDefault: 60 requests/minute. Check `X-RateLimit-Remaining` header.\nHeavy endpoints (customers, visitors, journey) cost 3x.\n\n## Date Range\n\nMost endpoints require `date_from` and `date_to` in YYYY-MM-DD format. Maximum range: 366 days.",
+    "description": "Marketing attribution API. Get campaign ROAS, visitor analytics, customer journeys, and revenue attribution data.\n\n## Authentication\n\nAll requests require a Bearer token in the `Authorization` header:\n```\nAuthorization: Bearer atb_live_your_key_here\n```\n\nGet your API key from **Settings > API Keys** in the Atribu dashboard.\n\n## Scopes\n\nAPI keys have granular scopes:\n- `analytics:read` — Overview, timeseries, breakdowns, quality, keywords\n- `campaigns:read` — Campaign performance, ROAS, trends\n- `conversions:read` — Conversion counts, revenue\n- `customers:read` — Customer list, journey details (PII)\n- `visitors:read` — Visitor list (PII)\n- `realtime:read` — Live visitor count\n- `calendar` — Calendar event CRUD on Atribu booking calendars\n- `calendar.manage` — Create / list / share (ACL) Atribu booking calendars\n\n## Rate Limits\n\nDefault: 60 requests/minute. Check `X-RateLimit-Remaining` header.\nHeavy endpoints (customers, visitors, journey) cost 3x.\n\n## Date Range\n\nMost endpoints require `date_from` and `date_to` in YYYY-MM-DD format. Maximum range: 366 days.",
     "contact": {
       "name": "Atribu Support",
       "url": "https://www.atribu.app"
@@ -6368,7 +6368,7 @@
     "/api/v1/calendar/events": {
       "post": {
         "summary": "Create a calendar event",
-        "description": "Creates an event on the connected Google Calendar. `start`/`end` are required — pass `date_time` (timed) or `date` (all-day). `extended_private` round-trips back on the inbound `calendar.event.changed` fan-out, so consumers can tag their own link id (e.g. `vitrina_appointment_id`). `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.",
+        "description": "Creates an event on an Atribu booking calendar. `calendar_id` is required and must be an Atribu-created booking calendar for the connection (creating events on `primary`/unknown calendars is rejected with `calendar_unsupported` 422). `start`/`end` are required — pass `date_time` (timed) or `date` (all-day). `extended_private` round-trips back on the inbound `calendar.event.changed` fan-out, so consumers can tag their own link id (e.g. `vitrina_appointment_id`). `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.",
         "tags": [
           "Calendar"
         ],
@@ -6386,6 +6386,12 @@
                   "connection_id": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "calendar_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "An Atribu-created booking calendar id for the connection."
                   },
                   "summary": {
                     "type": "string",
@@ -6486,6 +6492,7 @@
                 },
                 "required": [
                   "connection_id",
+                  "calendar_id",
                   "start",
                   "end"
                 ]
@@ -6663,7 +6670,7 @@
     "/api/v1/calendar/events/{id}": {
       "patch": {
         "summary": "Update a calendar event",
-        "description": "Partial update (Google events.patch) — only the supplied fields change. Same body as create, but `start`/`end` are optional. `{id}` is the Google event id. Requires the `calendar` scope.",
+        "description": "Partial update (Google events.patch) — only the supplied fields change. Same body as create, but `start`/`end` are optional. `calendar_id` is required (the Atribu booking calendar the event lives on). `{id}` is the Google event id. Requires the `calendar` scope.",
         "tags": [
           "Calendar"
         ],
@@ -6691,6 +6698,12 @@
                   "connection_id": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "calendar_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "The Atribu booking calendar the event lives on."
                   },
                   "summary": {
                     "type": "string",
@@ -6789,7 +6802,8 @@
                   }
                 },
                 "required": [
-                  "connection_id"
+                  "connection_id",
+                  "calendar_id"
                 ]
               }
             }
@@ -6963,7 +6977,7 @@
       },
       "delete": {
         "summary": "Delete (cancel) a calendar event",
-        "description": "Cancels the event on the connected Google Calendar. `connection_id` (and optional `send_updates`) are query params, not a body. `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.",
+        "description": "Cancels the event on its Atribu booking calendar. `connection_id` and `calendar_id` (and optional `send_updates`) are query params, not a body. `send_updates` controls whether Google emails attendees. Requires the `calendar` scope.",
         "tags": [
           "Calendar"
         ],
@@ -6988,6 +7002,18 @@
             },
             "required": true,
             "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The Atribu booking calendar the event lives on."
+            },
+            "required": true,
+            "description": "The Atribu booking calendar the event lives on.",
+            "name": "calendar_id",
             "in": "query"
           },
           {
@@ -7065,7 +7091,621 @@
             }
           },
           "422": {
-            "description": "Missing connection_id query param",
+            "description": "Missing connection_id/calendar_id query param, or calendar not Atribu-created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/calendars": {
+      "get": {
+        "summary": "List Atribu booking calendars",
+        "description": "Lists the Atribu-created booking calendars for a connection. Names come from Atribu's store (the `calendar.app.created` scope cannot list the account's calendars). Requires the `calendar.manage` scope.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking calendars",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "The Google calendar id (use as `calendar_id` on event ops)."
+                          },
+                          "summary": {
+                            "type": "string",
+                            "description": "The booking calendar's display name."
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "time_zone": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "IANA tz id."
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "summary",
+                          "description",
+                          "time_zone"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar.manage` scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an Atribu booking calendar",
+        "description": "Creates a dedicated Atribu booking calendar in the connected Google account (the user's primary is never touched). Pass an `Idempotency-Key` header to make creation idempotent — a duplicate key for the connection returns the existing calendar. Requires the `calendar.manage` scope (and the connection's Google grant must include `calendar.app.created`).",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "Display name for the new booking calendar."
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 8192
+                  },
+                  "time_zone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "IANA tz id (e.g. America/Santiago)."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "summary"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Booking calendar created (or the existing one for a repeated Idempotency-Key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "The Google calendar id (use as `calendar_id` on event ops)."
+                        },
+                        "summary": {
+                          "type": "string",
+                          "description": "The booking calendar's display name."
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "time_zone": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "IANA tz id."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "summary",
+                        "description",
+                        "time_zone"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar.manage` scope, or the Google grant lacks `calendar.app.created` (`calendar_scope_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/calendars/{calendarId}/acl": {
+      "post": {
+        "summary": "Share an Atribu booking calendar",
+        "description": "Grants a team member `reader` or `writer` access to an Atribu booking calendar. Idempotent — re-sharing the same email updates the role. `{calendarId}` must be an Atribu-created booking calendar. Requires the `calendar.manage` scope (and the Google grant must include `calendar.acls`).",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "calendarId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "email": {
+                    "type": "string",
+                    "maxLength": 320,
+                    "format": "email",
+                    "description": "Team member to grant access to."
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "reader",
+                      "writer"
+                    ]
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "email",
+                  "role"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Share created/updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Opaque ACL rule id (e.g. `user:agent@dealer.com`) — pass to DELETE."
+                        },
+                        "role": {
+                          "type": "string",
+                          "description": "reader | writer."
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "The grantee email (for user-scope rules)."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "role",
+                        "email"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar.manage` scope, or the Google grant lacks `calendar.acls` (`calendar_scope_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error, or `{calendarId}` is not an Atribu-created calendar (`calendar_unsupported`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream provider error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List shares on an Atribu booking calendar",
+        "description": "Lists the ACL rules on an Atribu booking calendar. `connection_id` is a query param. Requires the `calendar.manage` scope.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "calendarId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ACL rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Opaque ACL rule id (e.g. `user:agent@dealer.com`) — pass to DELETE."
+                          },
+                          "role": {
+                            "type": "string",
+                            "description": "reader | writer."
+                          },
+                          "email": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "The grantee email (for user-scope rules)."
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "role",
+                          "email"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar.manage` scope, or the Google grant lacks `calendar.acls`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`{calendarId}` is not an Atribu-created calendar (`calendar_unsupported`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calendar/calendars/{calendarId}/acl/{ruleId}": {
+      "delete": {
+        "summary": "Revoke a share on an Atribu booking calendar",
+        "description": "Revokes a team member's access (by the ACL `{ruleId}` from the share/list responses). `connection_id` is a query param. Idempotent — an already-removed rule still returns success. Requires the `calendar.manage` scope.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "calendarId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "ruleId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deleted": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "rule_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "deleted",
+                        "rule_id"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `calendar.manage` scope, or the Google grant lacks `calendar.acls`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready / needs reconnection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`{calendarId}` is not an Atribu-created calendar (`calendar_unsupported`)",
             "content": {
               "application/json": {
                 "schema": {
