@@ -85,6 +85,13 @@ describe("buildAuthorizeUrl", () => {
       new URL(buildAuthorizeUrl(base)).searchParams.has("instagram_login"),
     ).toBe(false);
   });
+
+  it("supports the calendar provider/scope (booking calendars)", () => {
+    const url = buildAuthorizeUrl({ ...base, provider: "calendar", scope: "calendar" });
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("provider")).toBe("calendar");
+    expect(parsed.searchParams.get("scope")).toBe("calendar");
+  });
 });
 
 describe("PKCE helpers", () => {

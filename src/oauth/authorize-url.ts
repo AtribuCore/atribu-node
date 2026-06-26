@@ -1,7 +1,7 @@
 import { AtribuConfigError } from "../errors";
 
-export type OauthProvider = "whatsapp" | "instagram";
-export type OauthScope = "whatsapp" | "instagram";
+export type OauthProvider = "whatsapp" | "instagram" | "calendar";
+export type OauthScope = "whatsapp" | "instagram" | "calendar";
 
 export interface BuildAuthorizeUrlInput {
   baseUrl?: string;

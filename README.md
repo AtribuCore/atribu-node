@@ -15,7 +15,7 @@
   <strong>Authorize users, send WhatsApp & Instagram messages, and verify signed webhook deliveries — through one API.</strong>
 </p>
 
-The official Node.js SDK for the [Atribu API](https://www.atribu.app) — typed access to messaging, IG comment replies, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
+The official Node.js SDK for the [Atribu API](https://www.atribu.app) — typed access to messaging, IG comment replies, booking-calendar management, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
 
 ## Installation
 
@@ -235,6 +235,46 @@ const igOnly = await atribu.connections.list({ channel: "instagram" });
 // + the Atribu app UI continue to use it; only this app loses access):
 await atribu.connections.revoke(connectionId);
 ```
+
+### Manage booking calendars
+
+Atribu creates dedicated **booking calendars** in the connected Google account and CRUDs events only on those — it never touches the user's primary calendar. Calendar creation + sharing need the `calendar.manage` scope; event CRUD needs `calendar`. Both are minted together when a user connects Google Calendar through the OAuth flow (`provider: "calendar"`).
+
+```typescript
+// 1. Create a dedicated booking calendar (idempotent — pass an Idempotency-Key)
+const cal = await atribu.calendar.createCalendar(
+  { connection_id, summary: "Dealership Bookings", time_zone: "America/Santiago" },
+  { idempotencyKey: "dealership-bookings" },
+);
+// cal.id is the calendar_id you pass to every event + ACL op.
+
+// 2. List the booking calendars for a connection
+const calendars = await atribu.calendar.listCalendars(connection_id);
+
+// 3. Create / reschedule / cancel events ON that calendar — calendar_id is REQUIRED
+const event = await atribu.calendar.createEvent({
+  connection_id,
+  calendar_id: cal.id,
+  summary: "Test drive — Jane Doe",
+  start: { date_time: "2026-07-01T15:00:00Z" },
+  end:   { date_time: "2026-07-01T15:30:00Z" },
+  attendees: [{ email: "jane@example.com" }],
+  // extended_private round-trips back on the `calendar.event.changed` webhook —
+  // tag your own record id so you can reconcile without storing Google's id:
+  extended_private: { vitrina_appointment_id: "appt_42" },
+});
+await atribu.calendar.updateEvent(event.id, { connection_id, calendar_id: cal.id, location: "Showroom" });
+await atribu.calendar.deleteEvent(event.id, { connectionId: connection_id, calendarId: cal.id });
+
+// 4. Share the calendar with a team member (reader|writer), list shares, revoke
+const share = await atribu.calendar.shareCalendar(cal.id, {
+  connection_id, email: "agent@dealer.com", role: "writer",
+});
+const shares = await atribu.calendar.listCalendarShares(cal.id, connection_id);
+await atribu.calendar.revokeCalendarShare(cal.id, share.id, { connectionId: connection_id });
+```
+
+> **Breaking (v1.0.0):** event ops now **require `calendar_id`** (an Atribu booking calendar — `primary`/unknown is rejected with `calendar_unsupported`, 422), and primary-calendar writes were removed. A connection whose Google grant is missing `calendar.app.created`/`calendar.acls` returns `calendar_scope_required` (403) — prompt the user to reconnect. See the [CHANGELOG](./CHANGELOG.md).
 
 ### Manage webhook subscriptions
 
@@ -494,6 +534,18 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `webhooks.subscriptions.test()` | Fire a synthetic event to test your handler |
 | `webhooks.deliveries.replay()` | Re-deliver a dead webhook |
 | `withRetry()` | Return a new client that retries transient errors |
+
+### Calendar namespace — `client.calendar`
+| Method | Description |
+|---|---|
+| `calendar.createCalendar()` | Create a dedicated Atribu booking calendar (idempotent) — needs `calendar.manage` |
+| `calendar.listCalendars()` | List the booking calendars for a connection |
+| `calendar.createEvent()` | Create an event on a booking calendar (`calendar_id` required) |
+| `calendar.updateEvent()` | Partial-update an event (Google `events.patch`) |
+| `calendar.deleteEvent()` | Cancel an event |
+| `calendar.shareCalendar()` | Grant a team member `reader`/`writer` access (ACL) — needs `calendar.manage` |
+| `calendar.listCalendarShares()` | List the ACL rules on a booking calendar |
+| `calendar.revokeCalendarShare()` | Revoke a team member's access by rule id |
 
 ### WhatsApp namespace — `client.whatsapp`
 | Method | Description |

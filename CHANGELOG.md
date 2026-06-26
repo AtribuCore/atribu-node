@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0]
+
+### Added
+
+- **OAuth `calendar` provider/scope** — `buildAuthorizeUrl` (`@atribu/node/oauth`) now accepts `provider: "calendar"` / `scope: "calendar"` in its types, so partners can build the Google-Calendar connect URL that mints a `calendar` + `calendar.manage` key without a cast. (`OauthProvider`/`OauthScope` widened to include `"calendar"`; the server already supported it.)
+
 ## [1.0.0]
 
 Atribu-managed booking calendars. Atribu now creates dedicated **booking
