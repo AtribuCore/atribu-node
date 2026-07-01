@@ -2419,6 +2419,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/media/{mediaId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve WhatsApp media (media_id → hosted URL)
+         * @description Resolves an inbound WhatsApp `media_id` to a hosted, browser-fetchable URL. Meta's own media URL is auth-gated and expires ~5 minutes, so Atribu downloads the bytes and re-hosts them, returning a signed URL (~7-day TTL) — the same shape Instagram inbound attachments use.
+         *
+         *     Note: Atribu also embeds this URL directly in the WhatsApp webhook fan-out as `attachments:[{type,payload:{url}}]`, so most consumers never need to call this. Use it when you prefer to resolve media on demand. WhatsApp media IDs from webhooks expire after 7 days. Requires the `whatsapp` scope.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description The WhatsApp `data_connection` the media belongs to. */
+                    connection_id: string;
+                };
+                header?: never;
+                path: {
+                    /** @description The inbound WhatsApp `media_id` from the webhook. */
+                    mediaId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resolved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WhatsAppMediaResolveResponse"];
+                    };
+                };
+                /** @description Missing `whatsapp` scope or OAuth-app not authorized for this connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Media expired or not found (WhatsApp media IDs expire after 7 days) */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing/invalid `mediaId` or `connection_id` */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta media fetch failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/comments/{comment_id}/private-reply": {
         parameters: {
             query?: never;
@@ -6062,6 +6154,24 @@ export interface components {
                 mime_type: string;
                 /** @example 452012 */
                 file_size: number;
+            };
+            meta: components["schemas"]["Meta"];
+        };
+        WhatsAppMediaResolveResponse: {
+            data: {
+                /**
+                 * Format: uri
+                 * @description Hosted, browser-fetchable URL (signed, ~7-day TTL).
+                 * @example https://media.atribu.app/conversation-media/…/….jpg?X-Amz-Signature=…
+                 */
+                url: string;
+                /** @example image/jpeg */
+                mime_type: string;
+                /**
+                 * @description ISO timestamp at which `url` stops working.
+                 * @example 2026-07-08T04:45:18.000Z
+                 */
+                expires_at: string;
             };
             meta: components["schemas"]["Meta"];
         };

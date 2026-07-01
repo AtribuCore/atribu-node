@@ -6,6 +6,18 @@ type UploadResponse =
 
 export type WhatsAppMediaUpload = UploadResponse["data"];
 
+type ResolveResponse =
+  paths["/api/v1/whatsapp/media/{mediaId}"]["get"]["responses"][200]["content"]["application/json"];
+
+/** A resolved inbound WhatsApp media reference: a hosted URL + metadata. */
+export type WhatsAppMediaResolved = ResolveResponse["data"];
+
+export interface GetMediaOptions {
+  /** The WhatsApp `data_connection` the media belongs to. */
+  connectionId: string;
+  signal?: AbortSignal;
+}
+
 export interface UploadMediaOptions {
   /** The WhatsApp `data_connection` to upload against. */
   connectionId: string;
@@ -52,6 +64,29 @@ export class WhatsAppMediaResource {
       path: "/api/v1/whatsapp/media",
       multipart: form,
       idempotencyKey: opts.idempotencyKey,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Resolve an inbound WhatsApp `media_id` (from a webhook) to a hosted,
+   * browser-fetchable URL. Meta's own media URL is auth-gated and expires
+   * ~5 minutes, so Atribu downloads the bytes and re-hosts them, returning a
+   * signed URL (~7-day TTL) — the same shape Instagram inbound attachments use.
+   *
+   * You usually don't need this: Atribu already embeds the URL in the WhatsApp
+   * webhook delivery as `attachments:[{type,payload:{url}}]`. Use `get()` only
+   * when you prefer to resolve media on demand. WhatsApp media IDs from
+   * webhooks expire after 7 days.
+   *
+   * WhatsApp only; requires the `whatsapp` scope.
+   */
+  async get(mediaId: string, opts: GetMediaOptions): Promise<WhatsAppMediaResolved> {
+    const res = await this.http.request<ResolveResponse>({
+      method: "GET",
+      path: `/api/v1/whatsapp/media/${encodeURIComponent(mediaId)}`,
+      query: { connection_id: opts.connectionId },
       signal: opts.signal,
     });
     return res.data;

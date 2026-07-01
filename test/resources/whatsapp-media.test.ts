@@ -80,4 +80,38 @@ describe("whatsapp.media resource", () => {
     });
     expect(captured.filename).toBe("upload.bin");
   });
+
+  it("get() resolves a media_id to a hosted URL with connection_id in the query", async () => {
+    let capturedUrl: URL | null = null;
+    let capturedMethod: string | null = null;
+    server.use(
+      http.get(`${BASE}/api/v1/whatsapp/media/:mediaId`, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        capturedMethod = request.method;
+        return HttpResponse.json(
+          {
+            data: {
+              url: "https://media.atribu.test/hosted.jpg?sig=abc",
+              mime_type: "image/jpeg",
+              expires_at: "2026-07-08T04:45:18.000Z",
+            },
+            meta: { profile_id: "p1", connection_id: "conn-9" },
+          },
+          { status: 200 },
+        );
+      }),
+    );
+
+    // A slash in the id must be percent-encoded into the path segment.
+    const res = await newClient().whatsapp.media.get("abc/123", {
+      connectionId: "conn-9",
+    });
+
+    expect(res.url).toBe("https://media.atribu.test/hosted.jpg?sig=abc");
+    expect(res.mime_type).toBe("image/jpeg");
+    expect(res.expires_at).toBe("2026-07-08T04:45:18.000Z");
+    expect(capturedMethod).toBe("GET");
+    expect(capturedUrl!.pathname).toBe("/api/v1/whatsapp/media/abc%2F123");
+    expect(capturedUrl!.searchParams.get("connection_id")).toBe("conn-9");
+  });
 });

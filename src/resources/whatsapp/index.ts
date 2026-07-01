@@ -29,4 +29,9 @@ export type {
   WhatsAppBroadcastDetail,
   WhatsAppBroadcastCreateInput,
 } from "./broadcasts";
-export type { WhatsAppMediaUpload, UploadMediaOptions } from "./media";
+export type {
+  WhatsAppMediaUpload,
+  UploadMediaOptions,
+  WhatsAppMediaResolved,
+  GetMediaOptions,
+} from "./media";

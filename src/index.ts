@@ -98,6 +98,10 @@ export type {
   WhatsAppBroadcast,
   WhatsAppBroadcastDetail,
   WhatsAppBroadcastCreateInput,
+  WhatsAppMediaUpload,
+  UploadMediaOptions,
+  WhatsAppMediaResolved,
+  GetMediaOptions,
 } from "./resources/whatsapp";
 
 export type {

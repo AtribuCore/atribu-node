@@ -105,6 +105,34 @@ await atribu.messages.send({
 });
 ```
 
+### Receive WhatsApp media (inbound)
+
+Meta's inbound webhook carries only an opaque `media_id`, and the underlying
+Meta CDN URL needs your access token to download. Atribu resolves this for you:
+**inbound WhatsApp webhook deliveries already include an `attachments` array**
+with a hosted, browser-fetchable URL (signed, ~7-day TTL) — the same shape as
+Instagram, so you usually don't need to fetch anything:
+
+```jsonc
+// data of an inbound "message.received" delivery for a media message
+{
+  "wa_message_id": "wamid.…",
+  "from": "15551234567",
+  "type": "image",
+  "attachments": [{ "type": "image", "payload": { "url": "https://…signed…" } }]
+}
+```
+
+If you'd rather resolve on demand (e.g. you only stored the `media_id`), call:
+
+```typescript
+const media = await atribu.whatsapp.media.get(mediaId, { connectionId });
+// { url: "https://…signed…", mime_type: "image/jpeg", expires_at: "2026-…Z" }
+```
+
+`url` is a signed URL that expires (`expires_at`); WhatsApp media IDs from
+webhooks expire after 7 days, after which `get()` returns a `410`.
+
 ### Reply to an Instagram comment
 
 ```typescript
@@ -558,6 +586,8 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `whatsapp.broadcasts.get()` | Get a broadcast + its recipients (max 200 returned) |
 | `whatsapp.broadcasts.cancel()` | Cancel an in-flight broadcast |
 | `whatsapp.broadcasts.send()` | Start sending a draft broadcast (long-running) |
+| `whatsapp.media.upload()` | Pre-upload a media binary to Meta → `media_id` |
+| `whatsapp.media.get()` | Resolve an inbound `media_id` → a hosted URL |
 
 ### Instagram namespace — `client.instagram`
 | Method | Description |

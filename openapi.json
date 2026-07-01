@@ -287,6 +287,43 @@
           "data",
           "meta"
         ]
+      },
+      "WhatsAppMediaResolveResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "example": "https://media.atribu.app/conversation-media/…/….jpg?X-Amz-Signature=…",
+                "description": "Hosted, browser-fetchable URL (signed, ~7-day TTL)."
+              },
+              "mime_type": {
+                "type": "string",
+                "example": "image/jpeg"
+              },
+              "expires_at": {
+                "type": "string",
+                "example": "2026-07-08T04:45:18.000Z",
+                "description": "ISO timestamp at which `url` stops working."
+              }
+            },
+            "required": [
+              "url",
+              "mime_type",
+              "expires_at"
+            ]
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
       }
     },
     "parameters": {
@@ -5331,6 +5368,105 @@
           },
           "502": {
             "description": "Upstream Meta upload failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/media/{mediaId}": {
+      "get": {
+        "summary": "Resolve WhatsApp media (media_id → hosted URL)",
+        "description": "Resolves an inbound WhatsApp `media_id` to a hosted, browser-fetchable URL. Meta's own media URL is auth-gated and expires ~5 minutes, so Atribu downloads the bytes and re-hosts them, returning a signed URL (~7-day TTL) — the same shape Instagram inbound attachments use.\n\nNote: Atribu also embeds this URL directly in the WhatsApp webhook fan-out as `attachments:[{type,payload:{url}}]`, so most consumers never need to call this. Use it when you prefer to resolve media on demand. WhatsApp media IDs from webhooks expire after 7 days. Requires the `whatsapp` scope.",
+        "tags": [
+          "Messaging"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "The inbound WhatsApp `media_id` from the webhook."
+            },
+            "required": true,
+            "description": "The inbound WhatsApp `media_id` from the webhook.",
+            "name": "mediaId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The WhatsApp `data_connection` the media belongs to."
+            },
+            "required": true,
+            "description": "The WhatsApp `data_connection` the media belongs to.",
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsAppMediaResolveResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `whatsapp` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Media expired or not found (WhatsApp media IDs expire after 7 days)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing/invalid `mediaId` or `connection_id`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta media fetch failed",
             "content": {
               "application/json": {
                 "schema": {

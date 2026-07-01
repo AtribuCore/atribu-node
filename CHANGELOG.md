@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0]
+
+### Added
+
+- **`whatsapp.media.get(mediaId, { connectionId })`** — resolve an inbound
+  WhatsApp `media_id` (from a webhook) to a hosted, browser-fetchable URL
+  (`{ url, mime_type, expires_at }`). Meta's own media URL is auth-gated and
+  expires ~5 minutes, so Atribu downloads the bytes and re-hosts them, returning
+  a signed URL (~7-day TTL). Backed by `GET /api/v1/whatsapp/media/{mediaId}`;
+  requires the `whatsapp` scope. New exported types `WhatsAppMediaResolved` /
+  `GetMediaOptions`.
+- Inbound WhatsApp webhook deliveries now include an `attachments:[{ type,
+  payload: { url } }]` array for media messages (image/video/audio/document/
+  sticker), mirroring the Instagram shape — so consumers can render media
+  without calling `media.get()` at all. (Server-side; no SDK change required to
+  receive it.)
+
 ## [1.1.0]
 
 ### Added
