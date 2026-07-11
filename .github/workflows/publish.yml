@@ -30,8 +30,10 @@ jobs:
 
       - name: Upgrade npm
         # Default npm in Node 20 is too old for OIDC trusted publishing of
-        # scoped packages — needs >= 11.5.1.
-        run: npm install -g npm@latest
+        # scoped packages — needs >= 11.5.1. Pin to npm@11 (the last major that
+        # still supports Node 20); npm@latest (12+) requires Node >= 22 and
+        # EBADENGINE-fails on this runner.
+        run: npm install -g npm@11
 
       - name: Install
         run: npm ci
