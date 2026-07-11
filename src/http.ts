@@ -36,6 +36,14 @@ export interface RequestOptions {
   /** Override the Authorization header (used by /oauth/* with client-credentials). */
   authOverride?: string;
   idempotencyKey?: string;
+  /**
+   * When `false`, the opt-in `RetryingHttpClient` must NOT replay this
+   * request — even on a transient 5xx or a transport error. Set by resource
+   * methods that wrap a single, attempt-limited upstream action (e.g. the
+   * WhatsApp OTP request/verify + /register) where a blind replay would
+   * re-fire the action against Meta. Default (`undefined`) is retryable.
+   */
+  retryable?: boolean;
   signal?: AbortSignal;
   /** When true, parse 200-body as RFC 6749/7009 OAuth response shape. */
   oauthErrorShape?: boolean;

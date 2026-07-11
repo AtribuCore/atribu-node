@@ -13,6 +13,9 @@
  *   - `AtribuTransportError` (network glitches, ECONNRESET, timeouts)
  *
  * What does NOT retry:
+ *   - any request flagged `retryable: false` (single, attempt-limited upstream
+ *     actions such as the WhatsApp OTP request/verify + /register) — never
+ *     replayed, even on a transient 5xx or a transport error
  *   - `AtribuApiError` with `retry.action === "do_not_retry"` (403)
  *   - `AtribuApiError` with `retry.action === "fix_and_retry"` (422 etc — the
  *     caller's input is wrong; retrying with the same body won't help)
@@ -92,6 +95,9 @@ export class RetryingHttpClient implements HttpClientLike {
         return await this.base.request<T>(opts);
       } catch (err) {
         lastErr = err;
+        // Attempt-limited actions opt out of replay entirely — a retry would
+        // re-fire the upstream action (e.g. a second Meta OTP request).
+        if (opts.retryable === false) throw err;
         if (attempt >= this.r.maxAttempts) throw err;
         const delay = this.computeDelay(err, attempt);
         if (delay === null) throw err; // non-retryable

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0]
+
+### Added
+
+- **`whatsapp.registration`** — Meta-facing WhatsApp phone-number registration,
+  proxied server-side so the customer-scoped Meta business token never leaves
+  Atribu. Methods: `addPhoneNumber` (with `migrate` to move an already-registered
+  number onto the WABA), `requestCode` (voice OTP), `verifyCode`, `register`
+  (registers + subscribes the app's webhooks), `subscribe` (already-registered
+  WABA, no OTP), `listSubscribedApps` (incumbent detection), and `getFunding`
+  (payment-method gate). `requestCode`/`verifyCode`/`register` are attempt-limited
+  and never auto-retried. Meta errors `133016` (register capped 10/number/72h) and
+  `131042` (payment) surface as typed `whatsapp_register_limit` /
+  `whatsapp_payment_required`. New exported types on the `whatsapp.registration`
+  surface.
+
 ## [1.2.0]
 
 ### Added

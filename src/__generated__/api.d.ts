@@ -4607,6 +4607,570 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/registration/phone-numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add (or migrate) a phone number onto a WABA
+         * @description Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        /** @description Country calling code without '+' (e.g. '56' for Chile). */
+                        cc: string;
+                        /** @description Local subscriber number, digits only (no country code). */
+                        phone_number: string;
+                        /** @description Display name shown to customers — the verified_name badge. */
+                        verified_name: string;
+                        /** @description When true, MIGRATE an already-registered number onto this WABA in one call (Graph `migrate_phone_number:true`). Resolves the 'already on another WABA' conflict and preserves quality rating / messaging limits / OBA status. Precondition (caller's responsibility): 2SV disabled on the source number. Still requires the full request_code → verify_code → register flow afterwards. */
+                        migrate?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Phone number added */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                phone_number_id: string;
+                                migrated: boolean;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta add-number failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/registration/request-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request the registration OTP (voice)
+         * @description Proxies `POST /{phone-number-id}/request_code` with `code_method=VOICE`. Single, non-idempotent action — NEVER auto-retried. Meta's retry/lockout window is undocumented; do not re-call without operator intent.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        /** @description The phone_number_id returned by add-number. */
+                        phone_number_id: string;
+                        /** @description Meta OTP language code (e.g. 'en', 'es'). Delivered by VOICE. */
+                        language: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OTP requested */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                requested: boolean;
+                                /** @enum {string} */
+                                code_method: "VOICE";
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta request_code failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/registration/verify-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify the registration OTP
+         * @description Proxies `POST /{phone-number-id}/verify_code`. Attempt-limited by Meta — NEVER auto-retried (the OTP is consumed on each try).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        phone_number_id: string;
+                        /** @description The OTP the dealer received by voice call. */
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OTP verified */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                verified: boolean;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta verify_code failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/registration/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register the number + subscribe Atribu's app
+         * @description Proxies `POST /{phone-number-id}/register` (messaging_product + pin) THEN `POST /{waba-id}/subscribed_apps`. Idempotent. `/register` is capped 10/number/72h — Meta error `133016` surfaces as `whatsapp_register_limit` (429), propagated verbatim and never retried server-side.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        phone_number_id: string;
+                        /** @description 6-digit two-step-verification PIN to (re)establish 2SV. */
+                        pin: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Registered + subscribed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                registered: boolean;
+                                subscribed: boolean;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description WABA has no payment method (Meta 131042) */
+                402: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Registration capped 10/number/72h (Meta 133016) */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta register failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/registration/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Subscribe Atribu's app to an already-registered WABA
+         * @description Proxies `POST /{waba-id}/subscribed_apps` only — no add-number, no OTP, no register. For a bring-your-own WABA that is already registered/CONNECTED (case 4a share). Idempotent; Atribu subscribes only its OWN app.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Subscribed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                subscribed: boolean;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta subscribe failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/registration/subscribed-apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List apps subscribed to a WABA
+         * @description Proxies `GET /{waba-id}/subscribed_apps` for incumbent detection (case 4b): who currently holds the WABA (e.g. Chatwoot) + the ≤2-partner cap, before assigning Atribu.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Subscribed apps */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Subscribed app id (normalized from flat or nested Graph shape). */
+                                id: string | null;
+                                name: string | null;
+                                link: string | null;
+                            }[];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta subscribed_apps read failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/registration/funding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a WABA's funding + status (payment gate)
+         * @description Proxies `GET /{waba-id}?fields=primary_funding_id,currency,status`. `primary_funding_id` empty-state is undocumented — returned raw (absent field = no payment method attached).
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Funding info */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Meta credit-line id. ABSENT when no payment method is attached (undocumented empty-state — returned raw). */
+                                primary_funding_id?: string;
+                                currency?: string;
+                                status?: string;
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta funding read failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instagram/triggers": {
         parameters: {
             query?: never;
@@ -6109,7 +6673,7 @@ export interface components {
          */
         limit: string;
         /**
-         * @description Attribution model. One of: last_touch, first_touch, split_50_50, linear, position_based, time_decay, last_non_direct, custom_weighted
+         * @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct
          * @example last_touch
          */
         model: string;
@@ -6184,7 +6748,7 @@ export interface components {
         date_to: components["schemas"]["date_to"];
         /** @description Max results to return (default 10, max 100) */
         limit: components["schemas"]["limit"];
-        /** @description Attribution model. One of: last_touch, first_touch, split_50_50, linear, position_based, time_decay, last_non_direct, custom_weighted */
+        /** @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct */
         model: components["schemas"]["model"];
     };
     requestBodies: never;

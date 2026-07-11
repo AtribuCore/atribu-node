@@ -102,6 +102,14 @@ export type {
   UploadMediaOptions,
   WhatsAppMediaResolved,
   GetMediaOptions,
+  WhatsAppAddNumberInput,
+  WhatsAppAddNumberResult,
+  WhatsAppRequestCodeInput,
+  WhatsAppVerifyCodeInput,
+  WhatsAppRegisterInput,
+  WhatsAppSubscribeInput,
+  WhatsAppSubscribedApp,
+  WhatsAppFundingInfo,
 } from "./resources/whatsapp";
 
 export type {

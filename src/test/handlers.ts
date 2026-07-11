@@ -62,6 +62,15 @@ export interface MockOverrides {
       cancel?: EndpointOverride;
       send?: EndpointOverride;
     };
+    registration?: {
+      addPhoneNumber?: EndpointOverride;
+      requestCode?: EndpointOverride;
+      verifyCode?: EndpointOverride;
+      register?: EndpointOverride;
+      subscribe?: EndpointOverride;
+      subscribedApps?: EndpointOverride;
+      funding?: EndpointOverride;
+    };
   };
   instagram?: {
     triggers?: {
@@ -221,6 +230,29 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
         200,
         responseFixtures.whatsappBroadcastUpdated({ status: "completed" }),
       ),
+    ),
+
+    // ----- WhatsApp registration (Meta proxy) -----
+    http.post(u("/api/v1/whatsapp/registration/phone-numbers"), () =>
+      resolve(overrides.whatsapp?.registration?.addPhoneNumber, 201, responseFixtures.whatsappNumberAdded()),
+    ),
+    http.post(u("/api/v1/whatsapp/registration/request-code"), () =>
+      resolve(overrides.whatsapp?.registration?.requestCode, 200, responseFixtures.whatsappCodeRequested()),
+    ),
+    http.post(u("/api/v1/whatsapp/registration/verify-code"), () =>
+      resolve(overrides.whatsapp?.registration?.verifyCode, 200, responseFixtures.whatsappCodeVerified()),
+    ),
+    http.post(u("/api/v1/whatsapp/registration/register"), () =>
+      resolve(overrides.whatsapp?.registration?.register, 200, responseFixtures.whatsappRegistered()),
+    ),
+    http.post(u("/api/v1/whatsapp/registration/subscribe"), () =>
+      resolve(overrides.whatsapp?.registration?.subscribe, 200, responseFixtures.whatsappSubscribed()),
+    ),
+    http.get(u("/api/v1/whatsapp/registration/subscribed-apps"), () =>
+      resolve(overrides.whatsapp?.registration?.subscribedApps, 200, responseFixtures.whatsappSubscribedApps()),
+    ),
+    http.get(u("/api/v1/whatsapp/registration/funding"), () =>
+      resolve(overrides.whatsapp?.registration?.funding, 200, responseFixtures.whatsappFunding()),
     ),
 
     // ----- Instagram triggers -----

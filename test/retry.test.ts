@@ -58,4 +58,24 @@ describe("deriveRetryHint", () => {
         .action,
     ).toBe("do_not_retry");
   });
+
+  it("whatsapp_register_limit → do_not_retry despite 429 (10/72h cap)", () => {
+    expect(
+      deriveRetryHint({
+        status: 429,
+        retryAfterHeader: null,
+        errorCode: "whatsapp_register_limit",
+      }).action,
+    ).toBe("do_not_retry");
+  });
+
+  it("whatsapp_payment_required → fix_and_retry (add a card first)", () => {
+    expect(
+      deriveRetryHint({
+        status: 402,
+        retryAfterHeader: null,
+        errorCode: "whatsapp_payment_required",
+      }).action,
+    ).toBe("fix_and_retry");
+  });
 });

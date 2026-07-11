@@ -292,6 +292,41 @@ describe("RetryingHttpClient", () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
+  it("never replays a request flagged retryable:false (transient 5xx)", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", retryable: false }),
+    ).rejects.toMatchObject({ status: 503 });
+    // Single, attempt-limited action — fired exactly once, never replayed.
+    expect(calls).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("never replays a request flagged retryable:false (transport error)", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw new AtribuTransportError("ECONNRESET", null);
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", retryable: false }),
+    ).rejects.toBeInstanceOf(AtribuTransportError);
+    expect(calls).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
   it("applies jitter to backoff delays", async () => {
     const sleep = vi.fn(noSleep);
     const http = makeHttp([

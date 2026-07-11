@@ -414,6 +414,71 @@ export const responseFixtures = {
     };
   },
 
+  // ----- WhatsApp registration (Meta proxy) -----
+  whatsappNumberAdded(overrides?: { phone_number_id?: string; migrated?: boolean }) {
+    return {
+      data: {
+        phone_number_id: overrides?.phone_number_id ?? "109876543210987",
+        migrated: overrides?.migrated ?? false,
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappCodeRequested() {
+    return {
+      data: { requested: true, code_method: "VOICE" as const },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappCodeVerified() {
+    return {
+      data: { verified: true },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappRegistered() {
+    return {
+      data: { registered: true, subscribed: true },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappSubscribed() {
+    return {
+      data: { subscribed: true },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappSubscribedApps(overrides?: { items?: number }) {
+    const items = overrides?.items ?? 1;
+    return {
+      data: Array.from({ length: items }, (_, i) => ({
+        id: `100000000000${i}`,
+        name: i === 0 ? "Atribu" : "Chatwoot",
+        link: null,
+      })),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappFunding(overrides?: { primary_funding_id?: string | null; currency?: string; status?: string }) {
+    const data: Record<string, unknown> = {};
+    if (overrides?.primary_funding_id !== null) {
+      data.primary_funding_id = overrides?.primary_funding_id ?? "1234567890";
+    }
+    if (overrides?.currency !== undefined) data.currency = overrides.currency;
+    else data.currency = "CLP";
+    data.status = overrides?.status ?? "APPROVED";
+    return {
+      data,
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
   // ----- Instagram triggers (Phase 1) -----
   instagramTrigger(overrides?: { id?: string; keyword?: string; enabled?: boolean }) {
     return {

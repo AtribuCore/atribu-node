@@ -28,6 +28,17 @@ export function deriveRetryHint(input: DeriveRetryInput): RetryHint {
   if (input.status === 403 || input.errorCode === "forbidden" || input.errorCode === "insufficient_scope") {
     return { action: "do_not_retry" };
   }
+  // WhatsApp registration is capped 10/number/72h (Meta 133016). A short
+  // retry_after is futile and would re-fire the attempt-limited /register —
+  // the caller must wait out the window, so signal do_not_retry despite 429.
+  if (input.errorCode === "whatsapp_register_limit") {
+    return { action: "do_not_retry" };
+  }
+  // Missing/declined WABA payment method (Meta 131042) — the caller must add
+  // a card before this succeeds; a blind retry won't help.
+  if (input.errorCode === "whatsapp_payment_required") {
+    return { action: "fix_and_retry" };
+  }
   if (input.status === 408) return { action: "retry" };
   if (input.status === 409) return { action: "fix_and_retry" };
   if (input.status === 422 || input.errorCode === "validation_error" || input.errorCode === "invalid_content") {
