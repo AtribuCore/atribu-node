@@ -5720,7 +5720,7 @@ export interface paths {
                          * @description HTTPS URL where Atribu will POST signed events.
                          */
                         url: string;
-                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed")[];
+                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync")[];
                         providers: ("whatsapp" | "instagram" | "email" | "google_calendar")[];
                     };
                 };

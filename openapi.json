@@ -11057,7 +11057,10 @@
                         "message.received",
                         "message.delivery",
                         "conversation.started",
-                        "calendar.event.changed"
+                        "calendar.event.changed",
+                        "message.echo",
+                        "message.history",
+                        "contacts.sync"
                       ]
                     }
                   },

@@ -86,7 +86,13 @@ describe("type narrowing — webhook event union", () => {
 
   it("type field is constrained to known event types", () => {
     expectTypeOf<AtribuWebhookEvent["type"]>().toEqualTypeOf<
-      "message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed"
+      | "message.received"
+      | "message.delivery"
+      | "conversation.started"
+      | "calendar.event.changed"
+      | "message.echo"
+      | "message.history"
+      | "contacts.sync"
     >();
   });
 });

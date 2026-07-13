@@ -86,6 +86,36 @@ describe("buildAuthorizeUrl", () => {
     ).toBe(false);
   });
 
+  // Without this param the end user lands on the default Embedded Signup flow
+  // with the coexistence toggle OFF — Atribu re-registers their number (which
+  // de-registers the WhatsApp Business App on their phone) and Meta never emits
+  // the message.echo / message.history / contacts.sync webhooks.
+  it("sets wa_connect_mode=coexistence when waConnectMode is provided", () => {
+    const url = buildAuthorizeUrl({
+      ...base,
+      provider: "whatsapp",
+      scope: "whatsapp",
+      waConnectMode: "coexistence",
+    });
+    expect(new URL(url).searchParams.get("wa_connect_mode")).toBe("coexistence");
+  });
+
+  it("sets wa_connect_mode=only_waba_sharing when waConnectMode is provided", () => {
+    const url = buildAuthorizeUrl({
+      ...base,
+      provider: "whatsapp",
+      scope: "whatsapp",
+      waConnectMode: "only_waba_sharing",
+    });
+    expect(new URL(url).searchParams.get("wa_connect_mode")).toBe("only_waba_sharing");
+  });
+
+  it("omits wa_connect_mode by default (the end user's toggle decides)", () => {
+    expect(
+      new URL(buildAuthorizeUrl(base)).searchParams.has("wa_connect_mode"),
+    ).toBe(false);
+  });
+
   it("supports the calendar provider/scope (booking calendars)", () => {
     const url = buildAuthorizeUrl({ ...base, provider: "calendar", scope: "calendar" });
     const parsed = new URL(url);

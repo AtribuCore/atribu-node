@@ -21,6 +21,25 @@ export interface BuildAuthorizeUrlInput {
    * `"instagram"` → native Instagram Login (no Facebook Page).
    */
   instagramLogin?: "facebook" | "instagram";
+  /**
+   * WhatsApp Embedded Signup mode (only meaningful when provider/scope is
+   * `whatsapp`). Atribu binds it to the authorization code, so the end user
+   * cannot change it on the connect screen.
+   *
+   * `"coexistence"` — the business keeps the WhatsApp Business App on their
+   * phone AND Atribu connects Cloud API to the same number. Atribu will NOT
+   * re-register the number (which would de-register their app), and will
+   * initiate the contacts + history syncs. Required to receive the
+   * `message.echo` / `message.history` / `contacts.sync` webhook events —
+   * Meta only emits them for a coexistence connection.
+   *
+   * `"only_waba_sharing"` — WABA-only share: you provision and register the
+   * phone number yourself, so Meta skips the phone-number screen.
+   *
+   * Omit to let the end user choose coexistence with a toggle on the connect
+   * screen.
+   */
+  waConnectMode?: "coexistence" | "only_waba_sharing";
   /** Forwards extra query params unchanged. */
   extras?: Record<string, string>;
 }
@@ -57,6 +76,9 @@ export function buildAuthorizeUrl(input: BuildAuthorizeUrlInput): string {
   }
   if (input.instagramLogin) {
     url.searchParams.set("instagram_login", input.instagramLogin);
+  }
+  if (input.waConnectMode) {
+    url.searchParams.set("wa_connect_mode", input.waConnectMode);
   }
   if (input.extras) {
     for (const [k, v] of Object.entries(input.extras)) url.searchParams.set(k, v);

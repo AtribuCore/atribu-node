@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0]
+
+### Added
+
+- **Three new subscribable webhook events — WhatsApp coexistence.** When the
+  business keeps the WhatsApp Business App on their phone *and* Atribu is
+  connected to the same number via Cloud API, Meta emits three extra webhook
+  fields. Atribu now fans them out to subscribers; add them to
+  `webhooks.subscriptions.create({ events: [...] })` to receive them. Unlike
+  `message.received`, all three carry the **raw Meta `change.value`** as `data`
+  (`metadata` plus the Meta-native array at the top level) — the thread tree is
+  yours to walk. Media arrives as a bare Meta `media_id` with no hosted URL;
+  resolve it with `whatsapp.media.get(mediaId, { connectionId })`.
+  - **`message.echo`** — a reply the staff typed in the WhatsApp Business App on
+    the phone. One event per echo; the event `id` is the echo's wamid, so
+    de-dup works exactly as it does for `message.received`. Payload:
+    `{ messaging_product, metadata, message_echoes: [echo] }` with
+    `echo.to` = the customer, `echo.from` = the business.
+  - **`message.history`** — a chunk of the phone's chat history, shared once at
+    coexistence onboarding (up to 6 months). One event per **chunk**, not per
+    message — a chunk carries many threads (`history[0].threads[].messages[]`),
+    and per-message delivery would be a storm. The event `id` is deterministic
+    and **content-addressed** (`phone_number_id` + the chunk's
+    `phase`/`chunk_order` + a digest of the chunk), so a Meta redelivery of the
+    same bytes de-dupes while a *second* history share — which restarts at
+    phase 0 / chunk_order 0 with different content — does not collide with the
+    first. A chunk too large for one delivery is split into several
+    `message.history` events (thread-grained), each with its own id, so no
+    single POST can exceed a subscriber's body limit. Chunks Meta marks with an
+    `errors[]` (a declined history share) are never delivered. Both directions
+    are present: compare `message.from` against `metadata.display_phone_number`
+    to tell a staff message from a customer one.
+  - **`contacts.sync`** — the phone's address book (`state_sync[]`, contact
+    add/remove). One event per Meta change; the event `id` is deterministic
+    (`phone_number_id` + a digest of the payload). An address book too large for
+    one delivery is split across several events.
+- **`buildAuthorizeUrl({ waConnectMode })`** — selects the WhatsApp Embedded
+  Signup mode up-front, as `wa_connect_mode` on `/oauth/authorize`. Atribu binds
+  it to the authorization code, so the end user cannot change it on the connect
+  screen.
+  - `"coexistence"` — the business keeps the WhatsApp Business App on their
+    phone AND Atribu connects Cloud API to the same number. **Required to
+    receive the three events above**: Meta only emits them for a coexistence
+    connection. It also stops Atribu re-registering the number, which would
+    de-register the WhatsApp Business App on the business's phone.
+  - `"only_waba_sharing"` — WABA-only share; you provision and register the
+    number yourself, so Meta skips the phone-number screen.
+  - Omit it to let the end user choose coexistence with a toggle.
+  - New exported types on the `@atribu/node/webhooks` surface:
+    `WhatsAppMessageEchoEvent`, `WhatsAppMessageHistoryEvent`,
+    `WhatsAppContactsSyncEvent`, plus `WhatsAppMessageEcho`,
+    `WhatsAppHistoryChunk`, `WhatsAppHistoryThread`, `WhatsAppHistoryMessage`,
+    `WhatsAppStateSyncItem` and `WhatsAppCoexistenceMetadata`. All three join the
+    `AtribuWebhookEvent` union, so `switch (event.type)` narrows them.
+
+### Fixed
+
+- `SDK_VERSION` (the `User-Agent` string) was stale at `1.2.0` through the 1.3.0
+  release. It now tracks the package version.
+
 ## [1.3.0]
 
 ### Added

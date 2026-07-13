@@ -12,7 +12,10 @@ export type WebhookEventType =
   | "message.received"
   | "message.delivery"
   | "conversation.started"
-  | "calendar.event.changed";
+  | "calendar.event.changed"
+  | "message.echo"
+  | "message.history"
+  | "contacts.sync";
 
 interface BaseEvent {
   /** Stable event id for de-dup (also surfaced in `X-Atribu-Delivery-Id`). */
@@ -49,6 +52,125 @@ export interface WhatsAppMessageDeliveryEvent extends BaseEvent {
     recipient_id: string;
     status: "sent" | "delivered" | "read" | "failed" | (string & {});
     raw: Record<string, unknown>;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp coexistence (the business keeps the WhatsApp Business App on their
+// phone AND Atribu is on Cloud API for the same number).
+//
+// Unlike `message.received`, these three carry the RAW Meta `change.value` as
+// `data` — `metadata` plus `message_echoes[]` / `history[]` / `state_sync[]` at
+// the top level. Media arrives as a bare Meta `media_id` with no hosted URL;
+// resolve it with `whatsapp.media.get(mediaId, { connectionId })`.
+// ---------------------------------------------------------------------------
+
+export interface WhatsAppCoexistenceMetadata {
+  display_phone_number: string;
+  phone_number_id: string;
+}
+
+/** A message the business sent from the WhatsApp Business App on the phone. */
+export interface WhatsAppMessageEcho {
+  /** The business phone number. */
+  from: string;
+  /** The WhatsApp user's phone number (the customer). */
+  to: string;
+  /** wamid. */
+  id: string;
+  /** Unix epoch seconds, as a string. */
+  timestamp: string;
+  /** Meta's message type (text, image, video, audio, document, sticker, location, …). */
+  type: string;
+  text?: { body: string };
+  [key: string]: unknown;
+}
+
+/**
+ * A staff reply typed in the WhatsApp Business App (coexistence). Emitted ONE
+ * EVENT PER ECHO — `id` is the echo's wamid, so de-dup works exactly as it does
+ * for `message.received`.
+ */
+export interface WhatsAppMessageEchoEvent extends BaseEvent {
+  type: "message.echo";
+  provider: "whatsapp";
+  data: {
+    messaging_product: string;
+    metadata: WhatsAppCoexistenceMetadata;
+    /** Exactly one echo per delivery. */
+    message_echoes: WhatsAppMessageEcho[];
+  };
+}
+
+export interface WhatsAppHistoryMessage {
+  from: string;
+  to?: string;
+  /** wamid. */
+  id: string;
+  /** Unix epoch seconds, as a string. */
+  timestamp: string;
+  type: string;
+  text?: { body: string };
+  history_context?: { status: string };
+  [key: string]: unknown;
+}
+
+export interface WhatsAppHistoryThread {
+  /** The WhatsApp user's phone number — the thread key. */
+  id: string;
+  messages: WhatsAppHistoryMessage[];
+}
+
+export interface WhatsAppHistoryChunk {
+  /** `progress` is 0–100 across the whole share; `phase` + `chunk_order` identify the chunk. */
+  metadata?: { phase: number; chunk_order: number; progress: number };
+  threads?: WhatsAppHistoryThread[];
+}
+
+/**
+ * A chunk of the WhatsApp Business App's chat history, shared once at
+ * coexistence onboarding (up to 6 months). Emitted ONE EVENT PER CHUNK — not
+ * per message — and each chunk carries many threads. Chunks that Meta returns
+ * with an `errors[]` (a declined/failed history share) are never delivered.
+ * Both directions are present: compare `message.from` against
+ * `metadata.display_phone_number` to tell a staff message from a customer one.
+ */
+export interface WhatsAppMessageHistoryEvent extends BaseEvent {
+  type: "message.history";
+  provider: "whatsapp";
+  data: {
+    messaging_product: string;
+    metadata: WhatsAppCoexistenceMetadata;
+    /** Exactly one chunk per delivery. */
+    history: WhatsAppHistoryChunk[];
+  };
+}
+
+export interface WhatsAppStateSyncItem {
+  /** e.g. "contact". */
+  type: string;
+  contact?: {
+    full_name?: string;
+    first_name?: string;
+    phone_number: string;
+  };
+  /** e.g. "add" / "remove". */
+  action?: string;
+  metadata?: { timestamp: string };
+  [key: string]: unknown;
+}
+
+/**
+ * The phone's address book, synced from the WhatsApp Business App
+ * (coexistence). One event per Meta `smb_app_state_sync` change.
+ */
+export interface WhatsAppContactsSyncEvent extends BaseEvent {
+  type: "contacts.sync";
+  provider: "whatsapp";
+  data: {
+    messaging_product: string;
+    metadata: WhatsAppCoexistenceMetadata;
+    state_sync: WhatsAppStateSyncItem[];
   };
 }
 
@@ -220,6 +342,9 @@ export interface ConversationStartedEvent extends BaseEvent {
 export type AtribuWebhookEvent =
   | WhatsAppMessageReceivedEvent
   | WhatsAppMessageDeliveryEvent
+  | WhatsAppMessageEchoEvent
+  | WhatsAppMessageHistoryEvent
+  | WhatsAppContactsSyncEvent
   | InstagramMessageReceivedEvent
   | InstagramMessageDeliveryEvent
   | EmailMessageReceivedEvent
