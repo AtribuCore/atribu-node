@@ -3,6 +3,7 @@ import { WhatsAppTemplatesResource } from "./templates";
 import { WhatsAppBroadcastsResource } from "./broadcasts";
 import { WhatsAppMediaResource } from "./media";
 import { WhatsAppRegistrationResource } from "./registration";
+import { WhatsAppHealthResource } from "./health";
 
 /**
  * WhatsApp-specific resource namespace. Mounted on `AtribuClient.whatsapp`.
@@ -13,12 +14,14 @@ export class WhatsAppNamespace {
   readonly broadcasts: WhatsAppBroadcastsResource;
   readonly media: WhatsAppMediaResource;
   readonly registration: WhatsAppRegistrationResource;
+  readonly health: WhatsAppHealthResource;
 
   constructor(http: HttpClientLike) {
     this.templates = new WhatsAppTemplatesResource(http);
     this.broadcasts = new WhatsAppBroadcastsResource(http);
     this.media = new WhatsAppMediaResource(http);
     this.registration = new WhatsAppRegistrationResource(http);
+    this.health = new WhatsAppHealthResource(http);
   }
 }
 
@@ -26,6 +29,7 @@ export type {
   WhatsAppTemplate,
   WhatsAppTemplateCreateInput,
   WhatsAppTemplateCreateResult,
+  WhatsAppTemplateSyncResult,
 } from "./templates";
 export type {
   WhatsAppBroadcast,
@@ -48,3 +52,8 @@ export type {
   WhatsAppSubscribedApp,
   WhatsAppFundingInfo,
 } from "./registration";
+export type {
+  WhatsAppChannelHealth,
+  WhatsAppHealthIssue,
+  HealthGetOptions,
+} from "./health";

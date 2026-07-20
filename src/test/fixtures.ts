@@ -286,8 +286,22 @@ export const responseFixtures = {
     return { error, error_description: description };
   },
 
-  apiError(code: string, message: string, status: number) {
-    return { error: { code, message, status, request_id: "req_fixture" } };
+  apiError(
+    code: string,
+    message: string,
+    status: number,
+    extra?: { reconnect_required?: boolean; reconnect_url?: string },
+  ) {
+    return {
+      error: {
+        code,
+        message,
+        status,
+        request_id: "req_fixture",
+        ...(extra?.reconnect_required ? { reconnect_required: true } : {}),
+        ...(extra?.reconnect_url ? { reconnect_url: extra.reconnect_url } : {}),
+      },
+    };
   },
 
   // ----- Connections (Phase 1) -----
@@ -334,9 +348,32 @@ export const responseFixtures = {
         language: "en_US",
         category: "MARKETING",
         status: i === 0 ? "APPROVED" : "PENDING",
+        quality_score: i === 0 ? "GREEN" : null,
         components: [{ type: "BODY", text: "Hello {{1}}!" }],
+        status_changed_at: "2026-07-20T10:00:00Z",
+        last_synced_at: "2026-07-20T12:00:00Z",
       })),
       meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappTemplateSync(overrides?: {
+    items?: number;
+    upserted?: number;
+    deleted?: number;
+    statusChanges?: number;
+  }) {
+    const list = this.whatsappTemplateList({ items: overrides?.items ?? 2 });
+    return {
+      data: list.data,
+      meta: {
+        ...list.meta,
+        summary: {
+          upserted: overrides?.upserted ?? 2,
+          deleted: overrides?.deleted ?? 0,
+          statusChanges: overrides?.statusChanges ?? 1,
+        },
+      },
     };
   },
 
@@ -475,6 +512,55 @@ export const responseFixtures = {
     data.status = overrides?.status ?? "APPROVED";
     return {
       data,
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappAccountHealth(overrides?: {
+    canSend?: "AVAILABLE" | "LIMITED" | "BLOCKED" | null;
+    tokenValid?: boolean;
+    webhookSubscribed?: boolean;
+    refreshedAt?: string | null;
+    stale?: boolean;
+    issues?: Array<{
+      entityType: string;
+      code: number | string | null;
+      description: string;
+      remediation: string | null;
+      severity: "critical" | "warning" | "info";
+    }>;
+  }) {
+    return {
+      data: {
+        connectionId: SAMPLE_CONNECTION_ID,
+        wabaId: "1429076345583215",
+        phoneNumberId: "109876543210987",
+        canSend: overrides?.canSend === undefined ? "AVAILABLE" : overrides.canSend,
+        tokenValid: overrides?.tokenValid ?? true,
+        webhookSubscribed: overrides?.webhookSubscribed ?? true,
+        phone: {
+          displayPhoneNumber: "+56 9 1234 5678",
+          verifiedName: "La Autería",
+          qualityRating: "GREEN",
+          messagingLimitTier: "TIER_1K",
+          nameStatus: "APPROVED",
+          accountMode: "LIVE",
+          codeVerificationStatus: "VERIFIED",
+          throughputLevel: "STANDARD",
+        },
+        issues: overrides?.issues ?? [],
+        refreshedAt:
+          overrides?.refreshedAt === undefined
+            ? "2026-07-20T12:00:00Z"
+            : overrides.refreshedAt,
+        stale: overrides?.stale ?? false,
+        reconnectRequired: overrides?.tokenValid === false,
+        reconnectUrl:
+          overrides?.tokenValid === false
+            ? "https://www.atribu.app/oauth/connect/whatsapp?flow=reconnect&connection_id=" +
+              SAMPLE_CONNECTION_ID
+            : null,
+      },
       meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
     };
   },

@@ -93,6 +93,8 @@ describe("type narrowing — webhook event union", () => {
       | "message.echo"
       | "message.history"
       | "contacts.sync"
+      | "template.updated"
+      | "channel.health.updated"
     >();
   });
 });

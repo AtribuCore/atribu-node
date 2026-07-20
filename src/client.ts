@@ -9,6 +9,7 @@ import { WebhookSubscriptionsResource } from "./resources/webhook-subscriptions"
 import { WebhookDeliveriesResource } from "./resources/webhook-deliveries";
 import { WhatsAppNamespace } from "./resources/whatsapp";
 import { InstagramNamespace } from "./resources/instagram";
+import { EventsResource } from "./resources/events";
 import { RetryingHttpClient, type RetryOptions } from "./retry-wrapper";
 
 interface ResourceBundle {
@@ -17,6 +18,7 @@ interface ResourceBundle {
   calendar: CalendarResource;
   comments: CommentsResource;
   connections: ConnectionsResource;
+  events: EventsResource;
   webhooks: {
     subscriptions: WebhookSubscriptionsResource;
     deliveries: WebhookDeliveriesResource;
@@ -32,6 +34,7 @@ function buildResources(http: HttpClientLike): ResourceBundle {
     calendar: new CalendarResource(http),
     comments: new CommentsResource(http),
     connections: new ConnectionsResource(http),
+    events: new EventsResource(http),
     webhooks: {
       subscriptions: new WebhookSubscriptionsResource(http),
       deliveries: new WebhookDeliveriesResource(http),
@@ -47,6 +50,7 @@ export class AtribuClient {
   readonly calendar: CalendarResource;
   readonly comments: CommentsResource;
   readonly connections: ConnectionsResource;
+  readonly events: EventsResource;
   readonly webhooks: ResourceBundle["webhooks"];
   readonly whatsapp: WhatsAppNamespace;
   readonly instagram: InstagramNamespace;
@@ -62,6 +66,7 @@ export class AtribuClient {
     this.calendar = r.calendar;
     this.comments = r.comments;
     this.connections = r.connections;
+    this.events = r.events;
     this.webhooks = r.webhooks;
     this.whatsapp = r.whatsapp;
     this.instagram = r.instagram;
@@ -97,6 +102,7 @@ export class AtribuClient {
       calendar: r.calendar,
       comments: r.comments,
       connections: r.connections,
+      events: r.events,
       webhooks: r.webhooks,
       whatsapp: r.whatsapp,
       instagram: r.instagram,

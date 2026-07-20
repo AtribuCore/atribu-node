@@ -55,6 +55,15 @@
               "request_id": {
                 "type": "string",
                 "example": "req_a1b2c3d4"
+              },
+              "reconnect_required": {
+                "type": "boolean",
+                "description": "Present + true when the connection's token was revoked and the user must re-authorize.",
+                "example": true
+              },
+              "reconnect_url": {
+                "type": "string",
+                "description": "Where to send the user to reconnect (present with `reconnect_required` when the channel can build one)."
               }
             },
             "required": [
@@ -138,6 +147,9 @@
                   "revenue": {
                     "type": "number"
                   },
+                  "organic_direct_revenue": {
+                    "type": "number"
+                  },
                   "roas": {
                     "type": "number"
                   },
@@ -150,18 +162,6 @@
                   "coverage_percent": {
                     "type": "number"
                   },
-                  "visitors": {
-                    "type": "number"
-                  },
-                  "pageviews": {
-                    "type": "number"
-                  },
-                  "bounce_rate": {
-                    "type": "number"
-                  },
-                  "avg_engaged_seconds": {
-                    "type": "number"
-                  },
                   "cash_revenue": {
                     "type": "number"
                   },
@@ -172,14 +172,11 @@
                 "required": [
                   "spend",
                   "revenue",
+                  "organic_direct_revenue",
                   "roas",
                   "outcomes",
                   "attributed_outcomes",
                   "coverage_percent",
-                  "visitors",
-                  "pageviews",
-                  "bounce_rate",
-                  "avg_engaged_seconds",
                   "cash_revenue",
                   "cash_payments"
                 ]
@@ -193,6 +190,9 @@
                   "revenue": {
                     "type": "number"
                   },
+                  "organic_direct_revenue": {
+                    "type": "number"
+                  },
                   "roas": {
                     "type": "number"
                   },
@@ -205,18 +205,6 @@
                   "coverage_percent": {
                     "type": "number"
                   },
-                  "visitors": {
-                    "type": "number"
-                  },
-                  "pageviews": {
-                    "type": "number"
-                  },
-                  "bounce_rate": {
-                    "type": "number"
-                  },
-                  "avg_engaged_seconds": {
-                    "type": "number"
-                  },
                   "cash_revenue": {
                     "type": "number"
                   },
@@ -227,14 +215,11 @@
                 "required": [
                   "spend",
                   "revenue",
+                  "organic_direct_revenue",
                   "roas",
                   "outcomes",
                   "attributed_outcomes",
                   "coverage_percent",
-                  "visitors",
-                  "pageviews",
-                  "bounce_rate",
-                  "avg_engaged_seconds",
                   "cash_revenue",
                   "cash_payments"
                 ]
@@ -252,6 +237,139 @@
         "required": [
           "data",
           "meta"
+        ]
+      },
+      "CashAttributionCoverage": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "number"
+              },
+              "value": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "count",
+              "value"
+            ]
+          },
+          "buckets": {
+            "type": "object",
+            "properties": {
+              "ad_attributed": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "count",
+                  "value"
+                ]
+              },
+              "inherited": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "count",
+                  "value"
+                ]
+              },
+              "dangling_ad": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "count",
+                  "value"
+                ]
+              },
+              "organic_direct": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "count",
+                  "value"
+                ]
+              },
+              "unattributed": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number"
+                  },
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "count",
+                  "value"
+                ]
+              }
+            },
+            "required": [
+              "ad_attributed",
+              "inherited",
+              "dangling_ad",
+              "organic_direct",
+              "unattributed"
+            ]
+          },
+          "traceable_pct_by_count": {
+            "type": "number"
+          },
+          "traceable_pct_by_value": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "model",
+          "currency",
+          "total",
+          "buckets",
+          "traceable_pct_by_count",
+          "traceable_pct_by_value"
         ]
       },
       "MediaUploadResponse": {
@@ -323,6 +441,192 @@
         "required": [
           "data",
           "meta"
+        ]
+      },
+      "WhatsAppChannelHealth": {
+        "type": "object",
+        "properties": {
+          "connectionId": {
+            "type": "string"
+          },
+          "wabaId": {
+            "type": "string"
+          },
+          "phoneNumberId": {
+            "type": "string"
+          },
+          "canSend": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "AVAILABLE",
+              "LIMITED",
+              "BLOCKED",
+              null
+            ],
+            "description": "Meta's overall `can_send_message`, or null when `health_status` could not be read. null means unknown, never healthy."
+          },
+          "tokenValid": {
+            "type": "boolean"
+          },
+          "webhookSubscribed": {
+            "type": "boolean"
+          },
+          "phone": {
+            "type": "object",
+            "properties": {
+              "displayPhoneNumber": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "verifiedName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "qualityRating": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "messagingLimitTier": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "nameStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "accountMode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "codeVerificationStatus": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "throughputLevel": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "displayPhoneNumber",
+              "verifiedName",
+              "qualityRating",
+              "messagingLimitTier",
+              "nameStatus",
+              "accountMode",
+              "codeVerificationStatus",
+              "throughputLevel"
+            ]
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsAppHealthIssue"
+            }
+          },
+          "refreshedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When this snapshot was last read from Meta (ISO). null on a never-refreshed account."
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "True when `refreshedAt` is older than the freshness TTL (6h). A live/forced refresh returns false."
+          },
+          "reconnectRequired": {
+            "type": "boolean",
+            "description": "True when the channel needs re-authorization (invalid/expired token)."
+          },
+          "reconnectUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where to send the user to reconnect the WhatsApp channel, or null when not required."
+          }
+        },
+        "required": [
+          "connectionId",
+          "wabaId",
+          "phoneNumberId",
+          "canSend",
+          "tokenValid",
+          "webhookSubscribed",
+          "phone",
+          "issues",
+          "refreshedAt",
+          "stale",
+          "reconnectRequired",
+          "reconnectUrl"
+        ]
+      },
+      "WhatsAppHealthIssue": {
+        "type": "object",
+        "properties": {
+          "entityType": {
+            "type": "string",
+            "description": "Meta entity_type (PHONE_NUMBER, MESSAGE_TEMPLATE, WABA, BUSINESS, APP) or a synthetic bucket (APP) for token/webhook issues."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meta error_code (number), a synthetic string code, or null for advisories."
+          },
+          "description": {
+            "type": "string"
+          },
+          "remediation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Meta's `possible_solution`, or Atribu's remediation for synthetic issues."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "warning",
+              "info"
+            ]
+          }
+        },
+        "required": [
+          "entityType",
+          "code",
+          "description",
+          "remediation",
+          "severity"
         ]
       }
     },
@@ -441,7 +745,7 @@
     "/api/v1/timeseries": {
       "get": {
         "summary": "Get daily timeseries data",
-        "description": "Returns daily visitors, pageviews, bounces, revenue, and spend.",
+        "description": "Returns daily cash revenue and ad spend.",
         "tags": [
           "Analytics"
         ],
@@ -484,15 +788,6 @@
                           "date": {
                             "type": "string"
                           },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounces": {
-                            "type": "number"
-                          },
                           "cash_revenue": {
                             "type": "number"
                           },
@@ -502,9 +797,6 @@
                         },
                         "required": [
                           "date",
-                          "visitors",
-                          "pageviews",
-                          "bounces",
                           "cash_revenue",
                           "spend"
                         ]
@@ -573,8 +865,8 @@
     },
     "/api/v1/channels": {
       "get": {
-        "summary": "Get traffic source breakdown",
-        "description": "Returns channel breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.",
+        "summary": "Conversions and revenue by traffic source",
+        "description": "Returns attributed conversions and credit-weighted revenue per channel.",
         "tags": [
           "Analytics"
         ],
@@ -623,38 +915,21 @@
                         "type": "object",
                         "properties": {
                           "value": {
-                            "type": "string"
-                          },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "visits": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounce_rate": {
-                            "type": "number"
+                            "type": "string",
+                            "description": "The dimension value (e.g. 'Paid Social')."
                           },
                           "conversions": {
-                            "type": "number"
-                          },
-                          "conversion_rate": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Attributed conversions credited to this dimension value."
                           },
                           "revenue": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Credit-weighted attributed revenue for this dimension value."
                           }
                         },
                         "required": [
                           "value",
-                          "visitors",
-                          "visits",
-                          "pageviews",
-                          "bounce_rate",
                           "conversions",
-                          "conversion_rate",
                           "revenue"
                         ]
                       }
@@ -676,8 +951,8 @@
     },
     "/api/v1/pages": {
       "get": {
-        "summary": "Get page performance breakdown",
-        "description": "Returns page breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.",
+        "summary": "Conversions and revenue by landing page",
+        "description": "Returns attributed conversions and credit-weighted revenue per page.",
         "tags": [
           "Analytics"
         ],
@@ -726,38 +1001,21 @@
                         "type": "object",
                         "properties": {
                           "value": {
-                            "type": "string"
-                          },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "visits": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounce_rate": {
-                            "type": "number"
+                            "type": "string",
+                            "description": "The dimension value (e.g. 'Paid Social')."
                           },
                           "conversions": {
-                            "type": "number"
-                          },
-                          "conversion_rate": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Attributed conversions credited to this dimension value."
                           },
                           "revenue": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Credit-weighted attributed revenue for this dimension value."
                           }
                         },
                         "required": [
                           "value",
-                          "visitors",
-                          "visits",
-                          "pageviews",
-                          "bounce_rate",
                           "conversions",
-                          "conversion_rate",
                           "revenue"
                         ]
                       }
@@ -779,8 +1037,8 @@
     },
     "/api/v1/countries": {
       "get": {
-        "summary": "Get country breakdown",
-        "description": "Returns country breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.",
+        "summary": "Conversions and revenue by country",
+        "description": "Returns attributed conversions and credit-weighted revenue per country.",
         "tags": [
           "Analytics"
         ],
@@ -829,38 +1087,21 @@
                         "type": "object",
                         "properties": {
                           "value": {
-                            "type": "string"
-                          },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "visits": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounce_rate": {
-                            "type": "number"
+                            "type": "string",
+                            "description": "The dimension value (e.g. 'Paid Social')."
                           },
                           "conversions": {
-                            "type": "number"
-                          },
-                          "conversion_rate": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Attributed conversions credited to this dimension value."
                           },
                           "revenue": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Credit-weighted attributed revenue for this dimension value."
                           }
                         },
                         "required": [
                           "value",
-                          "visitors",
-                          "visits",
-                          "pageviews",
-                          "bounce_rate",
                           "conversions",
-                          "conversion_rate",
                           "revenue"
                         ]
                       }
@@ -882,8 +1123,8 @@
     },
     "/api/v1/devices": {
       "get": {
-        "summary": "Get device type breakdown",
-        "description": "Returns device breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.",
+        "summary": "Conversions and revenue by device type",
+        "description": "Returns attributed conversions and credit-weighted revenue per device.",
         "tags": [
           "Analytics"
         ],
@@ -932,38 +1173,21 @@
                         "type": "object",
                         "properties": {
                           "value": {
-                            "type": "string"
-                          },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "visits": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounce_rate": {
-                            "type": "number"
+                            "type": "string",
+                            "description": "The dimension value (e.g. 'Paid Social')."
                           },
                           "conversions": {
-                            "type": "number"
-                          },
-                          "conversion_rate": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Attributed conversions credited to this dimension value."
                           },
                           "revenue": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Credit-weighted attributed revenue for this dimension value."
                           }
                         },
                         "required": [
                           "value",
-                          "visitors",
-                          "visits",
-                          "pageviews",
-                          "bounce_rate",
                           "conversions",
-                          "conversion_rate",
                           "revenue"
                         ]
                       }
@@ -985,8 +1209,8 @@
     },
     "/api/v1/browsers": {
       "get": {
-        "summary": "Get browser breakdown",
-        "description": "Returns browser breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.",
+        "summary": "Conversions and revenue by browser",
+        "description": "Returns attributed conversions and credit-weighted revenue per browser.",
         "tags": [
           "Analytics"
         ],
@@ -1035,38 +1259,21 @@
                         "type": "object",
                         "properties": {
                           "value": {
-                            "type": "string"
-                          },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "visits": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounce_rate": {
-                            "type": "number"
+                            "type": "string",
+                            "description": "The dimension value (e.g. 'Paid Social')."
                           },
                           "conversions": {
-                            "type": "number"
-                          },
-                          "conversion_rate": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Attributed conversions credited to this dimension value."
                           },
                           "revenue": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Credit-weighted attributed revenue for this dimension value."
                           }
                         },
                         "required": [
                           "value",
-                          "visitors",
-                          "visits",
-                          "pageviews",
-                          "bounce_rate",
                           "conversions",
-                          "conversion_rate",
                           "revenue"
                         ]
                       }
@@ -1088,8 +1295,8 @@
     },
     "/api/v1/os": {
       "get": {
-        "summary": "Get operating system breakdown",
-        "description": "Returns os breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.",
+        "summary": "Conversions and revenue by operating system",
+        "description": "Returns attributed conversions and credit-weighted revenue per os.",
         "tags": [
           "Analytics"
         ],
@@ -1138,38 +1345,21 @@
                         "type": "object",
                         "properties": {
                           "value": {
-                            "type": "string"
-                          },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "visits": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounce_rate": {
-                            "type": "number"
+                            "type": "string",
+                            "description": "The dimension value (e.g. 'Paid Social')."
                           },
                           "conversions": {
-                            "type": "number"
-                          },
-                          "conversion_rate": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Attributed conversions credited to this dimension value."
                           },
                           "revenue": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Credit-weighted attributed revenue for this dimension value."
                           }
                         },
                         "required": [
                           "value",
-                          "visitors",
-                          "visits",
-                          "pageviews",
-                          "bounce_rate",
                           "conversions",
-                          "conversion_rate",
                           "revenue"
                         ]
                       }
@@ -1191,8 +1381,8 @@
     },
     "/api/v1/referrers": {
       "get": {
-        "summary": "Get referrer breakdown",
-        "description": "Returns referrer breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.",
+        "summary": "Conversions and revenue by referrer",
+        "description": "Returns attributed conversions and credit-weighted revenue per referrer.",
         "tags": [
           "Analytics"
         ],
@@ -1241,38 +1431,21 @@
                         "type": "object",
                         "properties": {
                           "value": {
-                            "type": "string"
-                          },
-                          "visitors": {
-                            "type": "number"
-                          },
-                          "visits": {
-                            "type": "number"
-                          },
-                          "pageviews": {
-                            "type": "number"
-                          },
-                          "bounce_rate": {
-                            "type": "number"
+                            "type": "string",
+                            "description": "The dimension value (e.g. 'Paid Social')."
                           },
                           "conversions": {
-                            "type": "number"
-                          },
-                          "conversion_rate": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Attributed conversions credited to this dimension value."
                           },
                           "revenue": {
-                            "type": "number"
+                            "type": "number",
+                            "description": "Credit-weighted attributed revenue for this dimension value."
                           }
                         },
                         "required": [
                           "value",
-                          "visitors",
-                          "visits",
-                          "pageviews",
-                          "bounce_rate",
                           "conversions",
-                          "conversion_rate",
                           "revenue"
                         ]
                       }
@@ -3151,7 +3324,7 @@
     "/api/v1/ads/forecast/scenarios": {
       "post": {
         "summary": "Per-ad what-if forecast scenarios (Phase 4 / F-3)",
-        "description": "Feeds modified spend / frequency overrides back through the active outcomes-head forecaster and returns the projected 7-day outcomes count per scenario, with 80% conformal PI bands. The `out_of_range` flag goes true when a scenario's spend is > 2x or < 0.5x the ad's current trailing-7d spend — the model is extrapolating beyond its training distribution; treat the result as directional only. Up to 5 scenarios per call. Returns base=null + per-scenario `gated_reason` when the ad is cold-start / paused / has no active forecaster model.",
+        "description": "Feeds modified spend / frequency overrides back through the active outcomes-head forecaster and returns the projected 7-day outcomes count per scenario, with 80% conformal PI bands. IMPORTANT: spend-scaling scenarios are a naive linear extrapolation, not a saturation model — the per-dollar outcome rate is held fixed, so outcomes scale in direct proportion to spend (marginal = average return). Such scenarios carry `projection_basis: 'linear_spend_extrapolation'` + `assumes_constant_returns: true`, and the top-level `basis_note` spells this out; do not present them as a guarantee that more budget yields proportional sales. The `out_of_range` flag goes true when a scenario's spend is > 2x or < 0.5x the ad's current trailing-7d spend — extrapolating beyond the training distribution; even less reliable. Up to 5 scenarios per call. Returns base=null + per-scenario `gated_reason` when the ad is cold-start / paused / has no active forecaster model.",
         "tags": [
           "Campaigns"
         ],
@@ -3237,6 +3410,12 @@
                         "base_trailing_7d_spend": {
                           "type": "number"
                         },
+                        "assumes_constant_returns": {
+                          "type": "boolean"
+                        },
+                        "basis_note": {
+                          "type": "string"
+                        },
                         "base": {
                           "type": [
                             "object",
@@ -3306,6 +3485,16 @@
                                 "type": "number"
                               },
                               "out_of_range": {
+                                "type": "boolean"
+                              },
+                              "projection_basis": {
+                                "type": "string",
+                                "enum": [
+                                  "model_response",
+                                  "linear_spend_extrapolation"
+                                ]
+                              },
+                              "assumes_constant_returns": {
                                 "type": "boolean"
                               },
                               "gated_reason": {
@@ -3549,6 +3738,9 @@
                           "revenue": {
                             "type": "number"
                           },
+                          "organic_direct_revenue": {
+                            "type": "number"
+                          },
                           "spend": {
                             "type": "number"
                           }
@@ -3556,6 +3748,7 @@
                         "required": [
                           "date",
                           "revenue",
+                          "organic_direct_revenue",
                           "spend"
                         ]
                       }
@@ -3718,6 +3911,70 @@
                         "with_no_tracking",
                         "coverage_percent"
                       ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/attribution-coverage": {
+      "get": {
+        "summary": "Get cash attribution coverage (honesty breakdown)",
+        "description": "Splits the profile's cash conversions into four mutually-exclusive honesty buckets — ad_attributed, dangling_ad, organic_direct, unattributed — by count and reporting value, plus a traceable percentage. An attribution-COVERAGE measure (how much cash traces to a specific ad), NOT ROAS or a likelihood.",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "date_from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "date_to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "model",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coverage data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CashAttributionCoverage"
                     },
                     "meta": {
                       "$ref": "#/components/schemas/Meta"
@@ -8148,7 +8405,7 @@
     "/api/v1/whatsapp/templates": {
       "get": {
         "summary": "List WhatsApp message templates",
-        "description": "Returns up to 100 templates from the WABA, all statuses. Newly created templates may take minutes to hours to leave `PENDING`. Templates can be sent via `POST /api/v1/messages` with `content.type='template'` only when `status='APPROVED'`.",
+        "description": "Returns the connection's message templates from Atribu's mirrored cache (all statuses) — no live Meta call. Each row carries `quality_score`, `status_changed_at` and `last_synced_at`. Populate/refresh the cache with `POST /api/v1/whatsapp/templates/sync` (or rely on the reconciliation cron / webhook push). Templates can be sent via `POST /api/v1/messages` with `content.type='template'` only when `status='APPROVED'`.",
         "tags": [
           "WhatsApp Templates"
         ],
@@ -8170,7 +8427,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Templates list",
+            "description": "Templates list (from cache)",
             "content": {
               "application/json": {
                 "schema": {
@@ -8182,7 +8439,11 @@
                         "type": "object",
                         "properties": {
                           "id": {
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Meta template id."
                           },
                           "name": {
                             "type": "string"
@@ -8191,25 +8452,57 @@
                             "type": "string"
                           },
                           "category": {
-                            "type": "string"
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "status": {
                             "type": "string",
-                            "description": "One of APPROVED, PENDING, REJECTED, IN_APPEAL, PAUSED, DISABLED."
+                            "description": "One of APPROVED, PENDING, REJECTED, PAUSED, DISABLED, IN_APPEAL, LIMIT_EXCEEDED, PENDING_DELETION, DELETED, ARCHIVED."
+                          },
+                          "quality_score": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Meta per-template quality: GREEN | YELLOW | RED | UNKNOWN."
                           },
                           "components": {
-                            "type": "array",
+                            "type": [
+                              "array",
+                              "null"
+                            ],
                             "items": {
                               "type": "object",
                               "additionalProperties": {}
                             }
+                          },
+                          "status_changed_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "When the status last transitioned (ISO)."
+                          },
+                          "last_synced_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "When this template was last reconciled from Meta (ISO)."
                           }
                         },
                         "required": [
+                          "id",
                           "name",
                           "language",
                           "category",
-                          "status"
+                          "status",
+                          "quality_score",
+                          "components",
+                          "status_changed_at",
+                          "last_synced_at"
                         ]
                       }
                     },
@@ -8384,6 +8677,193 @@
         }
       }
     },
+    "/api/v1/whatsapp/templates/sync": {
+      "post": {
+        "summary": "Sync WhatsApp message templates from Meta",
+        "description": "Reconciles the mirrored template cache from Meta: follows cursor pagination (no 100-row cap), upserts new/changed templates, removes templates deleted at Meta, and records each status transition. Returns the reconciled list plus a `summary` of `{ upserted, deleted, statusChanges }`.",
+        "tags": [
+          "WhatsApp Templates"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reconciled templates + sync summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Meta template id."
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "language": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "One of APPROVED, PENDING, REJECTED, PAUSED, DISABLED, IN_APPEAL, LIMIT_EXCEEDED, PENDING_DELETION, DELETED, ARCHIVED."
+                          },
+                          "quality_score": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Meta per-template quality: GREEN | YELLOW | RED | UNKNOWN."
+                          },
+                          "components": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            }
+                          },
+                          "status_changed_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "When the status last transitioned (ISO)."
+                          },
+                          "last_synced_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "When this template was last reconciled from Meta (ISO)."
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "language",
+                          "category",
+                          "status",
+                          "quality_score",
+                          "components",
+                          "status_changed_at",
+                          "last_synced_at"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Meta"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "summary": {
+                              "type": "object",
+                              "properties": {
+                                "upserted": {
+                                  "type": "integer"
+                                },
+                                "deleted": {
+                                  "type": "integer"
+                                },
+                                "statusChanges": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "upserted",
+                                "deleted",
+                                "statusChanges"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "summary"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta template sync failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/whatsapp/templates/{name}": {
       "delete": {
         "summary": "Delete a WhatsApp message template by name",
@@ -8443,6 +8923,99 @@
           },
           "502": {
             "description": "Upstream Meta template delete failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/account-health": {
+      "get": {
+        "summary": "Get WhatsApp channel health",
+        "description": "Cache-backed channel health for a connected WhatsApp channel — whether it can send (`canSend` from Meta's `health_status`), the phone number's quality rating / messaging-limit tier / display-name status / account mode, whether the access token is still valid, whether Atribu's webhook subscription is attached, and a severity-ranked list of `issues[]` (each carrying Meta's `possible_solution` as `remediation`). Serves the persisted snapshot instantly with `refreshedAt` + a `stale` flag; pass `refresh=true` (or read a never-refreshed account) to force a live Meta re-read + persist. An expired token surfaces as `tokenValid:false` + a critical issue, never a 500; any Meta field that is unavailable degrades to null.",
+        "tags": [
+          "WhatsApp Health"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "Force a live Meta re-read + persist. Default false (serve cache)."
+            },
+            "required": false,
+            "description": "Force a live Meta re-read + persist. Default false (serve cache).",
+            "name": "refresh",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WhatsAppChannelHealth"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (no WhatsApp account row / missing token)",
             "content": {
               "application/json": {
                 "schema": {
@@ -11060,7 +11633,9 @@
                         "calendar.event.changed",
                         "message.echo",
                         "message.history",
-                        "contacts.sync"
+                        "contacts.sync",
+                        "template.updated",
+                        "channel.health.updated"
                       ]
                     }
                   },

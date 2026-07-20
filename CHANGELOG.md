@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0]
+
+### Added
+
+- **`client.whatsapp.health` — WhatsApp channel health (#201, #202).** `client.whatsapp.health.get(connectionId)` returns a connected WhatsApp channel's health in one typed object: `canSend` (`AVAILABLE | LIMITED | BLOCKED | null`, from Meta's `health_status`), `tokenValid`, `webhookSubscribed`, the phone number's status fields (`phone.qualityRating`, `messagingLimitTier`, `nameStatus`, `accountMode`, `codeVerificationStatus`, `throughputLevel`, …), a severity-ranked `issues[]` list where each issue carries Meta's own `possible_solution` as `remediation`, and cache metadata `refreshedAt` + `stale`. An expired or invalid token comes back as `tokenValid:false` with a critical issue — a broken channel is *data*, not a thrown error — so branch on `canSend`/`tokenValid`/`issues`, not on a catch.
+  - `get()` serves the persisted snapshot instantly (stale-while-revalidate against a 6h TTL); a never-refreshed channel reads live. `client.whatsapp.health.refresh(connectionId)` forces a live Meta re-check, updates the snapshot + append-only trend history, and returns the fresh object. A refresh that hits a transient Meta failure never throws — it records an error status and preserves the last-good values.
+
+- **Real-time channel-health + template webhooks (#205).** Two new subscribable webhook events push WhatsApp health/template changes to your endpoint as Meta reports them: **`template.updated`** (a template's status / quality / category changed) and **`channel.health.updated`** (a phone number's quality/name or the account's status changed — carries the refreshed health snapshot). Subscribe with `webhooks.subscriptions.create({ events: ["template.updated", "channel.health.updated"], providers: ["whatsapp"] })`. Both carry `data.waba_id` + the Meta `field` + the raw `change.value`; `AtribuWebhookEvent` gains the `WhatsAppTemplateUpdatedEvent` / `WhatsAppChannelHealthUpdatedEvent` variants. Atribu updates its own mirrored template rows + health snapshot from these before fanning out, so a `get()`/`list()` right after a webhook is already fresh.
+
+- **In-band reconnect signal (#204).** When a WhatsApp connection's token is revoked, the error is no longer an opaque 401/500: `AtribuApiError` now exposes `reconnectRequired` (boolean) + `reconnectUrl` (string | null) and an `isReconnectRequired()` helper, parsed from the API's `reconnect_required` / `reconnect_url` error fields. The channel-health object likewise carries `reconnectRequired` + `reconnectUrl`, so Vitrina can render a one-click reconnect affordance from either a failed call or a health read. The reconnect URL points at Atribu's WhatsApp Embedded-Signup entry, whose completion re-subscribes the WABA's webhooks.
+
+- **WhatsApp template auto-sync (#203).** `client.whatsapp.templates.list()` now serves the connection's templates from Atribu's mirrored cache (no live Meta call); each row carries `quality_score`, `status_changed_at` and `last_synced_at`. `client.whatsapp.templates.sync()` reconciles the cache from Meta — following cursor pagination (no 100-row cap), so newly-created templates appear, templates deleted at Meta disappear, and every status transition updates the row and appends a status-history record. `syncWithSummary()` additionally returns `meta.summary` `{ upserted, deleted, statusChanges }`.
+  - **Behaviour change:** `templates.list()` was previously a live Meta read of up to 100 templates; it is now cache-backed. Call `templates.sync()` (or rely on the reconciliation cron / webhook push) to populate + keep it fresh. `WhatsAppTemplate` gained `quality_score`, `status_changed_at`, `last_synced_at`, and `id` / `category` are now nullable.
+
+### Added
+
+- **`client.events` — server-side event ingestion (#115).** `client.events.track({ event_name, anonymous_id, properties, ... })` submits a custom tracking event from your server, and `client.events.purchase({ anonymousId, value, currency, orderId })` is a convenience that records a confirmation purchase — idempotent on `orderId` (a retried call collapses to one event), linked to the ad-click session via `anonymousId`, with the authoritative amount and no ITP/ad-blocker exposure. See the Next.js + Node recipes in the docs.
+
 ## [1.4.0]
 
 ### Added

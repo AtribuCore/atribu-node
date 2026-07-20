@@ -43,6 +43,29 @@ describe("whatsapp.templates resource", () => {
         }),
       ).resolves.toBeUndefined();
     });
+
+    it("lists from cache with quality + sync metadata", async () => {
+      const list = await newClient().whatsapp.templates.list({
+        connectionId: fixtures.ids.connectionId,
+      });
+      expect(list[0]?.quality_score).toBe("GREEN");
+      expect(list[0]?.last_synced_at).toBeTruthy();
+    });
+
+    it("syncs and returns the reconciled list", async () => {
+      const synced = await newClient().whatsapp.templates.sync({
+        connectionId: fixtures.ids.connectionId,
+      });
+      expect(synced).toHaveLength(2);
+      expect(synced[0]?.name).toBe("welcome_message_0");
+    });
+
+    it("syncWithSummary exposes the reconcile summary", async () => {
+      const res = await newClient().whatsapp.templates.syncWithSummary({
+        connectionId: fixtures.ids.connectionId,
+      });
+      expect(res.meta.summary).toEqual({ upserted: 2, deleted: 0, statusChanges: 1 });
+    });
   });
 
   describe("error paths", () => {

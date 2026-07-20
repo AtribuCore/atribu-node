@@ -54,6 +54,7 @@ export interface MockOverrides {
       list?: EndpointOverride;
       create?: EndpointOverride;
       delete?: EndpointOverride;
+      sync?: EndpointOverride;
     };
     broadcasts?: {
       list?: EndpointOverride;
@@ -70,6 +71,9 @@ export interface MockOverrides {
       subscribe?: EndpointOverride;
       subscribedApps?: EndpointOverride;
       funding?: EndpointOverride;
+    };
+    health?: {
+      get?: EndpointOverride;
     };
   };
   instagram?: {
@@ -200,12 +204,20 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
       resolve(overrides.connections?.revoke, 204, null),
     ),
 
+    // ----- WhatsApp health -----
+    http.get(u("/api/v1/whatsapp/account-health"), () =>
+      resolve(overrides.whatsapp?.health?.get, 200, responseFixtures.whatsappAccountHealth()),
+    ),
+
     // ----- WhatsApp templates -----
     http.get(u("/api/v1/whatsapp/templates"), () =>
       resolve(overrides.whatsapp?.templates?.list, 200, responseFixtures.whatsappTemplateList()),
     ),
     http.post(u("/api/v1/whatsapp/templates"), () =>
       resolve(overrides.whatsapp?.templates?.create, 201, responseFixtures.whatsappTemplateCreated()),
+    ),
+    http.post(u("/api/v1/whatsapp/templates/sync"), () =>
+      resolve(overrides.whatsapp?.templates?.sync, 200, responseFixtures.whatsappTemplateSync()),
     ),
     http.delete(u("/api/v1/whatsapp/templates/:name"), () =>
       resolve(overrides.whatsapp?.templates?.delete, 204, null),

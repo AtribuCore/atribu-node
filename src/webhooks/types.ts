@@ -15,7 +15,9 @@ export type WebhookEventType =
   | "calendar.event.changed"
   | "message.echo"
   | "message.history"
-  | "contacts.sync";
+  | "contacts.sync"
+  | "template.updated"
+  | "channel.health.updated";
 
 interface BaseEvent {
   /** Stable event id for de-dup (also surfaced in `X-Atribu-Delivery-Id`). */
@@ -339,12 +341,59 @@ export interface ConversationStartedEvent extends BaseEvent {
   data: Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// WhatsApp channel-health push (#205). Meta emits these WABA-level webhook
+// fields when a template or the phone number / account changes. `data` carries
+// the WABA id, which Meta `field` fired, and the raw Meta `change.value`; the
+// health event additionally carries the refreshed health snapshot.
+// ---------------------------------------------------------------------------
+
+/** A WhatsApp template's status / quality / category changed at Meta. */
+export interface WhatsAppTemplateUpdatedEvent extends BaseEvent {
+  type: "template.updated";
+  provider: "whatsapp";
+  data: {
+    waba_id: string;
+    /** message_template_status_update | message_template_quality_update | template_category_update */
+    field: string;
+    /** Raw Meta `change.value` (template name, language, and the changed attribute). */
+    value: Record<string, unknown>;
+  };
+}
+
+/** Minimal shape of the health snapshot carried on a channel.health.updated event. */
+export interface WhatsAppChannelHealthSnapshot {
+  canSend: "AVAILABLE" | "LIMITED" | "BLOCKED" | null;
+  tokenValid: boolean;
+  webhookSubscribed: boolean;
+  reconnectRequired: boolean;
+  reconnectUrl: string | null;
+  [key: string]: unknown;
+}
+
+/** A WhatsApp phone number's quality/name, or the account's status, changed. */
+export interface WhatsAppChannelHealthUpdatedEvent extends BaseEvent {
+  type: "channel.health.updated";
+  provider: "whatsapp";
+  data: {
+    waba_id: string;
+    /** phone_number_quality_update | phone_number_name_update | account_update | account_alerts | account_review_update | business_capability_update */
+    field: string;
+    /** Raw Meta `change.value`. */
+    value: Record<string, unknown>;
+    /** The refreshed health snapshot, or null when it could not be re-read. */
+    health: WhatsAppChannelHealthSnapshot | null;
+  };
+}
+
 export type AtribuWebhookEvent =
   | WhatsAppMessageReceivedEvent
   | WhatsAppMessageDeliveryEvent
   | WhatsAppMessageEchoEvent
   | WhatsAppMessageHistoryEvent
   | WhatsAppContactsSyncEvent
+  | WhatsAppTemplateUpdatedEvent
+  | WhatsAppChannelHealthUpdatedEvent
   | InstagramMessageReceivedEvent
   | InstagramMessageDeliveryEvent
   | EmailMessageReceivedEvent

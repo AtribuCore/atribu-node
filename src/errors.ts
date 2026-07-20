@@ -53,6 +53,10 @@ export interface ApiErrorBody {
   message: string;
   status: number;
   request_id?: string;
+  /** Present + true when the connection's token was revoked and re-auth is needed. */
+  reconnect_required?: boolean;
+  /** Where to send the user to re-authorize, when the channel can build one. */
+  reconnect_url?: string;
 }
 
 export class AtribuApiError extends AtribuError {
@@ -61,6 +65,10 @@ export class AtribuApiError extends AtribuError {
   readonly requestId: string | null;
   readonly retry: RetryHint;
   readonly responseBody: unknown;
+  /** True when the API signalled the connection must be re-authorized (#204). */
+  readonly reconnectRequired: boolean;
+  /** Where to send the user to reconnect, when the API provided one. */
+  readonly reconnectUrl: string | null;
 
   constructor(args: {
     code: ApiErrorCode;
@@ -69,6 +77,8 @@ export class AtribuApiError extends AtribuError {
     requestId: string | null;
     retry: RetryHint;
     responseBody: unknown;
+    reconnectRequired?: boolean;
+    reconnectUrl?: string | null;
   }) {
     super(`[${args.code}] ${args.message}`);
     this.code = args.code;
@@ -76,6 +86,8 @@ export class AtribuApiError extends AtribuError {
     this.requestId = args.requestId;
     this.retry = args.retry;
     this.responseBody = args.responseBody;
+    this.reconnectRequired = args.reconnectRequired ?? false;
+    this.reconnectUrl = args.reconnectUrl ?? null;
   }
 
   isRetryable(): boolean {
@@ -86,6 +98,10 @@ export class AtribuApiError extends AtribuError {
   }
   isRateLimit(): boolean {
     return this.status === 429 || this.code === "rate_limit_exceeded";
+  }
+  /** True when re-authorization is required; pair with `reconnectUrl`. */
+  isReconnectRequired(): boolean {
+    return this.reconnectRequired;
   }
 }
 

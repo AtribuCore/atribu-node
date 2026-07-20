@@ -91,10 +91,19 @@ export type {
 
 export type { Connection } from "./resources/connections";
 
+export { EventsResource } from "./resources/events";
+export type {
+  TrackEventInput,
+  PurchaseInput,
+  TrackEventResponse,
+  EventTrackOptions,
+} from "./resources/events";
+
 export type {
   WhatsAppTemplate,
   WhatsAppTemplateCreateInput,
   WhatsAppTemplateCreateResult,
+  WhatsAppTemplateSyncResult,
   WhatsAppBroadcast,
   WhatsAppBroadcastDetail,
   WhatsAppBroadcastCreateInput,
@@ -110,6 +119,9 @@ export type {
   WhatsAppSubscribeInput,
   WhatsAppSubscribedApp,
   WhatsAppFundingInfo,
+  WhatsAppChannelHealth,
+  WhatsAppHealthIssue,
+  HealthGetOptions,
 } from "./resources/whatsapp";
 
 export type {

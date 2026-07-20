@@ -137,6 +137,8 @@ export class HttpClient implements HttpClientLike {
         requestId: requestId ?? body?.request_id ?? null,
         retry,
         responseBody: parsed,
+        reconnectRequired: body?.reconnect_required ?? false,
+        reconnectUrl: body?.reconnect_url ?? null,
       });
     }
 

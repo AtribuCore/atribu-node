@@ -74,7 +74,7 @@ export interface paths {
         };
         /**
          * Get daily timeseries data
-         * @description Returns daily visitors, pageviews, bounces, revenue, and spend.
+         * @description Returns daily cash revenue and ad spend.
          */
         get: {
             parameters: {
@@ -97,9 +97,6 @@ export interface paths {
                         "application/json": {
                             data: {
                                 date: string;
-                                visitors: number;
-                                pageviews: number;
-                                bounces: number;
                                 cash_revenue: number;
                                 spend: number;
                             }[];
@@ -169,8 +166,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get traffic source breakdown
-         * @description Returns channel breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.
+         * Conversions and revenue by traffic source
+         * @description Returns attributed conversions and credit-weighted revenue per channel.
          */
         get: {
             parameters: {
@@ -193,13 +190,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
+                                /** @description The dimension value (e.g. 'Paid Social'). */
                                 value: string;
-                                visitors: number;
-                                visits: number;
-                                pageviews: number;
-                                bounce_rate: number;
+                                /** @description Attributed conversions credited to this dimension value. */
                                 conversions: number;
-                                conversion_rate: number;
+                                /** @description Credit-weighted attributed revenue for this dimension value. */
                                 revenue: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -224,8 +219,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get page performance breakdown
-         * @description Returns page breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.
+         * Conversions and revenue by landing page
+         * @description Returns attributed conversions and credit-weighted revenue per page.
          */
         get: {
             parameters: {
@@ -248,13 +243,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
+                                /** @description The dimension value (e.g. 'Paid Social'). */
                                 value: string;
-                                visitors: number;
-                                visits: number;
-                                pageviews: number;
-                                bounce_rate: number;
+                                /** @description Attributed conversions credited to this dimension value. */
                                 conversions: number;
-                                conversion_rate: number;
+                                /** @description Credit-weighted attributed revenue for this dimension value. */
                                 revenue: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -279,8 +272,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get country breakdown
-         * @description Returns country breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.
+         * Conversions and revenue by country
+         * @description Returns attributed conversions and credit-weighted revenue per country.
          */
         get: {
             parameters: {
@@ -303,13 +296,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
+                                /** @description The dimension value (e.g. 'Paid Social'). */
                                 value: string;
-                                visitors: number;
-                                visits: number;
-                                pageviews: number;
-                                bounce_rate: number;
+                                /** @description Attributed conversions credited to this dimension value. */
                                 conversions: number;
-                                conversion_rate: number;
+                                /** @description Credit-weighted attributed revenue for this dimension value. */
                                 revenue: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -334,8 +325,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get device type breakdown
-         * @description Returns device breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.
+         * Conversions and revenue by device type
+         * @description Returns attributed conversions and credit-weighted revenue per device.
          */
         get: {
             parameters: {
@@ -358,13 +349,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
+                                /** @description The dimension value (e.g. 'Paid Social'). */
                                 value: string;
-                                visitors: number;
-                                visits: number;
-                                pageviews: number;
-                                bounce_rate: number;
+                                /** @description Attributed conversions credited to this dimension value. */
                                 conversions: number;
-                                conversion_rate: number;
+                                /** @description Credit-weighted attributed revenue for this dimension value. */
                                 revenue: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -389,8 +378,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get browser breakdown
-         * @description Returns browser breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.
+         * Conversions and revenue by browser
+         * @description Returns attributed conversions and credit-weighted revenue per browser.
          */
         get: {
             parameters: {
@@ -413,13 +402,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
+                                /** @description The dimension value (e.g. 'Paid Social'). */
                                 value: string;
-                                visitors: number;
-                                visits: number;
-                                pageviews: number;
-                                bounce_rate: number;
+                                /** @description Attributed conversions credited to this dimension value. */
                                 conversions: number;
-                                conversion_rate: number;
+                                /** @description Credit-weighted attributed revenue for this dimension value. */
                                 revenue: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -444,8 +431,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get operating system breakdown
-         * @description Returns os breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.
+         * Conversions and revenue by operating system
+         * @description Returns attributed conversions and credit-weighted revenue per os.
          */
         get: {
             parameters: {
@@ -468,13 +455,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
+                                /** @description The dimension value (e.g. 'Paid Social'). */
                                 value: string;
-                                visitors: number;
-                                visits: number;
-                                pageviews: number;
-                                bounce_rate: number;
+                                /** @description Attributed conversions credited to this dimension value. */
                                 conversions: number;
-                                conversion_rate: number;
+                                /** @description Credit-weighted attributed revenue for this dimension value. */
                                 revenue: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -499,8 +484,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get referrer breakdown
-         * @description Returns referrer breakdown with visitors, sessions, pageviews, bounce rate, conversions, and revenue.
+         * Conversions and revenue by referrer
+         * @description Returns attributed conversions and credit-weighted revenue per referrer.
          */
         get: {
             parameters: {
@@ -523,13 +508,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
+                                /** @description The dimension value (e.g. 'Paid Social'). */
                                 value: string;
-                                visitors: number;
-                                visits: number;
-                                pageviews: number;
-                                bounce_rate: number;
+                                /** @description Attributed conversions credited to this dimension value. */
                                 conversions: number;
-                                conversion_rate: number;
+                                /** @description Credit-weighted attributed revenue for this dimension value. */
                                 revenue: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -1266,7 +1249,7 @@ export interface paths {
         put?: never;
         /**
          * Per-ad what-if forecast scenarios (Phase 4 / F-3)
-         * @description Feeds modified spend / frequency overrides back through the active outcomes-head forecaster and returns the projected 7-day outcomes count per scenario, with 80% conformal PI bands. The `out_of_range` flag goes true when a scenario's spend is > 2x or < 0.5x the ad's current trailing-7d spend — the model is extrapolating beyond its training distribution; treat the result as directional only. Up to 5 scenarios per call. Returns base=null + per-scenario `gated_reason` when the ad is cold-start / paused / has no active forecaster model.
+         * @description Feeds modified spend / frequency overrides back through the active outcomes-head forecaster and returns the projected 7-day outcomes count per scenario, with 80% conformal PI bands. IMPORTANT: spend-scaling scenarios are a naive linear extrapolation, not a saturation model — the per-dollar outcome rate is held fixed, so outcomes scale in direct proportion to spend (marginal = average return). Such scenarios carry `projection_basis: 'linear_spend_extrapolation'` + `assumes_constant_returns: true`, and the top-level `basis_note` spells this out; do not present them as a guarantee that more budget yields proportional sales. The `out_of_range` flag goes true when a scenario's spend is > 2x or < 0.5x the ad's current trailing-7d spend — extrapolating beyond the training distribution; even less reliable. Up to 5 scenarios per call. Returns base=null + per-scenario `gated_reason` when the ad is cold-start / paused / has no active forecaster model.
          */
         post: {
             parameters: {
@@ -1302,6 +1285,8 @@ export interface paths {
                                 score_window: string | null;
                                 cohort_variant?: string;
                                 base_trailing_7d_spend?: number;
+                                assumes_constant_returns?: boolean;
+                                basis_note?: string;
                                 base: {
                                     point: number;
                                     low: number;
@@ -1318,6 +1303,9 @@ export interface paths {
                                     confidence: "low" | "medium" | "high";
                                     delta_from_base: number;
                                     out_of_range: boolean;
+                                    /** @enum {string} */
+                                    projection_basis?: "model_response" | "linear_spend_extrapolation";
+                                    assumes_constant_returns?: boolean;
                                     gated_reason?: string;
                                 }[];
                             };
@@ -1464,6 +1452,7 @@ export interface paths {
                             data: {
                                 date: string;
                                 revenue: number;
+                                organic_direct_revenue: number;
                                 spend: number;
                             }[];
                             meta: components["schemas"]["Meta"];
@@ -1567,6 +1556,52 @@ export interface paths {
                                 with_no_tracking: number;
                                 coverage_percent: number;
                             };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attribution-coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get cash attribution coverage (honesty breakdown)
+         * @description Splits the profile's cash conversions into four mutually-exclusive honesty buckets — ad_attributed, dangling_ad, organic_direct, unattributed — by count and reporting value, plus a traceable percentage. An attribution-COVERAGE measure (how much cash traces to a specific ad), NOT ROAS or a likelihood.
+         */
+        get: {
+            parameters: {
+                query: {
+                    date_from: string;
+                    date_to: string;
+                    model?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Coverage data */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["CashAttributionCoverage"];
                             meta: components["schemas"]["Meta"];
                         };
                     };
@@ -4041,7 +4076,7 @@ export interface paths {
         };
         /**
          * List WhatsApp message templates
-         * @description Returns up to 100 templates from the WABA, all statuses. Newly created templates may take minutes to hours to leave `PENDING`. Templates can be sent via `POST /api/v1/messages` with `content.type='template'` only when `status='APPROVED'`.
+         * @description Returns the connection's message templates from Atribu's mirrored cache (all statuses) — no live Meta call. Each row carries `quality_score`, `status_changed_at` and `last_synced_at`. Populate/refresh the cache with `POST /api/v1/whatsapp/templates/sync` (or rely on the reconciliation cron / webhook push). Templates can be sent via `POST /api/v1/messages` with `content.type='template'` only when `status='APPROVED'`.
          */
         get: {
             parameters: {
@@ -4054,7 +4089,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Templates list */
+                /** @description Templates list (from cache) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -4062,15 +4097,22 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
-                                id?: string;
+                                /** @description Meta template id. */
+                                id: string | null;
                                 name: string;
                                 language: string;
-                                category: string;
-                                /** @description One of APPROVED, PENDING, REJECTED, IN_APPEAL, PAUSED, DISABLED. */
+                                category: string | null;
+                                /** @description One of APPROVED, PENDING, REJECTED, PAUSED, DISABLED, IN_APPEAL, LIMIT_EXCEEDED, PENDING_DELETION, DELETED, ARCHIVED. */
                                 status: string;
-                                components?: {
+                                /** @description Meta per-template quality: GREEN | YELLOW | RED | UNKNOWN. */
+                                quality_score: string | null;
+                                components: {
                                     [key: string]: unknown;
-                                }[];
+                                }[] | null;
+                                /** @description When the status last transitioned (ISO). */
+                                status_changed_at: string | null;
+                                /** @description When this template was last reconciled from Meta (ISO). */
+                                last_synced_at: string | null;
                             }[];
                             meta: components["schemas"]["Meta"];
                         };
@@ -4177,6 +4219,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/templates/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync WhatsApp message templates from Meta
+         * @description Reconciles the mirrored template cache from Meta: follows cursor pagination (no 100-row cap), upserts new/changed templates, removes templates deleted at Meta, and records each status transition. Returns the reconciled list plus a `summary` of `{ upserted, deleted, statusChanges }`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reconciled templates + sync summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Meta template id. */
+                                id: string | null;
+                                name: string;
+                                language: string;
+                                category: string | null;
+                                /** @description One of APPROVED, PENDING, REJECTED, PAUSED, DISABLED, IN_APPEAL, LIMIT_EXCEEDED, PENDING_DELETION, DELETED, ARCHIVED. */
+                                status: string;
+                                /** @description Meta per-template quality: GREEN | YELLOW | RED | UNKNOWN. */
+                                quality_score: string | null;
+                                components: {
+                                    [key: string]: unknown;
+                                }[] | null;
+                                /** @description When the status last transitioned (ISO). */
+                                status_changed_at: string | null;
+                                /** @description When this template was last reconciled from Meta (ISO). */
+                                last_synced_at: string | null;
+                            }[];
+                            meta: components["schemas"]["Meta"] & {
+                                summary: {
+                                    upserted: number;
+                                    deleted: number;
+                                    statusChanges: number;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta template sync failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/whatsapp/templates/{name}": {
         parameters: {
             query?: never;
@@ -4241,6 +4382,79 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/account-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get WhatsApp channel health
+         * @description Cache-backed channel health for a connected WhatsApp channel — whether it can send (`canSend` from Meta's `health_status`), the phone number's quality rating / messaging-limit tier / display-name status / account mode, whether the access token is still valid, whether Atribu's webhook subscription is attached, and a severity-ranked list of `issues[]` (each carrying Meta's `possible_solution` as `remediation`). Serves the persisted snapshot instantly with `refreshedAt` + a `stale` flag; pass `refresh=true` (or read a never-refreshed account) to force a live Meta re-read + persist. An expired token surfaces as `tokenValid:false` + a critical issue, never a 500; any Meta field that is unavailable degrades to null.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    /** @description Force a live Meta re-read + persist. Default false (serve cache). */
+                    refresh?: "true" | "false";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Channel health */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WhatsAppChannelHealth"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (no WhatsApp account row / missing token) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5720,7 +5934,7 @@ export interface paths {
                          * @description HTTPS URL where Atribu will POST signed events.
                          */
                         url: string;
-                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync")[];
+                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated")[];
                         providers: ("whatsapp" | "instagram" | "email" | "google_calendar")[];
                     };
                 };
@@ -6643,6 +6857,13 @@ export interface components {
                 status: number;
                 /** @example req_a1b2c3d4 */
                 request_id: string;
+                /**
+                 * @description Present + true when the connection's token was revoked and the user must re-authorize.
+                 * @example true
+                 */
+                reconnect_required?: boolean;
+                /** @description Where to send the user to reconnect (present with `reconnect_required` when the channel can build one). */
+                reconnect_url?: string;
             };
         };
         Meta: {
@@ -6682,34 +6903,60 @@ export interface components {
                 current: {
                     spend: number;
                     revenue: number;
+                    organic_direct_revenue: number;
                     roas: number;
                     outcomes: number;
                     attributed_outcomes: number;
                     coverage_percent: number;
-                    visitors: number;
-                    pageviews: number;
-                    bounce_rate: number;
-                    avg_engaged_seconds: number;
                     cash_revenue: number;
                     cash_payments: number;
                 };
                 previous: {
                     spend: number;
                     revenue: number;
+                    organic_direct_revenue: number;
                     roas: number;
                     outcomes: number;
                     attributed_outcomes: number;
                     coverage_percent: number;
-                    visitors: number;
-                    pageviews: number;
-                    bounce_rate: number;
-                    avg_engaged_seconds: number;
                     cash_revenue: number;
                     cash_payments: number;
                 };
             };
             meta: components["schemas"]["Meta"];
         };
+        CashAttributionCoverage: {
+            model: string;
+            currency: string | null;
+            total: {
+                count: number;
+                value: number;
+            };
+            buckets: {
+                ad_attributed: {
+                    count: number;
+                    value: number;
+                };
+                inherited: {
+                    count: number;
+                    value: number;
+                };
+                dangling_ad: {
+                    count: number;
+                    value: number;
+                };
+                organic_direct: {
+                    count: number;
+                    value: number;
+                };
+                unattributed: {
+                    count: number;
+                    value: number;
+                };
+            };
+            traceable_pct_by_count: number;
+            traceable_pct_by_value: number;
+        } | null;
         MediaUploadResponse: {
             data: {
                 /** @example 1234567890123456 */
@@ -6738,6 +6985,48 @@ export interface components {
                 expires_at: string;
             };
             meta: components["schemas"]["Meta"];
+        };
+        WhatsAppChannelHealth: {
+            connectionId: string;
+            wabaId: string;
+            phoneNumberId: string;
+            /**
+             * @description Meta's overall `can_send_message`, or null when `health_status` could not be read. null means unknown, never healthy.
+             * @enum {string|null}
+             */
+            canSend: "AVAILABLE" | "LIMITED" | "BLOCKED" | null;
+            tokenValid: boolean;
+            webhookSubscribed: boolean;
+            phone: {
+                displayPhoneNumber: string | null;
+                verifiedName: string | null;
+                qualityRating: string | null;
+                messagingLimitTier: string | null;
+                nameStatus: string | null;
+                accountMode: string | null;
+                codeVerificationStatus: string | null;
+                throughputLevel: string | null;
+            };
+            issues: components["schemas"]["WhatsAppHealthIssue"][];
+            /** @description When this snapshot was last read from Meta (ISO). null on a never-refreshed account. */
+            refreshedAt: string | null;
+            /** @description True when `refreshedAt` is older than the freshness TTL (6h). A live/forced refresh returns false. */
+            stale: boolean;
+            /** @description True when the channel needs re-authorization (invalid/expired token). */
+            reconnectRequired: boolean;
+            /** @description Where to send the user to reconnect the WhatsApp channel, or null when not required. */
+            reconnectUrl: string | null;
+        };
+        WhatsAppHealthIssue: {
+            /** @description Meta entity_type (PHONE_NUMBER, MESSAGE_TEMPLATE, WABA, BUSINESS, APP) or a synthetic bucket (APP) for token/webhook issues. */
+            entityType: string;
+            /** @description Meta error_code (number), a synthetic string code, or null for advisories. */
+            code: number | string | null;
+            description: string;
+            /** @description Meta's `possible_solution`, or Atribu's remediation for synthetic issues. */
+            remediation: string | null;
+            /** @enum {string} */
+            severity: "critical" | "warning" | "info";
         };
     };
     responses: never;
