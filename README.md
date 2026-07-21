@@ -175,8 +175,17 @@ await atribu.messages.send({
 ### Manage WhatsApp templates
 
 ```typescript
-// List every template on the WABA (all statuses).
+// List the connection's templates from Atribu's cache (no live Meta call).
+// The cache is kept fresh by Meta webhooks + a daily reconciliation; each row
+// carries `status`, `quality_score`, `status_changed_at` and `last_synced_at`.
 const templates = await atribu.whatsapp.templates.list({ connectionId });
+
+// Force a reconcile from Meta right now (cursor-paginated): new templates
+// appear, deleted ones disappear, status changes update the row + append history.
+const reconciled = await atribu.whatsapp.templates.sync({ connectionId });
+// Or get the full envelope with the reconcile counts:
+const { data, meta } = await atribu.whatsapp.templates.syncWithSummary({ connectionId });
+console.log(meta.summary); // { upserted, deleted, statusChanges }
 
 // Create one — submits to Meta for review.
 // Body text uses `{{param_name}}` placeholders; named example block is auto-generated.
@@ -193,6 +202,37 @@ const { id, status } = await atribu.whatsapp.templates.create({
 // Delete by name when you're done with it:
 await atribu.whatsapp.templates.delete("appointment_reminder", { connectionId });
 ```
+
+### Check WhatsApp channel health
+
+```typescript
+// One typed object: Meta's `health_status` (→ canSend + issues[]), the phone
+// status fields, the token-validity probe and the webhook-subscription check.
+// A broken channel comes back as DATA, never a throw — inspect the fields.
+const health = await atribu.whatsapp.health.get(connectionId);
+
+if (health.canSend !== "AVAILABLE") {
+  console.warn(`channel degraded: ${health.canSend}`);
+  for (const issue of health.issues) {
+    console.warn(`- [${issue.severity}] ${issue.description}`, issue.remediation);
+  }
+}
+
+// One-button reconnect: an invalid/expired token is `reconnectRequired` with a
+// `reconnectUrl` (rather than an error), so you can surface a "Reconnect" button.
+if (health.reconnectRequired && health.reconnectUrl) {
+  redirectUser(health.reconnectUrl);
+}
+
+// `get()` serves the cached snapshot (with `refreshedAt` + a `stale` flag).
+// `refresh()` forces a live Meta re-read + updates the trend history:
+const fresh = await atribu.whatsapp.health.refresh(connectionId);
+```
+
+Health stays fresh on its own via Meta webhooks + a daily reconciliation cron;
+call `refresh()` only when you need an on-demand live re-check. See the
+`channel.health.updated` and `template.updated` webhook events to react to
+changes in real time.
 
 ### Send a WhatsApp broadcast
 
@@ -307,10 +347,12 @@ await atribu.calendar.revokeCalendarShare(cal.id, share.id, { connectionId: conn
 ### Manage webhook subscriptions
 
 ```typescript
-// One subscription per (app, profile, URL):
+// One subscription per (app, profile, URL). Subscribable events include
+// `message.received`, `message.delivery`, and (v1.6.0+) the WhatsApp channel
+// events `template.updated` and `channel.health.updated`.
 const sub = await atribu.webhooks.subscriptions.create({
   url: "https://your.app/api/atribu-webhook",
-  events: ["message.received", "message.delivery"],
+  events: ["message.received", "message.delivery", "template.updated", "channel.health.updated"],
   providers: ["whatsapp", "instagram"],
 });
 console.log("Webhook secret (shown once):", sub.secret);
@@ -470,6 +512,29 @@ WhatsApp + Instagram failures from the underlying Meta APIs now arrive with the 
 | Request too complex | `400 invalid_request` | Caller must split into smaller batches. |
 | Transient Meta failure | `502 provider_error` | Retry with backoff (`err.retry.action === "retry"`). |
 
+### Reconnect-required (WhatsApp, v1.6.0+)
+
+When a WhatsApp call fails because the connection's token is revoked/expired, the
+error carries an in-band reconnect signal so you can send the user straight to
+re-authorization instead of parsing the message:
+
+```typescript
+try {
+  await atribu.whatsapp.templates.sync({ connectionId });
+} catch (err) {
+  if (err instanceof AtribuApiError && err.isReconnectRequired()) {
+    // err.reconnectUrl → the /oauth/connect/whatsapp?flow=reconnect… URL
+    return redirectUser(err.reconnectUrl!);
+  }
+  throw err;
+}
+```
+
+`AtribuApiError.reconnectRequired` (boolean) + `reconnectUrl` (string | null) are
+also surfaced on the channel-health object (`health.reconnectRequired` /
+`health.reconnectUrl`) so you can show the same "Reconnect" affordance without a
+failed call.
+
 ## Retries
 
 The SDK doesn't retry automatically — hiding retries amplifies load on a failing server and obscures backpressure. Opt in per-client:
@@ -578,7 +643,11 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 ### WhatsApp namespace — `client.whatsapp`
 | Method | Description |
 |---|---|
-| `whatsapp.templates.list()` | List every message template on the WABA (all statuses) |
+| `whatsapp.health.get()` | Cached channel-health snapshot (canSend + quality/limit/name + token + webhook + issues) |
+| `whatsapp.health.refresh()` | Force a live Meta re-read of channel health + append trend history |
+| `whatsapp.templates.list()` | List the connection's message templates from Atribu's cache |
+| `whatsapp.templates.sync()` | Reconcile the template cache from Meta (returns the fresh list) |
+| `whatsapp.templates.syncWithSummary()` | Like `sync()`, with the reconcile counts on `meta.summary` |
 | `whatsapp.templates.create()` | Submit a new template for Meta review |
 | `whatsapp.templates.delete()` | Delete a template by name |
 | `whatsapp.broadcasts.list()` | List up to 50 most-recent broadcasts |

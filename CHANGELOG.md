@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1]
+
+### Documentation
+
+- README now documents the 1.6.0 WhatsApp surface: a **Check WhatsApp channel health** recipe (`whatsapp.health.get()` / `refresh()`), the `whatsapp.templates.sync()` / `syncWithSummary()` reconcile calls, an in-band **reconnect-required** error recipe (`AtribuApiError.isReconnectRequired()` / `reconnectUrl`), and the `template.updated` / `channel.health.updated` webhook events. Reference tables updated. No code changes.
+
 ## [1.6.0]
 
 ### Added
