@@ -628,6 +628,34 @@
           "remediation",
           "severity"
         ]
+      },
+      "WhatsAppCallingSettings": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": {},
+        "description": "Meta's `calling` object, passed through verbatim in both directions. Atribu holds no opinion about its contents — the SIP peer, the SRTP key exchange and the codec list are the caller's recipe. Documented as free-form on purpose: a schema enumerating Meta's fields would reject a field Meta shipped this morning."
+      },
+      "WhatsAppCallingBody": {
+        "type": "object",
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone_number_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WhatsAppCallingSettings"
+          }
+        },
+        "required": [
+          "connection_id",
+          "phone_number_id",
+          "settings"
+        ]
       }
     },
     "parameters": {
@@ -9027,6 +9055,226 @@
         }
       }
     },
+    "/api/v1/whatsapp/calling": {
+      "get": {
+        "summary": "Read a number's calling settings",
+        "description": "Proxies `GET /{phone-number-id}/settings` and returns Meta's `calling` object verbatim. `connection_id` is required — it is the token resolver's key, and a `phone_number_id` alone resolves nothing. The number is cross-validated against the connection's WABA first. This route NEVER requests `include_sip_credentials`, so SIP credentials are not returned here and are not stored anywhere: the drift snapshot Atribu keeps is an allowlist projection of the reachable settings (calling status, SIP peer, codecs, webhook delivery), so a credential field cannot reach storage even if Meta widens the payload.",
+        "tags": [
+          "WhatsApp Calling"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true,
+            "name": "phone_number_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calling settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "calling": {
+                          "$ref": "#/components/schemas/WhatsAppCallingSettings"
+                        }
+                      },
+                      "required": [
+                        "calling"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "phone_number_id is not on this connection's WABA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (no WhatsApp account row / missing token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Enable or update a number's calling settings",
+        "description": "Proxies `POST /{phone-number-id}/settings` with the `settings` object verbatim, then reads back what Meta actually holds and returns THAT (Meta normalizes and fills defaults, so echoing the request would report settings that were never applied). An ongoing per-number setting, not an onboarding step. Retried at most twice on transient upstream failures (429, 408, 5xx and network errors) — enabling calling is idempotent, unlike the OTP steps, which are never retried because an attempt there counts against Meta's cap.",
+        "tags": [
+          "WhatsApp Calling"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatsAppCallingBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied settings, read back from Meta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "calling": {
+                          "$ref": "#/components/schemas/WhatsAppCallingSettings"
+                        }
+                      },
+                      "required": [
+                        "calling"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "phone_number_id is not on this connection's WABA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (no WhatsApp account row / missing token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/whatsapp/broadcasts": {
       "get": {
         "summary": "List broadcasts",
@@ -11635,7 +11883,9 @@
                         "message.history",
                         "contacts.sync",
                         "template.updated",
-                        "channel.health.updated"
+                        "channel.health.updated",
+                        "call.status.updated",
+                        "call.permission.updated"
                       ]
                     }
                   },

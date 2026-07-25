@@ -4460,6 +4460,175 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/calling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a number's calling settings
+         * @description Proxies `GET /{phone-number-id}/settings` and returns Meta's `calling` object verbatim. `connection_id` is required — it is the token resolver's key, and a `phone_number_id` alone resolves nothing. The number is cross-validated against the connection's WABA first. This route NEVER requests `include_sip_credentials`, so SIP credentials are not returned here and are not stored anywhere: the drift snapshot Atribu keeps is an allowlist projection of the reachable settings (calling status, SIP peer, codecs, webhook delivery), so a credential field cannot reach storage even if Meta widens the payload.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    phone_number_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Calling settings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                calling: components["schemas"]["WhatsAppCallingSettings"];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description phone_number_id is not on this connection's WABA */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (no WhatsApp account row / missing token) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Enable or update a number's calling settings
+         * @description Proxies `POST /{phone-number-id}/settings` with the `settings` object verbatim, then reads back what Meta actually holds and returns THAT (Meta normalizes and fills defaults, so echoing the request would report settings that were never applied). An ongoing per-number setting, not an onboarding step. Retried at most twice on transient upstream failures (429, 408, 5xx and network errors) — enabling calling is idempotent, unlike the OTP steps, which are never retried because an attempt there counts against Meta's cap.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["WhatsAppCallingBody"];
+                };
+            };
+            responses: {
+                /** @description Applied settings, read back from Meta */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                calling: components["schemas"]["WhatsAppCallingSettings"];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description phone_number_id is not on this connection's WABA */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (no WhatsApp account row / missing token) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/whatsapp/broadcasts": {
         parameters: {
             query?: never;
@@ -5934,7 +6103,7 @@ export interface paths {
                          * @description HTTPS URL where Atribu will POST signed events.
                          */
                         url: string;
-                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated")[];
+                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated" | "call.status.updated" | "call.permission.updated")[];
                         providers: ("whatsapp" | "instagram" | "email" | "google_calendar")[];
                     };
                 };
@@ -7027,6 +7196,16 @@ export interface components {
             remediation: string | null;
             /** @enum {string} */
             severity: "critical" | "warning" | "info";
+        };
+        /** @description Meta's `calling` object, passed through verbatim in both directions. Atribu holds no opinion about its contents — the SIP peer, the SRTP key exchange and the codec list are the caller's recipe. Documented as free-form on purpose: a schema enumerating Meta's fields would reject a field Meta shipped this morning. */
+        WhatsAppCallingSettings: {
+            [key: string]: unknown;
+        };
+        WhatsAppCallingBody: {
+            /** Format: uuid */
+            connection_id: string;
+            phone_number_id: string;
+            settings: components["schemas"]["WhatsAppCallingSettings"];
         };
     };
     responses: never;

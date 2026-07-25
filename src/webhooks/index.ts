@@ -1,5 +1,9 @@
 export { verifyWebhook, type VerifyWebhookOptions } from "./verify";
 export {
+  // Runtime arrays: a consumer can check that the events it subscribes to
+  // are events this server accepts. The types below derive from them.
+  WEBHOOK_EVENT_TYPES,
+  WEBHOOK_PROVIDERS,
   type AtribuWebhookEvent,
   type WebhookProvider,
   type WebhookEventType,

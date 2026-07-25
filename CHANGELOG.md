@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0]
+
+### Added
+
+- Two WhatsApp calling webhook events: `call.status.updated` and
+  `call.permission.updated`, with `WhatsAppCallStatusUpdatedEvent` /
+  `WhatsAppCallPermissionUpdatedEvent` added to the `AtribuWebhookEvent` union
+  so `onEvent` narrows on them.
+
+  Two things worth reading before you consume these. On `call.status.updated`,
+  `answered` is **derived** — Meta reports no accepted/rejected status under
+  SIP interconnect, only `FAILED` / `COMPLETED` — and it is `null` while the
+  call is still in flight, so treat it as a tri-state and not a boolean. On
+  `call.permission.updated`, check `response_source` before recording consent:
+  `automatic` is the permission Meta infers because the customer called the
+  business first. It carries the same validity as an explicit `user_action`
+  grant and is otherwise identical on the wire, but nobody agreed to anything.
+- `WEBHOOK_EVENT_TYPES` and `WEBHOOK_PROVIDERS` are now exported from
+  `@atribu/node/webhooks` as runtime arrays, with `WebhookEventType` /
+  `WebhookProvider` derived from them. Previously these existed only as type
+  unions, which erase at build time — so a consumer could not check at runtime
+  that the events it subscribes to are events the server will accept.
+  Subscribing to an unknown event is not a soft failure: the create call 400s,
+  the business ends up with no subscription, and their inbound delivery goes
+  silently dark. The type names and their members are unchanged, so this is
+  additive.
+
 ## [1.6.1]
 
 ### Documentation

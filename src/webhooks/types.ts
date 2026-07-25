@@ -6,18 +6,44 @@
  * camelCase can convert in their handler.
  */
 
-export type WebhookProvider = "whatsapp" | "instagram" | "email" | "google_calendar";
+/**
+ * The event vocabulary, as ARRAYS with the types derived from them.
+ *
+ * Arrays rather than bare unions on purpose: a union erases at build time, so
+ * a consumer cannot validate against it at runtime and — the reason this
+ * changed — a consumer in another repo cannot assert that the events it
+ * subscribes to are events this server will actually accept. Subscribing to
+ * an unknown event is not a soft failure: the create call 400s, the dealer
+ * ends up with no subscription, and their inbound delivery is silently dark.
+ *
+ * Mirrors `src/lib/webhooks/event-types.ts` in the server repo. The two are a
+ * published-package boundary apart, so they cannot import each other; a drift
+ * test in the server repo holds them equal.
+ */
+export const WEBHOOK_PROVIDERS = [
+  "whatsapp",
+  "instagram",
+  "email",
+  "google_calendar",
+] as const;
 
-export type WebhookEventType =
-  | "message.received"
-  | "message.delivery"
-  | "conversation.started"
-  | "calendar.event.changed"
-  | "message.echo"
-  | "message.history"
-  | "contacts.sync"
-  | "template.updated"
-  | "channel.health.updated";
+export type WebhookProvider = (typeof WEBHOOK_PROVIDERS)[number];
+
+export const WEBHOOK_EVENT_TYPES = [
+  "message.received",
+  "message.delivery",
+  "conversation.started",
+  "calendar.event.changed",
+  "message.echo",
+  "message.history",
+  "contacts.sync",
+  "template.updated",
+  "channel.health.updated",
+  "call.status.updated",
+  "call.permission.updated",
+] as const;
+
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 interface BaseEvent {
   /** Stable event id for de-dup (also surfaced in `X-Atribu-Delivery-Id`). */
@@ -386,6 +412,74 @@ export interface WhatsAppChannelHealthUpdatedEvent extends BaseEvent {
   };
 }
 
+// ---------------------------------------------------------------------------
+// WhatsApp calling (ADR 0053). Under SIP interconnect Meta emits exactly two
+// call events (`call_created`, `terminate`) and exactly two statuses
+// (`FAILED`, `COMPLETED`). There is no RINGING / ACCEPTED / REJECTED and no
+// signal separating "the customer rejected" from "it never rang", so this
+// vocabulary deliberately invents none.
+// ---------------------------------------------------------------------------
+
+/**
+ * A call on a SIP-mode WhatsApp number was created or terminated.
+ *
+ * `answered` is derived, because Meta reports no accepted/rejected status:
+ * `start_time` / `duration` are documented as present only when the call was
+ * picked up, so their PRESENCE is the signal (`duration: 0` is a real
+ * sub-second pickup, not a falsy one). It is `null` while the call is still in
+ * flight — `call_created` has no outcome yet, and `false` would be a verdict.
+ */
+export interface WhatsAppCallStatusUpdatedEvent extends BaseEvent {
+  type: "call.status.updated";
+  provider: "whatsapp";
+  data: {
+    wa_call_id: string;
+    /** call_created | connect | terminate */
+    event: string | null;
+    /** FAILED | COMPLETED — only sent on `terminate`. */
+    status: string | null;
+    /** BUSINESS_INITIATED | USER_INITIATED */
+    direction: string | null;
+    /** true picked up, false ended without pickup, null still in flight. */
+    answered: boolean | null;
+    from: string | null;
+    to: string | null;
+    start_time: string | number | null;
+    end_time: string | number | null;
+    /** Integer seconds. Present only when the call was picked up. */
+    duration: number | null;
+    /** The raw Meta `calls[]` entry. */
+    raw: Record<string, unknown>;
+  };
+}
+
+/**
+ * A customer answered a call-permission request.
+ *
+ * Read `response_source` before treating this as consent: `automatic` is the
+ * grant Meta infers because the customer called the business first. It carries
+ * the same 168h / 100-connected-calls validity as an explicit `user_action`
+ * grant but is NOT informed consent, and the two are otherwise identical on
+ * the wire.
+ */
+export interface WhatsAppCallPermissionUpdatedEvent extends BaseEvent {
+  type: "call.permission.updated";
+  provider: "whatsapp";
+  data: {
+    /** The interactive reply message's own id. */
+    wa_message_id: string;
+    from: string;
+    to: string | null;
+    /** accept | reject */
+    response: string | null;
+    /** user_action | automatic — see the note above. */
+    response_source: string | null;
+    expiration_timestamp: string | number | null;
+    /** The raw Meta `call_permission_reply` object. */
+    raw: Record<string, unknown>;
+  };
+}
+
 export type AtribuWebhookEvent =
   | WhatsAppMessageReceivedEvent
   | WhatsAppMessageDeliveryEvent
@@ -394,6 +488,8 @@ export type AtribuWebhookEvent =
   | WhatsAppContactsSyncEvent
   | WhatsAppTemplateUpdatedEvent
   | WhatsAppChannelHealthUpdatedEvent
+  | WhatsAppCallStatusUpdatedEvent
+  | WhatsAppCallPermissionUpdatedEvent
   | InstagramMessageReceivedEvent
   | InstagramMessageDeliveryEvent
   | EmailMessageReceivedEvent
