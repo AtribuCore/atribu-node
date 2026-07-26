@@ -5094,14 +5094,27 @@ export interface paths {
             requestBody?: {
                 content: {
                     "application/json": {
-                        /** @description The consumer's OAuth `state` for this connect — the shared correlation id. */
+                        /** @description The consumer's OAuth `state` for this connect — the correlation id both sides already share. */
                         state: string;
+                        /** @description The six digits, ONLY when the capture cleared the consumer's confidence gate. Null otherwise. */
                         code?: string | null;
+                        /** @description Best guess even when it was not trusted — shown as a hint, never auto-used. */
                         candidate_code?: string | null;
+                        /** @description Combined transcription x parse confidence, in [0,1]. */
                         confidence: number;
+                        /** @description How many times the code was read back (Meta reads it twice). */
                         reads?: number;
+                        /** @description 0-indexed digit positions the reads disagreed on, so the UI can flag exactly those. */
                         uncertain_positions?: number[];
+                        /**
+                         * Format: uri
+                         * @description Short-TTL signed URL for the captured audio, scoped to this capture session. Relayed, never fetched here.
+                         */
                         audio_url?: string | null;
+                        /**
+                         * Format: date-time
+                         * @description When `audio_url` stops working, so a UI can retire ▶ rather than fail on it.
+                         */
                         audio_expires_at?: string | null;
                     };
                 };

@@ -5,6 +5,7 @@ import { WhatsAppMediaResource } from "./media";
 import { WhatsAppRegistrationResource } from "./registration";
 import { WhatsAppOtpCaptureResource } from "./otp-capture";
 import { WhatsAppHealthResource } from "./health";
+import { WhatsAppCallingResource } from "./calling";
 
 /**
  * WhatsApp-specific resource namespace. Mounted on `AtribuClient.whatsapp`.
@@ -18,6 +19,7 @@ export class WhatsAppNamespace {
   /** The relay carrying an OTP heard off Meta's call to the dealer's screen. */
   readonly otpCapture: WhatsAppOtpCaptureResource;
   readonly health: WhatsAppHealthResource;
+  readonly calling: WhatsAppCallingResource;
 
   constructor(http: HttpClientLike) {
     this.templates = new WhatsAppTemplatesResource(http);
@@ -26,6 +28,7 @@ export class WhatsAppNamespace {
     this.registration = new WhatsAppRegistrationResource(http);
     this.otpCapture = new WhatsAppOtpCaptureResource(http);
     this.health = new WhatsAppHealthResource(http);
+    this.calling = new WhatsAppCallingResource(http);
   }
 }
 
@@ -65,3 +68,4 @@ export type {
   WhatsAppHealthIssue,
   HealthGetOptions,
 } from "./health";
+export type { WhatsAppCallingSettings } from "./calling";

@@ -15,7 +15,7 @@
   <strong>Authorize users, send WhatsApp & Instagram messages, and verify signed webhook deliveries — through one API.</strong>
 </p>
 
-The official Node.js SDK for the [Atribu API](https://www.atribu.app) — typed access to messaging, IG comment replies, booking-calendar management, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
+The official Node.js SDK for the [Atribu API](https://www.atribu.app) — typed access to messaging, IG comment replies, WhatsApp number onboarding (registration, verification and per-number calling settings), booking-calendar management, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
 
 ## Installation
 
@@ -364,6 +364,62 @@ await atribu.calendar.revokeCalendarShare(cal.id, share.id, { connectionId: conn
 
 > **Breaking (v1.0.0):** event ops now **require `calendar_id`** (an Atribu booking calendar — `primary`/unknown is rejected with `calendar_unsupported`, 422), and primary-calendar writes were removed. A connection whose Google grant is missing `calendar.app.created`/`calendar.acls` returns `calendar_scope_required` (403) — prompt the user to reconnect. See the [CHANGELOG](./CHANGELOG.md).
 
+### Register a number, and relay the code Meta reads aloud (v1.10.0+)
+
+Embedded Signup v4 has **no phone-screen bypass**: a user finishes with a
+verified, an unverified, or no phone number, and which one it was is decided
+inside Meta's popup. So detect it after the fact rather than assuming — read
+`code_verification_status`, which Meta tracks **independently** of `status` (a
+live number can be `CONNECTED` and `EXPIRED` at once).
+
+```typescript
+const [mine] = (await atribu.whatsapp.registration.listPhoneNumbers({ connectionId }))
+  .filter((p) => p.display_phone_number.replace(/\D/g, "") === e164.replace(/\D/g, ""));
+
+if (mine?.status === "CONNECTED") {
+  // Already live. Nothing to verify, nothing to register.
+} else if (mine?.code_verification_status === "VERIFIED") {
+  // Meta verified it inside the popup — only `register` is left. Do NOT call
+  // requestCode here: it is one-shot, and it would phone a live business line
+  // to re-verify something Meta has already told you is verified.
+  await atribu.whatsapp.registration.register({
+    connection_id: connectionId, phone_number_id: mine.id, pin,
+  });
+} else {
+  // Unverified (or absent) → you drive the verification yourself.
+  await atribu.whatsapp.registration.requestCode({
+    connection_id: connectionId, phone_number_id: mine.id, language: "en",
+  });
+}
+```
+
+**Mind the budgets.** `requestCode` is one-shot and never auto-retried (an
+undocumented Meta lockout sits behind it), `verifyCode` is attempt-limited, and
+`register` is capped at **10 per number per 72 hours** (error `133016`). Treat an
+indeterminate request as spent rather than retrying it.
+
+When `code_method` is `VOICE`, Meta *phones the number and reads six digits
+aloud* — which the user cannot see if the number routes to your infrastructure.
+`otpCapture` is the letterbox for that case: publish what you heard, keyed by the
+OAuth `state` you already share, and the connect page shows it.
+
+```typescript
+await atribu.whatsapp.otpCapture.publish({
+  state,                       // the connect's OAuth state — the shared correlation id
+  code: "425678",              // ONLY when your confidence gate cleared; null otherwise
+  candidate_code: "425678",    // the best guess even when it did not — a hint, never auto-used
+  confidence: 0.92,
+  reads: 2,                    // Meta reads the digits twice; two agreeing reads is the gate
+  uncertain_positions: [],     // 0-indexed digits the two reads disagreed on
+  audio_url: signedUrl,        // short-TTL, scoped to this capture — never public, never logged
+  audio_expires_at: expiresAt,
+});
+```
+
+The entry is held for minutes, namespaced by publishing app, and expires on its
+own — it is a live registration secret, so it is never logged and never lands in
+a backup.
+
 ### Manage webhook subscriptions
 
 ```typescript
@@ -677,6 +733,18 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `whatsapp.broadcasts.send()` | Start sending a draft broadcast (long-running) |
 | `whatsapp.media.upload()` | Pre-upload a media binary to Meta → `media_id` |
 | `whatsapp.media.get()` | Resolve an inbound `media_id` → a hosted URL |
+| `whatsapp.registration.addPhoneNumber()` | Add (or migrate) a number onto the WABA |
+| `whatsapp.registration.requestCode()` | Ask Meta to send the verification code — **one-shot, never auto-retried** |
+| `whatsapp.registration.verifyCode()` | Submit the code — **attempt-limited** |
+| `whatsapp.registration.register()` | Register the number on Cloud API with a 2SV PIN — **capped 10/number/72h** |
+| `whatsapp.registration.subscribe()` | Subscribe Atribu's app to the WABA |
+| `whatsapp.registration.listPhoneNumbers()` | The WABA's numbers with `status` + `code_verification_status` |
+| `whatsapp.registration.listSubscribedApps()` | Apps on the WABA; `is_self` marks Atribu's own |
+| `whatsapp.registration.getFunding()` | The WABA's funding/payment state |
+| `whatsapp.otpCapture.publish()` | Relay a captured verification code to the dealer's connect page |
+| `whatsapp.otpCapture.get()` | Read back a relayed capture by connect `state` |
+| `whatsapp.calling.get()` | Read Meta's per-number calling settings |
+| `whatsapp.calling.update()` | Write them (returns what Meta **holds**, not an echo) |
 
 ### Instagram namespace — `client.instagram`
 | Method | Description |

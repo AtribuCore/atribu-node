@@ -10119,43 +10119,63 @@
                 "properties": {
                   "state": {
                     "type": "string",
-                    "description": "The consumer's OAuth `state` for this connect — the shared correlation id."
+                    "minLength": 8,
+                    "maxLength": 256,
+                    "description": "The consumer's OAuth `state` for this connect — the correlation id both sides already share."
                   },
                   "code": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "pattern": "^\\d{6}$",
+                    "description": "The six digits, ONLY when the capture cleared the consumer's confidence gate. Null otherwise."
                   },
                   "candidate_code": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "pattern": "^\\d{6}$",
+                    "description": "Best guess even when it was not trusted — shown as a hint, never auto-used."
                   },
                   "confidence": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Combined transcription x parse confidence, in [0,1]."
                   },
                   "reads": {
-                    "type": "number"
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8,
+                    "description": "How many times the code was read back (Meta reads it twice)."
                   },
                   "uncertain_positions": {
                     "type": "array",
                     "items": {
-                      "type": "number"
-                    }
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5
+                    },
+                    "maxItems": 6,
+                    "description": "0-indexed digit positions the reads disagreed on, so the UI can flag exactly those."
                   },
                   "audio_url": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "format": "uri",
+                    "description": "Short-TTL signed URL for the captured audio, scoped to this capture session. Relayed, never fetched here."
                   },
                   "audio_expires_at": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "format": "date-time",
+                    "description": "When `audio_url` stops working, so a UI can retire ▶ rather than fail on it."
                   }
                 },
                 "required": [

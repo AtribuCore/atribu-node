@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0]
+
+### Added
+
+- `whatsapp.calling` reaches npm for the first time.
+
+  It is documented under 1.8.0 below, and that entry is accurate about the
+  API — but no published package ever contained it. The `1.8.0` and `1.9.0`
+  tarballs on npm were both cut from the OTP-capture line, so the version
+  number in that heading refers to a build that only ever existed in git.
+  Anyone who installed `1.8.0` expecting `whatsapp.calling` got a package
+  without it; installing `1.10.0` is the fix.
+
+  Nothing about the resource changed here. This release is the merge of the
+  two lines: `whatsapp.otpCapture` + `is_self` (published) and
+  `whatsapp.calling` (not), now in one package.
+
 ## [1.9.0]
 
 ### Added
@@ -62,6 +79,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **`registration.addPhoneNumber` is now idempotent when the number is already on the WABA.** A retried add, a partial earlier success, or a share that already carried the phone no longer dead-ends: the server resolves the existing `phone_number_id` and returns it with a new **`already_present: true`** on the result (`WhatsAppAddNumberResult`). A genuine failure — payment (402), a 2SV-blocked migrate, a real 5xx — still surfaces as the same typed error, because a number that failed to land is not on the WABA to resolve.
+- `whatsapp.calling` resource — `get(connectionId, phoneNumberId)` and
+  `update(connectionId, phoneNumberId, settings)` over the per-number Meta
+  calling settings.
+
+  Two things the types deliberately do not do. The settings object is passed
+  through **verbatim** in both directions and left open: Atribu holds no
+  opinion about Meta's payload, and a type enumerating Meta's fields would
+  reject a field Meta shipped this morning. And `update()` returns what Meta
+  **holds** after the write, not an echo of the request — Meta normalizes
+  input and fills defaults, so echoing would report settings that were never
+  applied.
+
+  `connection_id` is required alongside `phone_number_id` and is not
+  redundant: it is the token resolver's key, and a phone-number id alone
+  resolves nothing.
+
 
 ## [1.7.0]
 
