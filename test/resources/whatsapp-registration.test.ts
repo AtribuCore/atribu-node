@@ -117,6 +117,29 @@ describe("whatsapp.registration resource", () => {
       expect(funding.status).toBe("APPROVED");
     });
 
+    it("lists the WABA's phone numbers (already-connected detection)", async () => {
+      server.use(
+        ...atribuMockHandlers({
+          baseUrl: BASE,
+          whatsapp: {
+            registration: {
+              phoneNumbers: {
+                status: 200,
+                body: responseFixtures.whatsappPhoneNumbers({ items: 2 }),
+              },
+            },
+          },
+        }),
+      );
+      const phones = await newClient().whatsapp.registration.listPhoneNumbers({
+        connectionId: fixtures.ids.connectionId,
+      });
+      expect(phones).toHaveLength(2);
+      expect(phones[0]?.verified_name).toBe("La Autería");
+      expect(phones[0]?.display_phone_number).toBe("+56 2 2914 5100");
+      expect(phones[0]?.quality_rating).toBe("GREEN");
+    });
+
     it("reads funding empty-state (no primary_funding_id) raw", async () => {
       server.use(
         ...atribuMockHandlers({

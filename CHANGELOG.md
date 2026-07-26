@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0]
+
+### Added
+
+- `whatsapp.otpCapture` — the OTP-capture relay. Embedded Signup v4 removed the
+  phone-screen bypass, so Meta may verify a number in-popup by placing a VOICE
+  call that reads six digits aloud. A consumer that has taken over that number's
+  voice webhook can hear them; the dealer's connect page, sitting behind Meta's
+  centered popup, cannot. `publish()` holds a capture keyed by the connect's
+  OAuth `state` (the correlation id both sides already share) and `get()` reads
+  it back.
+
+  `code` is populated ONLY when the capture cleared the publisher's confidence
+  gate; otherwise `candidate_code` carries the best guess, `uncertain_positions`
+  says which digits the two reads disagreed on, and `audio_url` is a short-TTL
+  signed link to the recording so the dealer can listen and type what she hears.
+  Never submit `candidate_code`: Meta's verify is attempt-limited and `/register`
+  is capped 10/number/72h, so a wrong auto-submit can lock a real business out of
+  WhatsApp.
+
+  Entries are held for minutes, bound to the publishing profile, and never
+  logged. Publishing when the relay store is down is a `503`, never a silent
+  success — a false success would promise the dealer a code nothing will show.
+
+- **`client.whatsapp.registration.listPhoneNumbers({ connectionId })`.** Reads the phone numbers on a connection's WABA (`id` / `display_phone_number` / `verified_name` / `quality_rating`, plus `status` and `code_verification_status`). It's the read that lets a partner detect a number that is ALREADY registered on the WABA before starting registration — `status: "CONNECTED"` means the number is live (skip the OTP + register), which `only_waba_sharing` Embedded Signup can't answer from the connection alone (Meta never returns the phone there).
+
+### Changed
+
+- **`registration.addPhoneNumber` is now idempotent when the number is already on the WABA.** A retried add, a partial earlier success, or a share that already carried the phone no longer dead-ends: the server resolves the existing `phone_number_id` and returns it with a new **`already_present: true`** on the result (`WhatsAppAddNumberResult`). A genuine failure — payment (402), a 2SV-blocked migrate, a real 5xx — still surfaces as the same typed error, because a number that failed to land is not on the WABA to resolve.
+
 ## [1.7.0]
 
 ### Added

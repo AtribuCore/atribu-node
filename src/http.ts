@@ -9,6 +9,7 @@
 
 import {
   AtribuApiError,
+  AtribuConfigError,
   AtribuOauthError,
   AtribuTransportError,
   type ApiErrorBody,
@@ -170,7 +171,20 @@ export class HttpClient implements HttpClientLike {
     } else if (opts.body !== undefined && opts.method !== "GET") {
       headers["Content-Type"] = "application/json";
     }
-    headers.Authorization = opts.authOverride ?? `Bearer ${this.cfg.apiKey}`;
+    if (opts.authOverride) {
+      headers.Authorization = opts.authOverride;
+    } else {
+      // A client may legitimately be built with no apiKey — the client-credential
+      // surfaces (whatsapp.otpCapture) exist precisely because the key does not
+      // exist yet. Anything else must fail HERE, naming the call that needed one,
+      // rather than sending `Bearer ` and collecting a confusing 401.
+      if (!this.cfg.apiKey) {
+        throw new AtribuConfigError(
+          `apiKey is required for ${opts.method} ${opts.path} — this client was constructed without one`,
+        );
+      }
+      headers.Authorization = `Bearer ${this.cfg.apiKey}`;
+    }
     if (mutating(opts.method)) {
       headers["Idempotency-Key"] = opts.idempotencyKey ?? this.cfg.generateIdempotencyKey();
     }

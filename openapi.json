@@ -34,6 +34,18 @@
       }
     },
     "schemas": {
+      "ClientCredentialsMeta": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "example": "atr_client_a1b2c3"
+          }
+        },
+        "required": [
+          "client_id"
+        ]
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -10087,10 +10099,329 @@
         }
       }
     },
+    "/api/v1/whatsapp/otp-capture": {
+      "post": {
+        "summary": "Publish an OTP captured off Meta's verification call",
+        "description": "AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), not an API key: this runs before the OAuth exchange has minted one. Embedded Signup v4 has no phone-screen bypass, so Meta may verify a number in-popup by placing a VOICE call that reads six digits aloud. A consumer that captured that call publishes the result here, keyed by the connect's OAuth `state`; the dealer's connect page — which is behind Meta's popup and cannot otherwise learn the code — subscribes and shows it. Held for a few minutes only: this is a live registration secret, it is never logged, and it expires without anybody sweeping it. 503 when the relay store is unavailable (never a silent success: the consumer must know the dealer will see nothing).",
+        "tags": [
+          "WhatsApp Registration"
+        ],
+        "security": [
+          {
+            "clientSecretBasic": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "description": "The consumer's OAuth `state` for this connect — the shared correlation id."
+                  },
+                  "code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "candidate_code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "confidence": {
+                    "type": "number"
+                  },
+                  "reads": {
+                    "type": "number"
+                  },
+                  "uncertain_positions": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  "audio_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "audio_expires_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "state",
+                  "confidence"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Capture held for the connect page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "published": {
+                          "type": "boolean"
+                        },
+                        "expires_in_seconds": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "published",
+                        "expires_in_seconds"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ClientCredentialsMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Client authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`invalid_state` — the state is not a live WhatsApp Embedded Signup connect belonging to this client. The state is a correlation id, not a capability, so publishing under one requires proving it is your own in-flight connect of the right kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for this client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Relay store unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Read back a published OTP capture",
+        "description": "AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), like the publish. Polls the relay for a capture published under this connect's `state`. `capture: null` is the NORMAL answer for most of a connect's life (the dealer is still working through Meta's screens and no call has landed) — a 200 with nothing, not a 404. Entries are bound to the consumer app that published them.",
+        "tags": [
+          "WhatsApp Registration"
+        ],
+        "security": [
+          {
+            "clientSecretBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "state",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The capture, or null when none has landed yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "capture": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "code": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "The six digits — ONLY when the capture cleared the publisher's confidence gate. Null otherwise."
+                            },
+                            "candidate_code": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Best guess even when it was not trusted. A hint for the dealer, never auto-used."
+                            },
+                            "confidence": {
+                              "type": "number",
+                              "description": "Combined transcription x parse confidence in [0,1]."
+                            },
+                            "reads": {
+                              "type": "number",
+                              "description": "How many times the code was read back. Meta reads it twice."
+                            },
+                            "uncertain_positions": {
+                              "type": "array",
+                              "items": {
+                                "type": "number"
+                              },
+                              "description": "0-indexed digit positions the two reads disagreed on, so the UI can flag exactly those."
+                            },
+                            "audio_url": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Short-TTL signed URL for the captured audio, scoped to this capture session. Never public, never logged."
+                            },
+                            "audio_expires_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "captured_at": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "candidate_code",
+                            "confidence",
+                            "reads",
+                            "uncertain_positions",
+                            "audio_url",
+                            "audio_expires_at",
+                            "captured_at"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "capture"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ClientCredentialsMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "state is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Client authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for this client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Relay store unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/whatsapp/registration/phone-numbers": {
       "post": {
         "summary": "Add (or migrate) a phone number onto a WABA",
-        "description": "Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow.",
+        "description": "Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow. IDEMPOTENT: if the number is already on this WABA, resolves and returns its existing `phone_number_id` with `already_present: true` instead of failing.",
         "tags": [
           "WhatsApp Registration"
         ],
@@ -10144,7 +10475,7 @@
         },
         "responses": {
           "201": {
-            "description": "Phone number added",
+            "description": "Phone number added (or already present, resolved idempotently)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10158,11 +10489,16 @@
                         },
                         "migrated": {
                           "type": "boolean"
+                        },
+                        "already_present": {
+                          "type": "boolean",
+                          "description": "True when the number was already on this WABA and its id was resolved without a new add/migrate."
                         }
                       },
                       "required": [
                         "phone_number_id",
-                        "migrated"
+                        "migrated",
+                        "already_present"
                       ]
                     },
                     "meta": {
@@ -10173,6 +10509,16 @@
                     "data",
                     "meta"
                   ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "WABA has no payment method (Meta 131042) — migrate needs funding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -10199,6 +10545,109 @@
           },
           "502": {
             "description": "Upstream Meta add-number failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List the phone numbers on a WABA",
+        "description": "Proxies `GET /{waba-id}/phone_numbers`. Detects whether a number is ALREADY on the WABA (already-connected onboarding, only_waba_sharing ES where Meta never returns the phone on the connection) and resolves its `phone_number_id` before registration.",
+        "tags": [
+          "WhatsApp Registration"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WABA phone numbers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "phone_number_id — the id every send/registration call keys on."
+                          },
+                          "display_phone_number": {
+                            "type": "string",
+                            "description": "E.164, formatted by Meta (e.g. \"+56 2 2914 5100\")."
+                          },
+                          "verified_name": {
+                            "type": "string"
+                          },
+                          "quality_rating": {
+                            "type": "string"
+                          },
+                          "messaging_limit": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "Cloud API state. CONNECTED = registered + live (skip OTP); PENDING/UNVERIFIED = on the WABA but not yet registered."
+                          },
+                          "code_verification_status": {
+                            "type": "string",
+                            "description": "VERIFIED once the number has cleared OTP."
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "display_phone_number",
+                          "verified_name",
+                          "quality_rating"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta phone_numbers read failed",
             "content": {
               "application/json": {
                 "schema": {

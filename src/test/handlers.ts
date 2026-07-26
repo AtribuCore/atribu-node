@@ -71,6 +71,7 @@ export interface MockOverrides {
       subscribe?: EndpointOverride;
       subscribedApps?: EndpointOverride;
       funding?: EndpointOverride;
+      phoneNumbers?: EndpointOverride;
     };
     health?: {
       get?: EndpointOverride;
@@ -265,6 +266,9 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
     ),
     http.get(u("/api/v1/whatsapp/registration/funding"), () =>
       resolve(overrides.whatsapp?.registration?.funding, 200, responseFixtures.whatsappFunding()),
+    ),
+    http.get(u("/api/v1/whatsapp/registration/phone-numbers"), () =>
+      resolve(overrides.whatsapp?.registration?.phoneNumbers, 200, responseFixtures.whatsappPhoneNumbers()),
     ),
 
     // ----- Instagram triggers -----

@@ -37,6 +37,9 @@ type SubscribedAppsResponse =
 type FundingResponse =
   paths["/api/v1/whatsapp/registration/funding"]["get"]["responses"][200]["content"]["application/json"];
 
+type PhoneNumbersResponse =
+  paths["/api/v1/whatsapp/registration/phone-numbers"]["get"]["responses"][200]["content"]["application/json"];
+
 export type WhatsAppAddNumberInput = AddNumberBody;
 export type WhatsAppAddNumberResult = AddNumberResponse["data"];
 export type WhatsAppRequestCodeInput = RequestCodeBody;
@@ -45,6 +48,7 @@ export type WhatsAppRegisterInput = RegisterBody;
 export type WhatsAppSubscribeInput = SubscribeBody;
 export type WhatsAppSubscribedApp = SubscribedAppsResponse["data"][number];
 export type WhatsAppFundingInfo = FundingResponse["data"];
+export type WhatsAppPhoneNumber = PhoneNumbersResponse["data"][number];
 
 export interface MutationOptions {
   idempotencyKey?: string;
@@ -169,6 +173,21 @@ export class WhatsAppRegistrationResource {
     const res = await this.http.request<FundingResponse>({
       method: "GET",
       path: `/api/v1/whatsapp/registration/funding?connection_id=${encodeURIComponent(opts.connectionId)}`,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * List the phone numbers on the WABA. Detects an already-connected number
+   * (its `phone_number_id`, `display_phone_number`, quality) before registration
+   * — the read `only_waba_sharing` ES needs because Meta never returns the phone
+   * on the connection itself.
+   */
+  async listPhoneNumbers(opts: ReadOptions): Promise<WhatsAppPhoneNumber[]> {
+    const res = await this.http.request<PhoneNumbersResponse>({
+      method: "GET",
+      path: `/api/v1/whatsapp/registration/phone-numbers?connection_id=${encodeURIComponent(opts.connectionId)}`,
       signal: opts.signal,
     });
     return res.data;

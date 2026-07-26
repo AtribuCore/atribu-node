@@ -48,7 +48,7 @@ console.log("Sent:", result.provider_message_id);
 
 ```typescript
 const atribu = new AtribuClient({
-  apiKey: "atb_live_...",            // required
+  apiKey: "atb_live_...",            // required for every resource but one — see below
   baseUrl: "https://www.atribu.app", // default
   fetch: customFetch,                // optional — bring your own (tracing, edge)
   timeoutMs: 30_000,                 // default 30s
@@ -57,6 +57,26 @@ const atribu = new AtribuClient({
 ```
 
 `Idempotency-Key` is auto-sent on every mutating POST. `request_id` is surfaced on every error.
+
+### Building a client without an API key
+
+`whatsapp.otpCapture` runs **before** the OAuth exchange that mints your API key
+— the dealer is still inside Meta's Embedded Signup popup — so it authenticates
+as the app itself (`client_secret_basic`, the same pair you use at
+`/oauth/token`) rather than with a key:
+
+```typescript
+const preAuth = new AtribuClient({});          // no apiKey — legal since v1.8.0
+
+await preAuth.whatsapp.otpCapture.publish(capture, {
+  clientCredentials: { clientId, clientSecret },
+});
+```
+
+A keyless client can call that resource and **nothing else**: every other
+resource throws `AtribuConfigError` at the point of use, naming the call that
+needed a key, rather than failing at construction. Omitting
+`clientCredentials` throws the same error, for the same reason.
 
 ## Examples
 

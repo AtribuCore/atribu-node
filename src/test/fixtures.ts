@@ -452,12 +452,32 @@ export const responseFixtures = {
   },
 
   // ----- WhatsApp registration (Meta proxy) -----
-  whatsappNumberAdded(overrides?: { phone_number_id?: string; migrated?: boolean }) {
+  whatsappNumberAdded(overrides?: {
+    phone_number_id?: string;
+    migrated?: boolean;
+    already_present?: boolean;
+  }) {
     return {
       data: {
         phone_number_id: overrides?.phone_number_id ?? "109876543210987",
         migrated: overrides?.migrated ?? false,
+        already_present: overrides?.already_present ?? false,
       },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappPhoneNumbers(overrides?: { items?: number; status?: string }) {
+    const items = overrides?.items ?? 1;
+    return {
+      data: Array.from({ length: items }, (_, i) => ({
+        id: `10987654321098${i}`,
+        display_phone_number: `+56 2 2914 510${i}`,
+        verified_name: i === 0 ? "La Autería" : `Line ${i}`,
+        quality_rating: "GREEN",
+        status: overrides?.status ?? "CONNECTED",
+        code_verification_status: "VERIFIED",
+      })),
       meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
     };
   },

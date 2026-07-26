@@ -4990,6 +4990,200 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/otp-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read back a published OTP capture
+         * @description AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), like the publish. Polls the relay for a capture published under this connect's `state`. `capture: null` is the NORMAL answer for most of a connect's life (the dealer is still working through Meta's screens and no call has landed) — a 200 with nothing, not a 404. Entries are bound to the consumer app that published them.
+         */
+        get: {
+            parameters: {
+                query: {
+                    state: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The capture, or null when none has landed yet */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                capture: {
+                                    /** @description The six digits — ONLY when the capture cleared the publisher's confidence gate. Null otherwise. */
+                                    code: string | null;
+                                    /** @description Best guess even when it was not trusted. A hint for the dealer, never auto-used. */
+                                    candidate_code: string | null;
+                                    /** @description Combined transcription x parse confidence in [0,1]. */
+                                    confidence: number;
+                                    /** @description How many times the code was read back. Meta reads it twice. */
+                                    reads: number;
+                                    /** @description 0-indexed digit positions the two reads disagreed on, so the UI can flag exactly those. */
+                                    uncertain_positions: number[];
+                                    /** @description Short-TTL signed URL for the captured audio, scoped to this capture session. Never public, never logged. */
+                                    audio_url: string | null;
+                                    audio_expires_at: string | null;
+                                    captured_at: string;
+                                } | null;
+                            };
+                            meta: components["schemas"]["ClientCredentialsMeta"];
+                        };
+                    };
+                };
+                /** @description state is required */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Client authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Rate limit exceeded for this client */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Relay store unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Publish an OTP captured off Meta's verification call
+         * @description AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), not an API key: this runs before the OAuth exchange has minted one. Embedded Signup v4 has no phone-screen bypass, so Meta may verify a number in-popup by placing a VOICE call that reads six digits aloud. A consumer that captured that call publishes the result here, keyed by the connect's OAuth `state`; the dealer's connect page — which is behind Meta's popup and cannot otherwise learn the code — subscribes and shows it. Held for a few minutes only: this is a live registration secret, it is never logged, and it expires without anybody sweeping it. 503 when the relay store is unavailable (never a silent success: the consumer must know the dealer will see nothing).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description The consumer's OAuth `state` for this connect — the shared correlation id. */
+                        state: string;
+                        code?: string | null;
+                        candidate_code?: string | null;
+                        confidence: number;
+                        reads?: number;
+                        uncertain_positions?: number[];
+                        audio_url?: string | null;
+                        audio_expires_at?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Capture held for the connect page */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                published: boolean;
+                                expires_in_seconds: number;
+                            };
+                            meta: components["schemas"]["ClientCredentialsMeta"];
+                        };
+                    };
+                };
+                /** @description Malformed JSON body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Client authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description `invalid_state` — the state is not a live WhatsApp Embedded Signup connect belonging to this client. The state is a correlation id, not a capability, so publishing under one requires proving it is your own in-flight connect of the right kind. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Rate limit exceeded for this client */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Relay store unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/whatsapp/registration/phone-numbers": {
         parameters: {
             query?: never;
@@ -4997,11 +5191,69 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List the phone numbers on a WABA
+         * @description Proxies `GET /{waba-id}/phone_numbers`. Detects whether a number is ALREADY on the WABA (already-connected onboarding, only_waba_sharing ES where Meta never returns the phone on the connection) and resolves its `phone_number_id` before registration.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WABA phone numbers */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description phone_number_id — the id every send/registration call keys on. */
+                                id: string;
+                                /** @description E.164, formatted by Meta (e.g. "+56 2 2914 5100"). */
+                                display_phone_number: string;
+                                verified_name: string;
+                                quality_rating: string;
+                                messaging_limit?: string;
+                                /** @description Cloud API state. CONNECTED = registered + live (skip OTP); PENDING/UNVERIFIED = on the WABA but not yet registered. */
+                                status?: string;
+                                /** @description VERIFIED once the number has cleared OTP. */
+                                code_verification_status?: string;
+                            }[];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta phone_numbers read failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         /**
          * Add (or migrate) a phone number onto a WABA
-         * @description Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow.
+         * @description Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow. IDEMPOTENT: if the number is already on this WABA, resolves and returns its existing `phone_number_id` with `already_present: true` instead of failing.
          */
         post: {
             parameters: {
@@ -5027,7 +5279,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Phone number added */
+                /** @description Phone number added (or already present, resolved idempotently) */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -5037,9 +5289,20 @@ export interface paths {
                             data: {
                                 phone_number_id: string;
                                 migrated: boolean;
+                                /** @description True when the number was already on this WABA and its id was resolved without a new add/migrate. */
+                                already_present: boolean;
                             };
                             meta: components["schemas"]["Meta"];
                         };
+                    };
+                };
+                /** @description WABA has no payment method (Meta 131042) — migrate needs funding */
+                402: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Missing scope or unauthorized connection */
@@ -7016,6 +7279,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ClientCredentialsMeta: {
+            /** @example atr_client_a1b2c3 */
+            client_id: string;
+        };
         ErrorResponse: {
             error: {
                 /** @example invalid_parameter */

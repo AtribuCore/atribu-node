@@ -3,6 +3,7 @@ import { WhatsAppTemplatesResource } from "./templates";
 import { WhatsAppBroadcastsResource } from "./broadcasts";
 import { WhatsAppMediaResource } from "./media";
 import { WhatsAppRegistrationResource } from "./registration";
+import { WhatsAppOtpCaptureResource } from "./otp-capture";
 import { WhatsAppHealthResource } from "./health";
 
 /**
@@ -14,6 +15,8 @@ export class WhatsAppNamespace {
   readonly broadcasts: WhatsAppBroadcastsResource;
   readonly media: WhatsAppMediaResource;
   readonly registration: WhatsAppRegistrationResource;
+  /** The relay carrying an OTP heard off Meta's call to the dealer's screen. */
+  readonly otpCapture: WhatsAppOtpCaptureResource;
   readonly health: WhatsAppHealthResource;
 
   constructor(http: HttpClientLike) {
@@ -21,6 +24,7 @@ export class WhatsAppNamespace {
     this.broadcasts = new WhatsAppBroadcastsResource(http);
     this.media = new WhatsAppMediaResource(http);
     this.registration = new WhatsAppRegistrationResource(http);
+    this.otpCapture = new WhatsAppOtpCaptureResource(http);
     this.health = new WhatsAppHealthResource(http);
   }
 }
@@ -52,6 +56,10 @@ export type {
   WhatsAppSubscribedApp,
   WhatsAppFundingInfo,
 } from "./registration";
+export type {
+  WhatsAppOtpCapture,
+  WhatsAppOtpCaptureInput,
+} from "./otp-capture";
 export type {
   WhatsAppChannelHealth,
   WhatsAppHealthIssue,
