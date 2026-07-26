@@ -4629,6 +4629,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/calling/sip-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a number's SIP digest credentials
+         * @description Returns the Meta-generated SIP credentials for one number, so they can be configured on the SIP server that will answer Meta's INVITEs. **This is the only endpoint that returns a secret.** It is a separate route rather than a flag on `GET /whatsapp/calling` on purpose: that route's guarantee that it never requests `include_sip_credentials` is then a property of the code, not of an argument value. Meta publishes no static SIP egress IP ranges and does not support mTLS, so digest auth is the practical control on who may INVITE your trunk: your server answers with `407` and Meta re-sends carrying the challenge response. `username` is the digest username — the business number as DIGITS ONLY, with NO leading `+`. Meta's guide calls it "the (normalized) business phone number", which reads as E.164, but a captured call shows Meta authenticating as `username="16065177691"` while its own request URI carries `sip:+16065177691@...`. It is not the `phone_number_id` and not the punctuated `display_phone_number`. Configure any other spelling and every call is rejected with a 401 that presents as ringing which never answers. The response is an allowlist projection of named fields, never Meta's payload, and it is `Cache-Control: no-store`. Atribu stores none of it: the drift snapshot is written by the settings route and structurally cannot hold a credential. Returns 404 when the number has no SIP credential (calling disabled, or no `sip` configuration).
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    phone_number_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SIP digest credentials */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Digest username: the business number as digits, NO leading `+` — e.g. `16065177691`. Verified against a live Meta call. */
+                                username: string;
+                                servers: components["schemas"]["WhatsAppSipCredential"][];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description phone_number_id is not on this connection's WABA */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found, or the number has no SIP credential (calling disabled / no `sip` configuration) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (no WhatsApp account row / missing token) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Meta returned no display_phone_number, so the digest username cannot be determined */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/whatsapp/broadcasts": {
         parameters: {
             query?: never;
@@ -7488,6 +7591,12 @@ export interface components {
             connection_id: string;
             phone_number_id: string;
             settings: components["schemas"]["WhatsAppCallingSettings"];
+        };
+        WhatsAppSipCredential: {
+            hostname?: string;
+            port?: number;
+            /** @description Meta-generated digest password for this SIP peer. */
+            sip_user_password: string;
         };
     };
     responses: never;

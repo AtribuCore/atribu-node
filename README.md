@@ -96,7 +96,7 @@ needed a key, rather than failing at construction. Omitting
 
 **Messaging** — [template](#send-a-whatsapp-template) · [image](#send-a-whatsapp-image) · [inbound media](#receive-whatsapp-media-inbound) · [reply buttons](#send-whatsapp-reply-buttons-interactive) · [broadcast](#send-a-whatsapp-broadcast) · [IG comment reply](#reply-to-an-instagram-comment)
 **Managing** — [templates](#manage-whatsapp-templates) · [channel health](#check-whatsapp-channel-health) · [IG triggers](#manage-instagram-comment-to-dm-triggers) · [connections](#list-authorized-connections) · [calendars](#manage-booking-calendars) · [webhook subscriptions](#manage-webhook-subscriptions)
-**Onboarding** — [register a number + relay its code](#register-a-number-and-relay-the-code-meta-reads-aloud-v1100)
+**Onboarding** — [register a number + relay its code](#register-a-number-and-relay-the-code-meta-reads-aloud-v1100) · [authenticate Meta's SIP trunk](#authenticate-metas-sip-trunk-v1110)
 
 ### Send a WhatsApp template
 
@@ -438,6 +438,36 @@ The entry is held for minutes, namespaced by publishing app, and expires on its
 own — it is a live registration secret, so it is never logged and never lands in
 a backup.
 
+### Authenticate Meta's SIP trunk (v1.11.0+)
+
+If you terminate WhatsApp calling on your own SIP trunk, digest credentials are
+the practical control on who may `INVITE` it — Meta publishes no static egress
+IPs and does not support mTLS. Your server answers `407`, and Meta re-sends the
+request carrying the challenge response.
+
+```typescript
+const creds = await atribu.whatsapp.calling.sipCredentials(connectionId, phoneNumberId);
+// → {
+//     username: "16065177691",
+//     servers: [{ hostname: "sip.example.io", port: 5061, sip_user_password: "…" }],
+//   }
+```
+
+The password is **per server**, on each entry of `servers` — not a single
+top-level field — so configure each trunk with its own `sip_user_password`.
+
+**The `username` is digits with no leading `+`.** Meta's own guide calls it "the
+(normalized) business phone number", which reads like E.164 — but in a single
+exchange Meta sends `INVITE sip:+16065177691@…` while its
+`Proxy-Authorization` header carries `username="16065177691"`. Configure the
+`+` form and every call is rejected with a `401` that presents as **ringing
+which never answers** — no error surfaces anywhere, so it is worth getting right
+the first time.
+
+This is the **only call in this SDK that returns a secret**. Treat the result as
+secret in transit: hand it to your SIP provider, do not persist it and do not
+log it. Atribu stores none of it, and `whatsapp.calling.get()` never requests it.
+
 ### Manage webhook subscriptions
 
 ```typescript
@@ -763,6 +793,7 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `whatsapp.otpCapture.get()` | Read back a relayed capture by connect `state` |
 | `whatsapp.calling.get()` | Read Meta's per-number calling settings |
 | `whatsapp.calling.update()` | Write them (returns what Meta **holds**, not an echo) |
+| `whatsapp.calling.sipCredentials()` | Read a number's SIP digest credentials — **the only call here that returns a secret** |
 
 ### Instagram namespace — `client.instagram`
 | Method | Description |

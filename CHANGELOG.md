@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0]
+
+### Added
+
+- `whatsapp.calling.sipCredentials(connectionId, phoneNumberId)` — reads a
+  number's Meta-generated SIP digest credentials.
+
+  **The only call in this SDK that returns a secret.** It exists because Meta
+  publishes no static SIP egress IPs and does not support mTLS, so digest auth
+  is the practical control on who may INVITE your trunk: your server answers
+  `407` and Meta re-sends carrying the challenge response. Measured against a
+  live call — a trunk with no credentials answers `200 OK` to anyone inside
+  Meta's address space, which is all of its infrastructure.
+
+  `username` is the business number as **digits, with no leading `+`**. Meta's
+  own guide calls it "the (normalized) business phone number", which reads as
+  E.164 — but in a single exchange Meta sends `INVITE sip:+16065177691@…` and
+  `Proxy-Authorization: Digest username="16065177691"`. Configure the `+` form
+  and every call is rejected with a `401` that presents as ringing which never
+  answers.
+
+  Treat the result as a secret in transit: hand it to the SIP provider, do not
+  persist or log it. Atribu stores none of it, and `whatsapp.calling.get()`
+  never requests it.
+
 ## [1.10.1]
 
 ### Changed

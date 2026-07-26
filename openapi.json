@@ -668,6 +668,24 @@
           "phone_number_id",
           "settings"
         ]
+      },
+      "WhatsAppSipCredential": {
+        "type": "object",
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "sip_user_password": {
+            "type": "string",
+            "description": "Meta-generated digest password for this SIP peer."
+          }
+        },
+        "required": [
+          "sip_user_password"
+        ]
       }
     },
     "parameters": {
@@ -9276,6 +9294,141 @@
           },
           "422": {
             "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/calling/sip-credentials": {
+      "get": {
+        "summary": "Read a number's SIP digest credentials",
+        "description": "Returns the Meta-generated SIP credentials for one number, so they can be configured on the SIP server that will answer Meta's INVITEs. **This is the only endpoint that returns a secret.** It is a separate route rather than a flag on `GET /whatsapp/calling` on purpose: that route's guarantee that it never requests `include_sip_credentials` is then a property of the code, not of an argument value. Meta publishes no static SIP egress IP ranges and does not support mTLS, so digest auth is the practical control on who may INVITE your trunk: your server answers with `407` and Meta re-sends carrying the challenge response. `username` is the digest username — the business number as DIGITS ONLY, with NO leading `+`. Meta's guide calls it \"the (normalized) business phone number\", which reads as E.164, but a captured call shows Meta authenticating as `username=\"16065177691\"` while its own request URI carries `sip:+16065177691@...`. It is not the `phone_number_id` and not the punctuated `display_phone_number`. Configure any other spelling and every call is rejected with a 401 that presents as ringing which never answers. The response is an allowlist projection of named fields, never Meta's payload, and it is `Cache-Control: no-store`. Atribu stores none of it: the drift snapshot is written by the settings route and structurally cannot hold a credential. Returns 404 when the number has no SIP credential (calling disabled, or no `sip` configuration).",
+        "tags": [
+          "WhatsApp Calling"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true,
+            "name": "phone_number_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SIP digest credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "username": {
+                          "type": "string",
+                          "description": "Digest username: the business number as digits, NO leading `+` — e.g. `16065177691`. Verified against a live Meta call."
+                        },
+                        "servers": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/WhatsAppSipCredential"
+                          }
+                        }
+                      },
+                      "required": [
+                        "username",
+                        "servers"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "phone_number_id is not on this connection's WABA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found, or the number has no SIP credential (calling disabled / no `sip` configuration)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (no WhatsApp account row / missing token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Meta returned no display_phone_number, so the digest username cannot be determined",
             "content": {
               "application/json": {
                 "schema": {

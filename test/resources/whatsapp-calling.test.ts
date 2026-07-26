@@ -19,7 +19,20 @@ const SETTINGS = {
 let lastGetUrl = "";
 let lastPostBody: unknown = null;
 
+let lastCredsUrl = "";
+
+const CREDS = {
+  username: "16065177691",
+  servers: [
+    { hostname: "sip.rtc.elevenlabs.io", port: 5061, sip_user_password: "meta-secret" },
+  ],
+};
+
 const handlers = [
+  http.get(`${BASE}/api/v1/whatsapp/calling/sip-credentials`, ({ request }) => {
+    lastCredsUrl = request.url;
+    return HttpResponse.json({ data: CREDS });
+  }),
   http.get(`${BASE}/api/v1/whatsapp/calling`, ({ request }) => {
     lastGetUrl = request.url;
     return HttpResponse.json({ data: { calling: SETTINGS } });
@@ -73,5 +86,27 @@ describe("whatsapp.calling resource", () => {
     // The handler adds a field Meta filled in. Echoing the request instead
     // would report settings that were never applied.
     expect(out).toMatchObject({ call_hours: { status: "DISABLED" } });
+  });
+
+  it("reads SIP credentials from their OWN endpoint, sending both ids", async () => {
+    // A separate route, not a flag on `get()`. That is what keeps "the settings
+    // read never requests credentials" a property of the code rather than of an
+    // argument someone might pass.
+    const creds = await newClient().whatsapp.calling.sipCredentials(CONN, PHONE);
+
+    expect(creds).toEqual(CREDS);
+    const url = new URL(lastCredsUrl);
+    expect(url.pathname).toBe("/api/v1/whatsapp/calling/sip-credentials");
+    expect(url.searchParams.get("connection_id")).toBe(CONN);
+    expect(url.searchParams.get("phone_number_id")).toBe(PHONE);
+  });
+
+  it("does NOT pull credentials in through the plain settings read", async () => {
+    // The sibling route's whole promise. If `get()` ever grew an
+    // include_sip_credentials flag, a routine read would start returning a
+    // secret into callers' logs.
+    await newClient().whatsapp.calling.get(CONN, PHONE);
+
+    expect(new URL(lastGetUrl).searchParams.has("include_sip_credentials")).toBe(false);
   });
 });
