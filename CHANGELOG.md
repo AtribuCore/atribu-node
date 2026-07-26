@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.1]
+
+### Changed
+
+- Documentation only — no code change, no API change.
+
+  The README now states what the SDK actually covers (two of the five
+  namespaces were missing from the summary) and is navigable: a jump bar at the
+  top and an index over the twenty-odd examples, which had no way in other than
+  scrolling. The WhatsApp reference table also gained `registration`,
+  `otpCapture` and `calling`, which had shipped without ever being documented,
+  each registration method annotated with the Meta budget it spends.
+
 ## [1.10.0]
 
 ### Added

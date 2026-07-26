@@ -12,10 +12,24 @@
 </p>
 
 <p align="center">
-  <strong>Authorize users, send WhatsApp & Instagram messages, and verify signed webhook deliveries — through one API.</strong>
+  <strong>One typed client for WhatsApp and Instagram — messaging, onboarding, calendars and signed webhooks.</strong>
 </p>
 
-The official Node.js SDK for the [Atribu API](https://www.atribu.app) — typed access to messaging, IG comment replies, WhatsApp number onboarding (registration, verification and per-number calling settings), booking-calendar management, webhook subscriptions, OAuth 2.0 consumer helpers, and signed-webhook verification.
+The official Node.js SDK for the [Atribu API](https://www.atribu.app). Fully typed against the OpenAPI spec, dependency-free at runtime, and usable from any WinterCG-compatible runtime.
+
+**What it covers**
+
+| Namespace | For |
+|---|---|
+| `messages` | Send across channels — text, media, templates, interactive |
+| `whatsapp` | Templates, broadcasts, media, channel health, **number registration + verification**, per-number calling settings |
+| `instagram` | Comment-to-DM triggers |
+| `calendar` | Atribu booking calendars — events and sharing |
+| `webhooks` | Subscriptions, replay, and HMAC verification of inbound deliveries |
+| `connections` | The authorized accounts everything else is addressed by |
+| `/oauth`, `/next`, `/test` | Consumer OAuth helpers, a Next.js route handler, and MSW test doubles |
+
+**Jump to:** [Install](#installation) · [Quick start](#quick-start) · [Configuration](#configuration) · [Examples](#examples) · [Verifying webhooks](#verifying-webhooks) · [OAuth](#oauth-flow) · [Errors](#error-handling) · [Retries](#retries) · [Testing](#testing) · [Tracing](#opentelemetry--datadog-apm--sentry) · [API reference](#sdk-reference)
 
 ## Installation
 
@@ -79,6 +93,10 @@ needed a key, rather than failing at construction. Omitting
 `clientCredentials` throws the same error, for the same reason.
 
 ## Examples
+
+**Messaging** — [template](#send-a-whatsapp-template) · [image](#send-a-whatsapp-image) · [inbound media](#receive-whatsapp-media-inbound) · [reply buttons](#send-whatsapp-reply-buttons-interactive) · [broadcast](#send-a-whatsapp-broadcast) · [IG comment reply](#reply-to-an-instagram-comment)
+**Managing** — [templates](#manage-whatsapp-templates) · [channel health](#check-whatsapp-channel-health) · [IG triggers](#manage-instagram-comment-to-dm-triggers) · [connections](#list-authorized-connections) · [calendars](#manage-booking-calendars) · [webhook subscriptions](#manage-webhook-subscriptions)
+**Onboarding** — [register a number + relay its code](#register-a-number-and-relay-the-code-meta-reads-aloud-v1100)
 
 ### Send a WhatsApp template
 
