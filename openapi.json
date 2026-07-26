@@ -11160,6 +11160,10 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "is_self": {
+                            "type": "boolean",
+                            "description": "TRUE when this entry is Atribu's own Meta app. Atribu is the only party that knows its own app id with certainty, so it answers here instead of every consumer keeping a copy — a copy silently goes wrong the moment Atribu's app differs between environments, and being wrong either mutes the customer's AI (our app read as an incumbent) or double-replies (an incumbent read as us). ABSENT — never `false` — when Atribu cannot determine its own id: an all-false list is indistinguishable from 'Atribu is not subscribed', which is the same catastrophic misread this field exists to prevent. Treat absent as 'ask someone else', not as 'no'."
                           }
                         },
                         "required": [

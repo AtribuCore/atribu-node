@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0]
+
+### Added
+
+- `is_self` on every entry of `whatsapp.registration.listSubscribedApps()`.
+  `true` marks Atribu's own Meta app; anything else is an incumbent (Chatwoot,
+  another BSP).
+
+  This exists because consumers were answering that question with a COPY of
+  Atribu's Meta app id in their own config, and a copy fails in ways it cannot
+  detect. Unset, it takes the whole connect down. Stale — or pointed at the Meta
+  app of a different Atribu environment — it is confidently wrong, and wrong here
+  is not cosmetic: our app misread as an incumbent leaves the customer's AI
+  suppressed forever, while an incumbent misread as us lifts the cutover gate
+  with both systems replying to the same person. Atribu is the only party that
+  knows the app id it actually subscribed with, so it answers.
+
+  **The field is tri-state, and the third state matters.** It is OMITTED — never
+  `false` — when Atribu cannot determine its own id. An all-`false` list is
+  indistinguishable from "Atribu is not subscribed", which latches the exact
+  suppression the flag exists to prevent. Read `undefined` as "no answer from
+  here" and fall back to your own configuration; read `false` as "this one is
+  definitely not Atribu".
+
+  Additive and optional, so existing id-matching keeps working unchanged.
+
 ## [1.8.0]
 
 ### Added
