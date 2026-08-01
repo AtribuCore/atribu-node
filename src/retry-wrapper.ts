@@ -16,6 +16,9 @@
  *   - any request flagged `retryable: false` (single, attempt-limited upstream
  *     actions such as the WhatsApp OTP request/verify + /register) — never
  *     replayed, even on a transient 5xx or a transport error
+ *   - any request carrying `maxRetries: 0` — the per-call budget, which a
+ *     resource method sets when its endpoint is best-effort by contract
+ *     (`messages.typing`) and which the caller may override
  *   - `AtribuApiError` with `retry.action === "do_not_retry"` (403)
  *   - `AtribuApiError` with `retry.action === "fix_and_retry"` (422 etc — the
  *     caller's input is wrong; retrying with the same body won't help)
@@ -26,6 +29,7 @@
 
 import {
   AtribuApiError,
+  AtribuConfigError,
   AtribuTransportError,
   type AtribuError,
 } from "./errors";
@@ -37,6 +41,9 @@ export interface RetryOptions {
   /**
    * Max attempts including the initial call. `maxAttempts: 3` = initial + 2
    * retries. Must be ≥ 1. Default 3.
+   *
+   * A single request may override this with `RequestOptions.maxRetries`, which
+   * counts replays rather than attempts (`maxAttempts === maxRetries + 1`).
    */
   maxAttempts?: number;
   /**
@@ -89,8 +96,24 @@ export class RetryingHttpClient implements HttpClientLike {
   }
 
   async request<T>(opts: RequestOptions): Promise<T> {
+    // A per-call `maxRetries` counts replays AFTER the initial attempt, so it
+    // is one less than `maxAttempts`. It overrides the client budget in both
+    // directions — a resource can pin a best-effort endpoint to a single
+    // attempt, and a caller can hand that resource a larger budget back.
+    //
+    // Garbage in falls back to the client budget rather than throwing or
+    // guessing. This is a published SDK: `NaN` (the shape a `parseInt` of a
+    // missing env var takes) would otherwise skip the loop entirely and send
+    // ZERO requests, and `Infinity` would retry forever. Both are worse than
+    // quietly doing what the client was configured to do. `Math.trunc` keeps
+    // 1.5 from meaning "1.5 retries", and `Math.max(1, …)` keeps a negative
+    // from meaning "no attempts".
+    const maxAttempts = Number.isFinite(opts.maxRetries)
+      ? Math.max(1, Math.trunc(opts.maxRetries as number) + 1)
+      : this.r.maxAttempts;
+
     let lastErr: unknown;
-    for (let attempt = 1; attempt <= this.r.maxAttempts; attempt++) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         return await this.base.request<T>(opts);
       } catch (err) {
@@ -98,13 +121,21 @@ export class RetryingHttpClient implements HttpClientLike {
         // Attempt-limited actions opt out of replay entirely — a retry would
         // re-fire the upstream action (e.g. a second Meta OTP request).
         if (opts.retryable === false) throw err;
-        if (attempt >= this.r.maxAttempts) throw err;
+        if (attempt >= maxAttempts) throw err;
         const delay = this.computeDelay(err, attempt);
         if (delay === null) throw err; // non-retryable
         if (delay > 0) await this.r.sleep(delay);
       }
     }
-    throw lastErr; // unreachable
+    // Unreachable: `maxAttempts` is ≥ 1, so the loop either returns or throws.
+    // Kept honest anyway — `throw undefined` would be the single worst thing to
+    // surface from a transport, and a named error beats a mystery.
+    throw (
+      lastErr ??
+      new AtribuConfigError(
+        `RetryingHttpClient exhausted ${maxAttempts} attempts without a result or an error`,
+      )
+    );
   }
 
   /**

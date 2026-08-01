@@ -41,6 +41,24 @@ describe("@atribu/node/test", () => {
       expect(result.provider_message_id).toBe("wamid.HBgM");
     });
 
+    it("messages.typing returns the canned response", async () => {
+      // The handler must exist, or a consumer running MSW with
+      // `onUnhandledRequest: "error"` breaks the moment they adopt typing.
+      const client = new AtribuClient({
+        apiKey: "atb_live_test",
+        baseUrl: "https://mock.atribu.test",
+      });
+      const result = await client.messages.typing({
+        connection_id: fixtures.ids.connectionId,
+        channel: "whatsapp",
+        to: "56912345678",
+        message_id: "wamid.HBgLNTY5MTIzNDU2NzgVAgASGBQz",
+      });
+      expect(result.forwarded).toBe(true);
+      expect(result.to).toBe("56912345678");
+      expect(result.reason).toBeUndefined();
+    });
+
     it("webhook subscription create returns the secret once", async () => {
       const client = new AtribuClient({
         apiKey: "atb_live_test",
@@ -91,6 +109,12 @@ describe("@atribu/node/test", () => {
               422,
             ),
           },
+          typing: {
+            body: responseFixtures.typingIndicator({
+              forwarded: false,
+              reason: "stale_message_id",
+            }),
+          },
         },
       }),
     );
@@ -119,6 +143,23 @@ describe("@atribu/node/test", () => {
       expect(caught?.code).toBe("validation_error");
       expect(caught?.status).toBe(422);
       expect(caught?.retry.action).toBe("fix_and_retry");
+    });
+
+    it("lets a consumer drive the typing no-op branch", async () => {
+      // `forwarded: false` is a 200, so it must arrive as data — not as an
+      // error a consumer would have to catch.
+      const client = new AtribuClient({
+        apiKey: "atb_live_test",
+        baseUrl: "https://mock.atribu.test",
+      });
+      const result = await client.messages.typing({
+        connection_id: fixtures.ids.connectionId,
+        channel: "whatsapp",
+        to: "56912345678",
+        message_id: "wamid.stale",
+      });
+      expect(result.forwarded).toBe(false);
+      expect(result.reason).toBe("stale_message_id");
     });
   });
 

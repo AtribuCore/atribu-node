@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AtribuClient } from "../src/client";
 import { AtribuApiError, AtribuTransportError } from "../src/errors";
 
@@ -161,6 +161,160 @@ describe("HttpClient via AtribuClient.messages.send", () => {
       client.webhooks.subscriptions.delete("11111111-1111-1111-1111-111111111111"),
     ).resolves.toBeUndefined();
   });
+
+  describe("timeout resolution", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** Never settles on its own; only the abort signal ends it. */
+    function hangingFetch() {
+      return vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => {
+              const err = new Error("The operation was aborted");
+              err.name = "AbortError";
+              reject(err);
+            });
+          }),
+      );
+    }
+
+    /**
+     * Still in flight at `deadlineMs - 1`, aborted with `message` at
+     * `deadlineMs`. The lower bound is the load-bearing half — without it the
+     * assertion would also pass for a request abandoned immediately.
+     */
+    async function expectAbortsAt(
+      pending: Promise<unknown>,
+      deadlineMs: number,
+      message: RegExp,
+    ): Promise<void> {
+      let settled = false;
+      void pending.catch(() => {}).finally(() => {
+        settled = true;
+      });
+
+      await vi.advanceTimersByTimeAsync(deadlineMs - 1);
+      expect(settled, `settled before its ${deadlineMs}ms deadline`).toBe(false);
+
+      const assertion = expect(pending).rejects.toThrow(message);
+      await vi.advanceTimersByTimeAsync(1);
+      await assertion;
+    }
+
+    const sendInput = {
+      connection_id: "00000000-0000-0000-0000-000000000000",
+      channel: "whatsapp",
+      to: "+1",
+      content: { type: "text", text: "x" },
+    } as const;
+
+    it("uses the client timeoutMs when a call sets none", async () => {
+      // Regression pin: `messages.send` (and every other pre-existing resource)
+      // passes no per-call timeout, so the client default must still bound it —
+      // and the error must name that same number.
+      vi.useFakeTimers();
+      const client = new AtribuClient({
+        apiKey: "atb_live_k",
+        fetch: hangingFetch() as unknown as typeof fetch,
+        timeoutMs: 1_500,
+      });
+
+      await expectAbortsAt(client.messages.send(sendInput), 1_500, /timeout 1500ms/);
+    });
+
+    it("a per-call deadline bounds only that request", async () => {
+      vi.useFakeTimers();
+      const client = new AtribuClient({
+        apiKey: "atb_live_k",
+        fetch: hangingFetch() as unknown as typeof fetch,
+        timeoutMs: 30_000,
+      });
+
+      await expectAbortsAt(
+        client.messages.typing(
+          {
+            connection_id: "00000000-0000-0000-0000-000000000000",
+            channel: "whatsapp",
+            to: "56912345678",
+            message_id: "wamid.x",
+          },
+          { timeoutMs: 40 },
+        ),
+        40,
+        /timeout 40ms/,
+      );
+
+      // The client default is untouched — the next call still gets 30s.
+      await expectAbortsAt(client.messages.send(sendInput), 30_000, /timeout 30000ms/);
+    });
+
+    it("reports a caller's own abort as an abort, not as a timeout", async () => {
+      // Both arrive as AbortError. Calling a caller-initiated cancellation
+      // "timeout 30000ms" sends whoever reads the log chasing latency that
+      // never happened.
+      vi.useFakeTimers();
+      const client = new AtribuClient({
+        apiKey: "atb_live_k",
+        fetch: hangingFetch() as unknown as typeof fetch,
+        timeoutMs: 30_000,
+      });
+
+      const controller = new AbortController();
+      const pending = client.messages.send(sendInput, { signal: controller.signal });
+      const assertion = expect(pending).rejects.toThrow(/aborted by caller/);
+
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+      await assertion;
+    });
+
+    it("still reports a real timeout as a timeout", async () => {
+      // The other side of the same branch — an unused caller signal must not
+      // turn a genuine timeout into "aborted by caller".
+      vi.useFakeTimers();
+      const client = new AtribuClient({
+        apiKey: "atb_live_k",
+        fetch: hangingFetch() as unknown as typeof fetch,
+        timeoutMs: 800,
+      });
+
+      const controller = new AbortController();
+      await expectAbortsAt(
+        client.messages.send(sendInput, { signal: controller.signal }),
+        800,
+        /timeout 800ms/,
+      );
+    });
+
+    it("treats a client timeoutMs of 0 or NaN as absent on a generic request", async () => {
+      // `resolveTimeout` must not let a garbage per-call value disable the
+      // deadline; 0 is not "no timeout".
+      vi.useFakeTimers();
+      const client = new AtribuClient({
+        apiKey: "atb_live_k",
+        fetch: hangingFetch() as unknown as typeof fetch,
+        timeoutMs: 2_000,
+      });
+
+      await expectAbortsAt(
+        client.messages.typing(
+          {
+            connection_id: "00000000-0000-0000-0000-000000000000",
+            channel: "whatsapp",
+            to: "56912345678",
+            message_id: "wamid.x",
+          },
+          { timeoutMs: 0 },
+        ),
+        2_000,
+        /timeout 2000ms/,
+      );
+    });
+  });
+
 
   it("user-supplied userAgent is appended", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(jsonResponse({ data: {} }));

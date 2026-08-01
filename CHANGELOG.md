@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0]
+
+### Added
+
+- `messages.typing({ connection_id, channel, to, message_id })` — shows a
+  WhatsApp "typing…" bubble and marks the customer's message read, so an agent
+  that takes tens of seconds to compose a reply produces the signals a human
+  would.
+
+  `message_id` is the **inbound** wamid (the customer's message, not one of
+  yours) — Meta derives the recipient from it. The read receipt is not optional:
+  Meta exposes the indicator as a field on the read receipt, so showing one
+  always marks the message read. There is no "typing off" call — the indicator
+  expires after ~25s on its own and is dismissed the moment you send.
+
+  **A 200 is not a promise the bubble appeared.** `forwarded: false` with
+  `reason: "stale_message_id"` means Meta refused the wamid (older than ~24h,
+  already read, number re-registered); `reason:
+  "message_id_conversation_mismatch"` means the wamid belongs to a different
+  conversation than `to`, so nothing was sent — forwarding it would have
+  blue-ticked and animated a thread you did not mean to touch. Neither is a
+  fault with a remedy, which is why neither is an error.
+
+  **This route never answers 404.** An unknown or unauthorized `connection_id`
+  answers 403 precisely so 404 keeps one meaning: a 404 (or 405/501) means the
+  endpoint predates the Atribu deployment you are talking to. Treat it as
+  "typing is not deployed on this bridge", latch the feature off, and carry on.
+
+  **Never retries, and that is not configurable.** The server's contract is one
+  upstream call; an SDK retry would be a *new* Graph call that fires another
+  read receipt and re-arms the ~25s bubble after your reply already went out.
+  `TypingOptions` therefore has no `maxRetries`.
+
+  Its deadline is capped at 5000ms — a ceiling, not a default, so a client
+  configured with a tighter `timeoutMs` keeps it. Pass `opts.timeoutMs` to
+  choose a deadline outright.
+
+- Per-request transport policy on `RequestOptions` — `maxRetries`, `timeoutMs`
+  and `maxTimeoutMs`. Every existing call site sets none of them and behaves
+  exactly as before.
+
+  - `maxRetries` counts replays after the initial attempt and overrides the
+    client-level `maxAttempts` in both directions
+    (`maxAttempts === maxRetries + 1`). Non-finite values fall back to the
+    client budget rather than throwing — `NaN` would otherwise send zero
+    requests and `Infinity` would retry forever. Negatives clamp to one attempt;
+    fractions truncate.
+  - `timeoutMs` is an absolute per-call deadline, up or down.
+  - `maxTimeoutMs` is a ceiling that can only *lower* the client's budget. This
+    is what resource methods use, so an SDK default can never silently widen a
+    limit the consumer deliberately set.
+
+  Both millisecond fields must be positive and finite; `0` is not "no timeout"
+  and is treated as absent.
+
+  `maxRetries` is distinct from the existing `retryable: false`, which stays
+  absolute: that flag is a property of the upstream action (never safe to
+  replay, as with the WhatsApp OTP calls), whereas `maxRetries` is a budget.
+
+### Changed
+
+- A request aborted via a caller-supplied `AbortSignal` now reports
+  `"Request aborted by caller"` instead of `"Request aborted (timeout Nms)"`.
+  Both cases arrive as the same `AbortError`; labelling a deliberate
+  cancellation as a timeout sent readers hunting latency that never happened.
+
+- `reason` on the typing response is now a union
+  (`"stale_message_id" | "message_id_conversation_mismatch"`) rather than
+  `string`, generated from a tightened OpenAPI enum — consumers get an
+  exhaustive `switch` instead of a prose footnote.
+
+- `responseFixtures.typingIndicator()` and a `messages.typing` mock handler in
+  `@atribu/node/test`, so consumers running MSW with
+  `onUnhandledRequest: "error"` get a realistic default for the new route.
+
+### Fixed
+
+- `SDK_VERSION` reported `1.4.0` on every request's User-Agent. The constant sat
+  unchanged across nine releases (1.4.0 through 1.11.0) because nothing checked
+  it — so the eight after 1.4.0 all identified themselves as 1.4.0 on the wire.
+  Corrected to the package version; `test/version.test.ts` now fails the build
+  if the two ever separate, and the mirror script asserts it during the release
+  dry-run. Server-side SDK-version telemetry before 1.12.0 attributes every
+  release from 1.6.0 through 1.11.0 to 1.4.0.
+
 ## [1.11.0]
 
 ### Added

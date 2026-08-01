@@ -12,6 +12,7 @@ import type {
   InstagramMessageReceivedEvent,
   InstagramMessageDeliveryEvent,
 } from "../webhooks/types";
+import type { MessageTypingResponse } from "../resources/messages";
 
 type DeepPartial<T> = T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
 function deepMerge<T>(base: T, override?: DeepPartial<T>): T {
@@ -199,6 +200,41 @@ export const responseFixtures = {
         provider_message_id: overrides?.provider_message_id ?? "wamid.HBgM",
         sent_at: overrides?.sent_at ?? new Date().toISOString(),
       },
+    };
+  },
+
+  /**
+   * `forwarded: false` is a normal 200 on this endpoint, so the fixture takes
+   * it — pass `{ forwarded: false, reason: "stale_message_id" }` to exercise
+   * the no-op branch consumers must handle.
+   *
+   * `to` defaults to a bare wa_id (`56912345678`), NOT the `+`-prefixed E.164
+   * form used elsewhere in these fixtures. The server compares `to` against the
+   * conversation's stored `external_user_id`, which Meta reports without the
+   * `+`; a `+`-prefixed value trips the mismatch check and gets a `forwarded:
+   * false` no-op instead of a bubble. A fixture that modelled the wrong shape
+   * would teach consumers the wrong shape.
+   *
+   * Return type is pinned to the generated `MessageTypingResponse`, so a schema
+   * change to the route breaks this at `tsc` rather than at a consumer's
+   * runtime.
+   */
+  typingIndicator(overrides?: {
+    forwarded?: boolean;
+    reason?: MessageTypingResponse["reason"];
+    requested_at?: string;
+    to?: string;
+  }): { data: MessageTypingResponse; meta: { profile_id: string } } {
+    return {
+      data: {
+        connection_id: SAMPLE_CONNECTION_ID,
+        channel: "whatsapp",
+        to: overrides?.to ?? "56912345678",
+        forwarded: overrides?.forwarded ?? true,
+        ...(overrides?.reason !== undefined ? { reason: overrides.reason } : {}),
+        requested_at: overrides?.requested_at ?? new Date().toISOString(),
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID },
     };
   },
 

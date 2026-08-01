@@ -45,6 +45,46 @@ export interface RequestOptions {
    * re-fire the action against Meta. Default (`undefined`) is retryable.
    */
   retryable?: boolean;
+  /**
+   * Per-call cap on how many times the opt-in `RetryingHttpClient` may replay
+   * this request AFTER the initial attempt — `0` means "one attempt, ever".
+   * Overrides the client-level `maxAttempts`, which counts the initial call
+   * (`maxAttempts === maxRetries + 1`). Inert when no retry layer is installed,
+   * since an unwrapped `HttpClient` never replays anything.
+   *
+   * Distinct from `retryable: false`, which is absolute: that flag says the
+   * upstream action must never be replayed no matter what the caller wants.
+   * `maxRetries` is a *default* a resource method sets on the caller's behalf,
+   * and the caller may raise or lower it. A resource whose endpoint is merely
+   * best-effort (e.g. `messages.typing`) wants this one; a resource wrapping a
+   * one-shot upstream action (the WhatsApp OTP calls) wants `retryable: false`.
+   */
+  maxRetries?: number;
+  /**
+   * Per-call deadline in ms, overriding the client's `timeoutMs` ABSOLUTELY —
+   * up or down. This is the caller's explicit choice, so it wins even over a
+   * resource method's `maxTimeoutMs` ceiling.
+   *
+   * Must be a positive finite number. `0` is NOT "no timeout" — it, along with
+   * `NaN`, `Infinity` and negatives, is treated as "not provided" and falls
+   * back. There is deliberately no way to disable the timeout: pass an
+   * `AbortSignal` if you want to own cancellation.
+   */
+  timeoutMs?: number;
+  /**
+   * A CEILING on the effective deadline — it can only lower the client's
+   * `timeoutMs`, never raise it (`min(cfg.timeoutMs, maxTimeoutMs)`).
+   *
+   * This is what a resource method uses to express "my endpoint expires in
+   * seconds, don't wait 30 of them on it". Using `timeoutMs` for that would be
+   * wrong in the other direction: a consumer who configured a 300ms client-wide
+   * budget would find one resource silently waiting 5000ms — the SDK raising a
+   * limit its user deliberately set. A ceiling can only ever be stricter than
+   * what the caller asked for.
+   *
+   * Same numeric rules as `timeoutMs`: non-finite or < 1 means "not provided".
+   */
+  maxTimeoutMs?: number;
   signal?: AbortSignal;
   /** When true, parse 200-body as RFC 6749/7009 OAuth response shape. */
   oauthErrorShape?: boolean;
@@ -85,9 +125,13 @@ export class HttpClient implements HttpClientLike {
       body = JSON.stringify(opts.body);
     }
 
+    // Both the abort timer and the error message below must read this same
+    // number, or a timeout reports a budget it did not actually enforce.
+    const timeoutMs = resolveTimeout(this.cfg.timeoutMs, opts);
+
     const userSignal = opts.signal;
     const timeoutController = new AbortController();
-    const timeout = setTimeout(() => timeoutController.abort(), this.cfg.timeoutMs);
+    const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
     const signal = userSignal ? mergeSignals(userSignal, timeoutController.signal) : timeoutController.signal;
 
     let res: Response;
@@ -101,7 +145,15 @@ export class HttpClient implements HttpClientLike {
     } catch (err) {
       clearTimeout(timeout);
       if (err instanceof Error && err.name === "AbortError") {
-        throw new AtribuTransportError(`Request aborted (timeout ${this.cfg.timeoutMs}ms)`, err);
+        // Two very different events arrive as the same AbortError. Reporting a
+        // caller's own `signal.abort()` as "timeout 5000ms" sends whoever reads
+        // the log hunting a latency problem that never happened.
+        throw new AtribuTransportError(
+          timeoutController.signal.aborted
+            ? `Request aborted (timeout ${timeoutMs}ms)`
+            : "Request aborted by caller",
+          err,
+        );
       }
       throw new AtribuTransportError(
         err instanceof Error ? err.message : "fetch failed",
@@ -193,6 +245,29 @@ export class HttpClient implements HttpClientLike {
     }
     return headers;
   }
+}
+
+/** A usable millisecond budget: finite and at least 1ms. `0` is not "off". */
+function usableMs(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 1;
+}
+
+/**
+ * Effective deadline for one request.
+ *
+ *   1. An explicit per-call `timeoutMs` is the caller's own choice — it wins
+ *      outright, in either direction.
+ *   2. Otherwise a resource's `maxTimeoutMs` CAPS the client budget. It can
+ *      only lower it, so a consumer's deliberately tight client-wide timeout is
+ *      never silently widened by whichever resource they happened to call.
+ *   3. Otherwise the client budget stands.
+ *
+ * Anything non-finite or under 1ms counts as absent at every step.
+ */
+function resolveTimeout(configured: number, opts: RequestOptions): number {
+  if (usableMs(opts.timeoutMs)) return opts.timeoutMs;
+  if (usableMs(opts.maxTimeoutMs)) return Math.min(configured, opts.maxTimeoutMs);
+  return configured;
 }
 
 function mutating(method: RequestOptions["method"]): boolean {

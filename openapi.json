@@ -384,6 +384,58 @@
           "traceable_pct_by_value"
         ]
       },
+      "TypingIndicatorResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "connection_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "whatsapp"
+                ]
+              },
+              "to": {
+                "type": "string"
+              },
+              "forwarded": {
+                "type": "boolean",
+                "description": "true when the read receipt + typing indicator reached Meta. false when Meta refused the `message_id` (stale / already-read / re-registered number) — a knowing no-op, still a 200."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "stale_message_id",
+                  "message_id_conversation_mismatch"
+                ],
+                "description": "Present only when `forwarded` is false. `stale_message_id` — Meta refused the wamid. `message_id_conversation_mismatch` — the wamid belongs to a different conversation than `to`, so it was never forwarded."
+              },
+              "requested_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "connection_id",
+              "channel",
+              "to",
+              "forwarded",
+              "requested_at"
+            ]
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
       "MediaUploadResponse": {
         "type": "object",
         "properties": {
@@ -5583,6 +5635,149 @@
         }
       }
     },
+    "/api/v1/messages/typing": {
+      "post": {
+        "summary": "Show a WhatsApp typing indicator (+ read receipt)",
+        "description": "Marks the customer's inbound message read AND shows the \"typing…\" bubble, so an agent that takes tens of seconds to compose a reply produces the signals a human agent would. One Meta call: the indicator is a field on the read receipt, so **the read receipt is not optional** — Meta offers no way to show typing without marking read.\n\nAuth, scope (`whatsapp`) and connection resolution are identical to `POST /api/v1/messages`, including the `oauth_app_authorizations` grant check for OAuth-flow-minted keys.\n\n**Best-effort.** One upstream call, no retries, no queueing, a 4-second upstream budget. The indicator shows for at most 25 seconds and is dismissed the moment you send a message on that thread — there is nothing to cancel and no \"typing off\" call.\n\n**`message_id` is the INBOUND wamid** (the customer's message), not one of yours — Meta derives the recipient from it. An unknown or stale wamid (older than ~24h, already read, number re-registered) answers **200** with `forwarded: false`, not an error: none of those is a caller fault or has a remedy, and non-2xx is reserved for faults somebody can act on.\n\n**This route never answers 404.** An unknown, wrong-profile or unauthorized `connection_id` answers 403 — consumers treat 404 on this path as \"typing is not deployed on this bridge\" and disable the feature.\n\nWhatsApp only today; Instagram and Messenger are the intended extension of this same endpoint (which is why `to` is required even though WhatsApp does not need it). Email has no typing concept.",
+        "tags": [
+          "Messaging"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Target WhatsApp `data_connection`."
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "whatsapp"
+                    ],
+                    "description": "`whatsapp` only today; anything else is a 400."
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The customer's wa_id (conversation external id). Redundant for the Meta call itself — Meta derives the recipient from `message_id` — but load-bearing here: it is the only thing that can catch a `message_id` from a different conversation (see below), it is logged truncated on every non-delivery, and it is what the future Instagram/Messenger extension of this endpoint keys on."
+                  },
+                  "message_id": {
+                    "type": "string",
+                    "description": "The INBOUND wamid the indicator anchors to (e.g. `wamid.HBgLNTY5…`). Unknown/stale values are a 200 no-op. When the wamid is one Atribu has stored AND its conversation belongs to somebody other than `to`, the request is a 200 no-op with `reason: \"message_id_conversation_mismatch\"` and is NOT forwarded — a mismatched pair would blue-tick and animate a thread you did not mean to touch."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "channel",
+                  "to",
+                  "message_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Forwarded to Meta, or knowingly no-op'd (`forwarded: false`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TypingIndicatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body, or a channel other than `whatsapp`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid API key, or the connection's Meta token was rejected (reconnect the channel)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The WhatsApp Business Account has no working payment method (Meta 131042) — add one and the call succeeds unchanged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `whatsapp` scope, OR the `connection_id` is unknown / belongs to another profile / is not authorized for this OAuth app. Deliberately 403 rather than 404 — see the description.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (disconnected, or no WhatsApp phone number yet)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Meta rejected the call permanently for a reason other than the `message_id` (which is a 200 no-op)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited. This route has its own bucket, so it cannot consume the send route's allowance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta call failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/whatsapp/media": {
       "post": {
         "summary": "Upload WhatsApp media (pre-upload → media_id)",
@@ -8654,6 +8849,87 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 60
+                  },
+                  "buttons": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "QUICK_REPLY"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 25
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "URL"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 25
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 2000,
+                              "format": "uri"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text",
+                            "url"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "PHONE_NUMBER"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 25
+                            },
+                            "phone_number": {
+                              "type": "string",
+                              "minLength": 5,
+                              "maxLength": 20
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text",
+                            "phone_number"
+                          ]
+                        }
+                      ]
+                    },
+                    "maxItems": 10,
+                    "description": "Static template buttons. Meta caps: 10 total, at most 2 URL and 1 PHONE_NUMBER."
                   }
                 },
                 "required": [

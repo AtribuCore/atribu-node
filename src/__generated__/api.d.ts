@@ -2342,6 +2342,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/messages/typing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Show a WhatsApp typing indicator (+ read receipt)
+         * @description Marks the customer's inbound message read AND shows the "typing…" bubble, so an agent that takes tens of seconds to compose a reply produces the signals a human agent would. One Meta call: the indicator is a field on the read receipt, so **the read receipt is not optional** — Meta offers no way to show typing without marking read.
+         *
+         *     Auth, scope (`whatsapp`) and connection resolution are identical to `POST /api/v1/messages`, including the `oauth_app_authorizations` grant check for OAuth-flow-minted keys.
+         *
+         *     **Best-effort.** One upstream call, no retries, no queueing, a 4-second upstream budget. The indicator shows for at most 25 seconds and is dismissed the moment you send a message on that thread — there is nothing to cancel and no "typing off" call.
+         *
+         *     **`message_id` is the INBOUND wamid** (the customer's message), not one of yours — Meta derives the recipient from it. An unknown or stale wamid (older than ~24h, already read, number re-registered) answers **200** with `forwarded: false`, not an error: none of those is a caller fault or has a remedy, and non-2xx is reserved for faults somebody can act on.
+         *
+         *     **This route never answers 404.** An unknown, wrong-profile or unauthorized `connection_id` answers 403 — consumers treat 404 on this path as "typing is not deployed on this bridge" and disable the feature.
+         *
+         *     WhatsApp only today; Instagram and Messenger are the intended extension of this same endpoint (which is why `to` is required even though WhatsApp does not need it). Email has no typing concept.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Target WhatsApp `data_connection`.
+                         */
+                        connection_id: string;
+                        /**
+                         * @description `whatsapp` only today; anything else is a 400.
+                         * @enum {string}
+                         */
+                        channel: "whatsapp";
+                        /** @description The customer's wa_id (conversation external id). Redundant for the Meta call itself — Meta derives the recipient from `message_id` — but load-bearing here: it is the only thing that can catch a `message_id` from a different conversation (see below), it is logged truncated on every non-delivery, and it is what the future Instagram/Messenger extension of this endpoint keys on. */
+                        to: string;
+                        /** @description The INBOUND wamid the indicator anchors to (e.g. `wamid.HBgLNTY5…`). Unknown/stale values are a 200 no-op. When the wamid is one Atribu has stored AND its conversation belongs to somebody other than `to`, the request is a 200 no-op with `reason: "message_id_conversation_mismatch"` and is NOT forwarded — a mismatched pair would blue-tick and animate a thread you did not mean to touch. */
+                        message_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Forwarded to Meta, or knowingly no-op'd (`forwarded: false`) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TypingIndicatorResponse"];
+                    };
+                };
+                /** @description Malformed body, or a channel other than `whatsapp` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid API key, or the connection's Meta token was rejected (reconnect the channel) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The WhatsApp Business Account has no working payment method (Meta 131042) — add one and the call succeeds unchanged */
+                402: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing `whatsapp` scope, OR the `connection_id` is unknown / belongs to another profile / is not authorized for this OAuth app. Deliberately 403 rather than 404 — see the description. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (disconnected, or no WhatsApp phone number yet) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Meta rejected the call permanently for a reason other than the `message_id` (which is a 200 no-op) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Rate limited. This route has its own bucket, so it cannot consume the send route's allowance. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta call failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/whatsapp/media": {
         parameters: {
             query?: never;
@@ -4165,6 +4305,23 @@ export interface paths {
                         body_text: string;
                         header_text?: string;
                         footer_text?: string;
+                        /** @description Static template buttons. Meta caps: 10 total, at most 2 URL and 1 PHONE_NUMBER. */
+                        buttons?: ({
+                            /** @enum {string} */
+                            type: "QUICK_REPLY";
+                            text: string;
+                        } | {
+                            /** @enum {string} */
+                            type: "URL";
+                            text: string;
+                            /** Format: uri */
+                            url: string;
+                        } | {
+                            /** @enum {string} */
+                            type: "PHONE_NUMBER";
+                            text: string;
+                            phone_number: string;
+                        })[];
                     };
                 };
             };
@@ -7511,6 +7668,24 @@ export interface components {
             traceable_pct_by_count: number;
             traceable_pct_by_value: number;
         } | null;
+        TypingIndicatorResponse: {
+            data: {
+                /** Format: uuid */
+                connection_id: string;
+                /** @enum {string} */
+                channel: "whatsapp";
+                to: string;
+                /** @description true when the read receipt + typing indicator reached Meta. false when Meta refused the `message_id` (stale / already-read / re-registered number) — a knowing no-op, still a 200. */
+                forwarded: boolean;
+                /**
+                 * @description Present only when `forwarded` is false. `stale_message_id` — Meta refused the wamid. `message_id_conversation_mismatch` — the wamid belongs to a different conversation than `to`, so it was never forwarded.
+                 * @enum {string}
+                 */
+                reason?: "stale_message_id" | "message_id_conversation_mismatch";
+                requested_at: string;
+            };
+            meta: components["schemas"]["Meta"];
+        };
         MediaUploadResponse: {
             data: {
                 /** @example 1234567890123456 */

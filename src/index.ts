@@ -30,6 +30,9 @@ export type {
   MessageSendResponse,
   MessageContent,
   SendOptions,
+  MessageTypingInput,
+  MessageTypingResponse,
+  TypingOptions,
 } from "./resources/messages";
 
 export type {

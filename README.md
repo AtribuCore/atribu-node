@@ -210,6 +210,30 @@ await atribu.messages.send({
 // Tap returns the chosen `id` on the `messaging_postbacks` webhook field.
 ```
 
+### Show a typing indicator while your agent thinks (v1.12.0+)
+
+```typescript
+// `message_id` is the INBOUND wamid — the customer's message, not one of yours.
+const res = await atribu.messages.typing({
+  connection_id: connectionId,
+  channel: "whatsapp",
+  to: "56912345678",
+  message_id: inbound.provider_message_id,
+});
+
+if (!res.forwarded) {
+  // Routine, not an error: "stale_message_id" (Meta refused the wamid) or
+  // "message_id_conversation_mismatch" (that wamid is a different thread).
+  log.debug({ reason: res.reason }, "typing no-op");
+}
+```
+
+Marks the message read **and** shows the bubble — Meta exposes the indicator as a field on the read receipt, so there is no way to have one without the other. The bubble lives ~25 seconds and is dismissed the moment you send, so there is no "typing off" call.
+
+Best-effort by contract. This call **never retries**, and that isn't configurable: a "retry" here is a second Graph call that fires another read receipt and re-arms the bubble after your reply already went out. Its deadline is capped at 5000ms — a ceiling, so a client with a tighter `timeoutMs` keeps it — and you can pass `{ timeoutMs }` to pick your own.
+
+The route **never answers 404**: an unknown or unauthorized `connection_id` answers 403 so that 404 keeps one meaning. A 404 / 405 / 501 means the endpoint predates the Atribu deployment you're talking to — latch the feature off and carry on.
+
 ### Manage WhatsApp templates
 
 ```typescript
@@ -683,6 +707,23 @@ The wrapper respects the typed `retry` hint exactly:
 | 422 (`fix_and_retry`) | Not retried — your input is bad |
 | 403 (`do_not_retry`) | Not retried — permission denied |
 
+Individual requests carry their own transport policy, which resource methods set on your behalf where an endpoint's contract demands it:
+
+- **`maxRetries`** — replays after the initial attempt (`maxAttempts === maxRetries + 1`), overriding the client budget in either direction.
+- **`timeoutMs`** — an absolute deadline for one request.
+- **`maxTimeoutMs`** — a *ceiling*: it can only lower the client's budget, never raise it.
+
+The distinction matters. `messages.typing()` caps its deadline at 5000ms as a **ceiling**, so a client built with `timeoutMs: 300` still gets 300ms — an SDK default never widens a limit you deliberately set. Where a method exposes `timeoutMs`, passing it is your explicit choice and wins outright:
+
+```typescript
+// Tighten it further — this bubble isn't worth 5 seconds.
+await atribu.messages.typing(input, { timeoutMs: 2_000 });
+```
+
+Some methods pin retries off entirely and expose no `maxRetries` at all — `messages.typing()` is one, because a "retry" there is a second Graph call that re-arms a bubble your reply already dismissed. That is the same reasoning behind the SDK's internal `retryable: false`, which applies to one-shot upstream actions (the WhatsApp OTP calls) that must never be replayed.
+
+To widen budgets generally, configure the client: `new AtribuClient({ timeoutMs })` and `.withRetry({ maxAttempts })`.
+
 ## Testing
 
 ```typescript
@@ -738,6 +779,7 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | Method | Description |
 |---|---|
 | `messages.send()` | Send a WhatsApp or Instagram message (text / template / image / video / audio / document / interactive_buttons / quick_replies) |
+| `messages.typing()` | Show a WhatsApp typing indicator + mark the inbound message read (best-effort) |
 | `comments.reply()` | Public reply on an IG comment thread |
 | `comments.privateReply()` | Send a DM to the user who left an IG comment |
 | `connections.list()` | List the connections this OAuth app is authorized for |

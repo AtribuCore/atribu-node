@@ -327,6 +327,186 @@ describe("RetryingHttpClient", () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
+  // ---- per-call maxRetries -------------------------------------------------
+  // `maxRetries` counts REPLAYS; `maxAttempts` counts attempts. The wrapper
+  // must translate between them, and a per-call value must win in both
+  // directions — lowering the budget for a best-effort endpoint and raising it
+  // when the caller knows better.
+
+  it("maxRetries: 0 makes a single attempt, overriding a larger client budget", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 5, sleep });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: 0 }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("maxRetries: n allows exactly n replays (n+1 attempts)", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 5, sleep, ...noJitter });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: 2 }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  it("maxRetries can RAISE the budget above the client default", async () => {
+    const sleep = vi.fn(noSleep);
+    const http = makeHttp([
+      async () => {
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+      async () => ({ data: "ok" }),
+    ]);
+    // Client budget is a single attempt; the call asks for one replay.
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 1, sleep, ...noJitter });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: 1 }),
+    ).resolves.toEqual({ data: "ok" });
+  });
+
+  it("retryable:false still wins over a permissive maxRetries", async () => {
+    // The two knobs are not the same thing: `retryable: false` is a property of
+    // the upstream action (never safe to replay), `maxRetries` is a budget.
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", retryable: false, maxRetries: 5 }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(1);
+  });
+
+  it("a request with no maxRetries keeps the client budget exactly", async () => {
+    // Regression pin: every pre-existing call site omits maxRetries and must
+    // behave as it did before the knob existed.
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep, ...noJitter });
+    await expect(
+      retrying.request({ method: "POST", path: "/x" }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(3);
+  });
+
+  // ---- per-call maxRetries: garbage input ----------------------------------
+  // `maxRetries` is public API on a published SDK, so it will eventually be
+  // handed a NaN from `parseInt(process.env.FOO)` or an Infinity from someone
+  // meaning "retry forever". Neither may break the transport: NaN would
+  // otherwise skip the loop and send ZERO requests (then `throw undefined`),
+  // and Infinity would hang the process.
+
+  it("NaN maxRetries falls back to the client budget and still sends requests", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep, ...noJitter });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: Number.NaN }),
+    ).rejects.toMatchObject({ status: 503 });
+    // The critical assertion is not the error — it's that a request happened.
+    expect(calls).toBe(3);
+  });
+
+  it("Infinity maxRetries falls back to the client budget instead of looping forever", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep, ...noJitter });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: Number.POSITIVE_INFINITY }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(3);
+  });
+
+  it("-Infinity maxRetries falls back to the client budget", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep, ...noJitter });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: Number.NEGATIVE_INFINITY }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(3);
+  });
+
+  it("a negative maxRetries clamps to a single attempt", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 3, sleep });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: -5 }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(calls).toBe(1);
+  });
+
+  it("a fractional maxRetries truncates rather than rounding up", async () => {
+    const sleep = vi.fn(noSleep);
+    let calls = 0;
+    const http: HttpClientLike = {
+      async request<T>(_opts: RequestOptions): Promise<T> {
+        calls++;
+        throw apiErr({ status: 503, code: "service_unavailable" });
+      },
+    };
+    const retrying = new RetryingHttpClient(http, { maxAttempts: 9, sleep, ...noJitter });
+    await expect(
+      retrying.request({ method: "POST", path: "/x", maxRetries: 1.5 }),
+    ).rejects.toMatchObject({ status: 503 });
+    // 1.5 → 1 retry → 2 attempts.
+    expect(calls).toBe(2);
+  });
+
   it("applies jitter to backoff delays", async () => {
     const sleep = vi.fn(noSleep);
     const http = makeHttp([

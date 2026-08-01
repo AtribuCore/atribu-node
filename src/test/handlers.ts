@@ -26,7 +26,7 @@ interface EndpointOverride {
 
 export interface MockOverrides {
   baseUrl?: string;
-  messages?: { send?: EndpointOverride };
+  messages?: { send?: EndpointOverride; typing?: EndpointOverride };
   comments?: {
     reply?: EndpointOverride;
     privateReply?: EndpointOverride;
@@ -124,6 +124,9 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
     // ----- Messaging -----
     http.post(u("/api/v1/messages"), () =>
       resolve(overrides.messages?.send, 200, responseFixtures.messageSent()),
+    ),
+    http.post(u("/api/v1/messages/typing"), () =>
+      resolve(overrides.messages?.typing, 200, responseFixtures.typingIndicator()),
     ),
 
     // ----- IG Comments -----
