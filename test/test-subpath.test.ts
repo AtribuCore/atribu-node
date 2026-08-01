@@ -57,6 +57,27 @@ describe("@atribu/node/test", () => {
       expect(result.forwarded).toBe(true);
       expect(result.to).toBe("56912345678");
       expect(result.reason).toBeUndefined();
+      expect(result.indicator).toBe("typing");
+    });
+
+    it("messages.markRead reuses the same handler — no new mock needed", async () => {
+      // markRead is the typing endpoint with one field set, so a consumer
+      // already running these handlers can adopt it without touching them.
+      // If it ever became its own route, `onUnhandledRequest: "error"` fails here.
+      const client = new AtribuClient({
+        apiKey: "atb_live_test",
+        baseUrl: "https://mock.atribu.test",
+      });
+      const result = await client.messages.markRead({
+        connection_id: fixtures.ids.connectionId,
+        channel: "whatsapp",
+        to: "56912345678",
+        message_id: "wamid.HBgLNTY5MTIzNDU2NzgVAgASGBQz",
+      });
+      expect(result.forwarded).toBe(true);
+      // The handler echoes what was asked for, so the capability check a
+      // consumer copies out of the README does not false-fire under the mock.
+      expect(result.indicator).toBe("read");
     });
 
     it("webhook subscription create returns the secret once", async () => {

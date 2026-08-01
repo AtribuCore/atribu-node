@@ -22,6 +22,14 @@ export type MessageSendResponse = SendResponse["data"];
 export type MessageTypingInput = TypingBody;
 export type MessageTypingResponse = TypingResponse["data"];
 
+/**
+ * `typing()`'s input with the mode removed — `markRead()` IS the mode, so
+ * letting a caller pass `indicator: "typing"` to a method called `markRead`
+ * would be a contradiction the compiler should catch, not a preference to
+ * merge.
+ */
+export type MessageMarkReadInput = Omit<MessageTypingInput, "indicator">;
+
 export interface SendOptions {
   idempotencyKey?: string;
   signal?: AbortSignal;
@@ -91,7 +99,12 @@ export class MessagesResource {
    * moment you send on that thread.
    *
    * The read receipt is not optional. Meta exposes the indicator as a field on
-   * the read receipt, so showing one always marks the message read.
+   * the read receipt, so showing one always marks the message read. The
+   * converse IS available: {@link MessagesResource.markRead} sends the receipt
+   * with no bubble, for when a human — not an agent — opened the thread.
+   *
+   * Leave `indicator` unset and the SDK sends no such field at all, which is
+   * byte-for-byte what v1.12.0 sent. See `markRead` for why that matters.
    *
    * **Best-effort by contract.** This call never retries — not configurably,
    * because a "retry" here is a second Graph call that re-arms the bubble after
@@ -159,5 +172,60 @@ export class MessagesResource {
       signal: opts.signal,
     });
     return res.data;
+  }
+
+  /**
+   * Blue-tick the customer's message WITHOUT showing a typing bubble — the
+   * "a human saw this" affordance.
+   *
+   * This is the inbox counterpart to {@link MessagesResource.typing}. When your
+   * AI agent answers, `typing()` is right: a bubble truthfully says a reply is
+   * being composed. When a human operator merely OPENS the conversation, it is
+   * not — nobody promised to reply within the ~25 seconds the bubble lives, and
+   * one that expires unanswered reads worse to the customer than plain blue
+   * ticks. Without this call, human-handled threads are the only ones that
+   * never get read receipts at all, so they look ignored next to the
+   * AI-answered ones.
+   *
+   * **Read receipts are cumulative.** WhatsApp marks the given message *and
+   * every earlier message in that conversation* read, so you only need the most
+   * recent inbound wamid — not one call per unread message. Calling it again
+   * for an already-read message is a no-op at Meta, which is why a repeat
+   * arrives back as `forwarded: false, reason: "stale_message_id"` rather than
+   * an error.
+   *
+   * `message_id` is the **inbound** wamid, exactly as for `typing()`. Same
+   * response shape, same 200-is-not-a-promise caveats, same transport policy:
+   * never retries, deadline capped at 5000ms. Those are properties of the
+   * endpoint, not of the bubble — a retried read receipt is still a second
+   * Graph call on a signal whose value has already expired.
+   *
+   * **Talking to an older bridge.** `indicator` is sent only when it is set, so
+   * an Atribu deployment predating it receives an ordinary typing request and
+   * shows a bubble. Check `res.indicator`: `"read"` means it was honoured,
+   * `undefined` means the bridge is older than the feature. (A 404 means older
+   * still — the typing endpoint itself is missing.)
+   *
+   * @example
+   *   // Operator opened the conversation in the inbox.
+   *   const res = await atribu.messages.markRead({
+   *     connection_id: conn.id,
+   *     channel: "whatsapp",
+   *     to: "56912345678",
+   *     message_id: lastInbound.provider_message_id,
+   *   });
+   *   // `indicator` says which mode the bridge applied; `forwarded` says
+   *   // whether anything reached Meta at all. A stale wamid echoes
+   *   // `indicator: "read"` on a receipt that was never sent, so both matter.
+   *   if (!res.forwarded) log.debug({ reason: res.reason }, "read receipt no-op");
+   *   if (res.indicator !== "read") log.debug("bridge predates read-only mode");
+   */
+  async markRead(
+    input: MessageMarkReadInput,
+    opts: TypingOptions = {},
+  ): Promise<MessageTypingResponse> {
+    // Delegates rather than duplicating the request: the no-retry pin and the
+    // 5s ceiling then cannot drift between the two methods.
+    return this.typing({ ...input, indicator: "read" }, opts);
   }
 }

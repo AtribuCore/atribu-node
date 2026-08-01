@@ -27,7 +27,12 @@ import type {
   AtribuOauthError,
 } from "../src/errors";
 import type { RetryHint } from "../src/retry";
-import type { MessageSendInput, MessageContent } from "../src/resources/messages";
+import type {
+  MessageSendInput,
+  MessageContent,
+  MessageTypingInput,
+  MessageMarkReadInput,
+} from "../src/resources/messages";
 
 // Type-level narrowing helpers — operate on the type only, never run at
 // runtime. Lets us avoid `in` checks on `{}`-shaped fixtures.
@@ -148,6 +153,8 @@ describe("type identity — error hierarchy", () => {
 describe("type identity — AtribuClient surface", () => {
   it("exposes the expected resources at the right paths", () => {
     expectTypeOf<AtribuClient["messages"]["send"]>().toBeFunction();
+    expectTypeOf<AtribuClient["messages"]["typing"]>().toBeFunction();
+    expectTypeOf<AtribuClient["messages"]["markRead"]>().toBeFunction();
     expectTypeOf<AtribuClient["comments"]["reply"]>().toBeFunction();
     expectTypeOf<AtribuClient["comments"]["privateReply"]>().toBeFunction();
     expectTypeOf<AtribuClient["webhooks"]["subscriptions"]["list"]>().toBeFunction();
@@ -159,5 +166,20 @@ describe("type identity — AtribuClient surface", () => {
 
   it("withRetry returns the same AtribuClient type", () => {
     expectTypeOf<ReturnType<AtribuClient["withRetry"]>>().toEqualTypeOf<AtribuClient>();
+  });
+
+  it("markRead's input is typing's minus the mode it hard-codes", () => {
+    // `indicator` is optional on typing() — omitted on the wire when unset, so
+    // a v1.13.0 client keeps working against a bridge that predates the field.
+    expectTypeOf<MessageTypingInput["indicator"]>().toEqualTypeOf<
+      "typing" | "read" | undefined
+    >();
+
+    // …and absent from markRead(), which IS the mode. Passing `indicator` there
+    // would be a contradiction, so it is a compile error rather than a
+    // preference the runtime silently overrides.
+    expectTypeOf<keyof MessageMarkReadInput>().toEqualTypeOf<
+      "connection_id" | "channel" | "to" | "message_id"
+    >();
   });
 });

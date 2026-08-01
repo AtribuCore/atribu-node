@@ -2352,8 +2352,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Show a WhatsApp typing indicator (+ read receipt)
-         * @description Marks the customer's inbound message read AND shows the "typing…" bubble, so an agent that takes tens of seconds to compose a reply produces the signals a human agent would. One Meta call: the indicator is a field on the read receipt, so **the read receipt is not optional** — Meta offers no way to show typing without marking read.
+         * Mark a WhatsApp message read (with or without a typing indicator)
+         * @description Marks the customer's inbound message read and, by default, shows the "typing…" bubble, so an agent that takes tens of seconds to compose a reply produces the signals a human agent would. One Meta call: the indicator is a field on the read receipt, so **the read receipt is not optional** — Meta offers no way to show typing without marking read.
+         *
+         *     **Two modes, via `indicator`.** `typing` (default) = read receipt + bubble, for an agent that is composing. `read` = read receipt only, for a human who just opened the conversation in your inbox — blue ticks without a bubble that would promise a reply nobody made. Everything else on this route is identical between the two, which is why they share one endpoint. Consumers written before `indicator` existed send nothing and keep the original behaviour.
          *
          *     Auth, scope (`whatsapp`) and connection resolution are identical to `POST /api/v1/messages`, including the `oauth_app_authorizations` grant check for OAuth-flow-minted keys.
          *
@@ -2387,8 +2389,16 @@ export interface paths {
                         channel: "whatsapp";
                         /** @description The customer's wa_id (conversation external id). Redundant for the Meta call itself — Meta derives the recipient from `message_id` — but load-bearing here: it is the only thing that can catch a `message_id` from a different conversation (see below), it is logged truncated on every non-delivery, and it is what the future Instagram/Messenger extension of this endpoint keys on. */
                         to: string;
-                        /** @description The INBOUND wamid the indicator anchors to (e.g. `wamid.HBgLNTY5…`). Unknown/stale values are a 200 no-op. When the wamid is one Atribu has stored AND its conversation belongs to somebody other than `to`, the request is a 200 no-op with `reason: "message_id_conversation_mismatch"` and is NOT forwarded — a mismatched pair would blue-tick and animate a thread you did not mean to touch. */
+                        /** @description The INBOUND wamid the receipt anchors to (e.g. `wamid.HBgLNTY5…`). Unknown/stale values are a 200 no-op. When the wamid is one Atribu has stored AND its conversation belongs to somebody other than `to`, the request is a 200 no-op with `reason: "message_id_conversation_mismatch"` and is NOT forwarded — a mismatched pair would blue-tick (and, in `typing` mode, animate) a thread you did not mean to touch. */
                         message_id: string;
+                        /**
+                         * @description Which signal to send. `typing` (the default) marks the message read AND shows the "typing…" bubble — use it when an agent is composing a reply. `read` marks the message read ONLY, with no bubble — use it when a human opened the conversation in your inbox: blue ticks say "a person saw this", while a bubble would promise a reply within 25 seconds that nobody made.
+                         *
+                         *     Omit it for the original behaviour. The applied mode is echoed back in `data.indicator`; if that field is absent the deployment predates this option and showed a bubble regardless.
+                         * @default typing
+                         * @enum {string}
+                         */
+                        indicator?: "typing" | "read";
                     };
                 };
             };
@@ -7675,8 +7685,13 @@ export interface components {
                 /** @enum {string} */
                 channel: "whatsapp";
                 to: string;
-                /** @description true when the read receipt + typing indicator reached Meta. false when Meta refused the `message_id` (stale / already-read / re-registered number) — a knowing no-op, still a 200. */
+                /** @description true when the read receipt (plus the typing indicator, unless `indicator: "read"`) reached Meta. false when Meta refused the `message_id` (stale / already-read / re-registered number) — a knowing no-op, still a 200. */
                 forwarded: boolean;
+                /**
+                 * @description The mode that was applied, echoed back. Absent means the deployment predates this field and therefore behaved as `typing` — the only way to detect that a requested `read` silently showed a bubble.
+                 * @enum {string}
+                 */
+                indicator?: "typing" | "read";
                 /**
                  * @description Present only when `forwarded` is false. `stale_message_id` — Meta refused the wamid. `message_id_conversation_mismatch` — the wamid belongs to a different conversation than `to`, so it was never forwarded.
                  * @enum {string}

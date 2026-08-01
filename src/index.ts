@@ -32,6 +32,7 @@ export type {
   SendOptions,
   MessageTypingInput,
   MessageTypingResponse,
+  MessageMarkReadInput,
   TypingOptions,
 } from "./resources/messages";
 

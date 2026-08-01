@@ -228,11 +228,43 @@ if (!res.forwarded) {
 }
 ```
 
-Marks the message read **and** shows the bubble — Meta exposes the indicator as a field on the read receipt, so there is no way to have one without the other. The bubble lives ~25 seconds and is dismissed the moment you send, so there is no "typing off" call.
+Marks the message read **and** shows the bubble — Meta exposes the indicator as a field on the read receipt, so there is no way to show typing without marking read. (The converse is available: see `markRead()` below.) The bubble lives ~25 seconds and is dismissed the moment you send, so there is no "typing off" call.
 
 Best-effort by contract. This call **never retries**, and that isn't configurable: a "retry" here is a second Graph call that fires another read receipt and re-arms the bubble after your reply already went out. Its deadline is capped at 5000ms — a ceiling, so a client with a tighter `timeoutMs` keeps it — and you can pass `{ timeoutMs }` to pick your own.
 
 The route **never answers 404**: an unknown or unauthorized `connection_id` answers 403 so that 404 keeps one meaning. A 404 / 405 / 501 means the endpoint predates the Atribu deployment you're talking to — latch the feature off and carry on.
+
+### Blue-tick without a bubble, when a human opens the thread (v1.13.0+)
+
+```typescript
+// An operator just opened this conversation in your inbox.
+const res = await atribu.messages.markRead({
+  connection_id: connectionId,
+  channel: "whatsapp",
+  to: "56912345678",
+  message_id: lastInbound.provider_message_id,
+});
+
+if (!res.forwarded) {
+  // Routine, not an error — same no-op branches as `typing()`. Note that a
+  // no-op still echoes `indicator: "read"`, so this check is not optional:
+  // the mode was honored, the receipt just never went anywhere.
+  log.debug({ reason: res.reason }, "read receipt no-op");
+}
+
+if (res.indicator !== "read") {
+  // The bridge predates the option and showed a typing bubble anyway.
+  log.debug("read-only mode not supported by this deployment");
+}
+```
+
+`markRead()` is `typing()` with `indicator: "read"` — same endpoint, same response, same best-effort transport policy (no retries, 5000ms ceiling). Those belong to the endpoint, not to the bubble.
+
+Reach for it when a **human** opened the conversation, and for `typing()` when an **agent** is composing. A bubble is a promise of a reply within ~25 seconds; an operator opening a thread hasn't made one, and a bubble that expires unanswered reads worse to the customer than plain blue ticks. Skipping the receipt altogether is worse still — it leaves human-handled threads as the only ones that never blue-tick, so they look ignored next to the AI-answered ones.
+
+**Read receipts are cumulative.** WhatsApp marks the given message *and every earlier message in that conversation* read, so send the most recent inbound wamid and stop — no need to walk the backlog. Marking an already-read message comes back as `forwarded: false, reason: "stale_message_id"`, not an error.
+
+`indicator` is sent only when set, so a v1.13.0 client still talks to a pre-`indicator` deployment exactly as v1.12.0 did. Against one, `markRead()` still marks read — the unknown field is ignored and a bubble appears; `res.indicator` (`"read"` vs `undefined`) is how you detect it.
 
 ### Manage WhatsApp templates
 
@@ -720,7 +752,7 @@ The distinction matters. `messages.typing()` caps its deadline at 5000ms as a **
 await atribu.messages.typing(input, { timeoutMs: 2_000 });
 ```
 
-Some methods pin retries off entirely and expose no `maxRetries` at all — `messages.typing()` is one, because a "retry" there is a second Graph call that re-arms a bubble your reply already dismissed. That is the same reasoning behind the SDK's internal `retryable: false`, which applies to one-shot upstream actions (the WhatsApp OTP calls) that must never be replayed.
+Some methods pin retries off entirely and expose no `maxRetries` at all — `messages.typing()` and `messages.markRead()` are two, because a "retry" there is a second Graph call on a signal whose value has already expired (and, for `typing()`, one that re-arms a bubble your reply already dismissed). That is the same reasoning behind the SDK's internal `retryable: false`, which applies to one-shot upstream actions (the WhatsApp OTP calls) that must never be replayed.
 
 To widen budgets generally, configure the client: `new AtribuClient({ timeoutMs })` and `.withRetry({ maxAttempts })`.
 
@@ -780,6 +812,7 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 |---|---|
 | `messages.send()` | Send a WhatsApp or Instagram message (text / template / image / video / audio / document / interactive_buttons / quick_replies) |
 | `messages.typing()` | Show a WhatsApp typing indicator + mark the inbound message read (best-effort) |
+| `messages.markRead()` | Mark the inbound message read with **no** typing bubble — "a human saw it" (best-effort) |
 | `comments.reply()` | Public reply on an IG comment thread |
 | `comments.privateReply()` | Send a DM to the user who left an IG comment |
 | `connections.list()` | List the connections this OAuth app is authorized for |

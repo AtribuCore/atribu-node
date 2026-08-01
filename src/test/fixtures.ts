@@ -224,12 +224,18 @@ export const responseFixtures = {
     reason?: MessageTypingResponse["reason"];
     requested_at?: string;
     to?: string;
+    indicator?: MessageTypingResponse["indicator"];
   }): { data: MessageTypingResponse; meta: { profile_id: string } } {
     return {
       data: {
         connection_id: SAMPLE_CONNECTION_ID,
         channel: "whatsapp",
         to: overrides?.to ?? "56912345678",
+        // Always present, because this fixture models a CURRENT server. The
+        // field is optional in the schema only so a consumer can recognise a
+        // bridge that predates it; to model THAT, pass a whole custom `body`
+        // to the handler override rather than reaching for this argument.
+        indicator: overrides?.indicator ?? "typing",
         forwarded: overrides?.forwarded ?? true,
         ...(overrides?.reason !== undefined ? { reason: overrides.reason } : {}),
         requested_at: overrides?.requested_at ?? new Date().toISOString(),

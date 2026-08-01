@@ -125,9 +125,21 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
     http.post(u("/api/v1/messages"), () =>
       resolve(overrides.messages?.send, 200, responseFixtures.messageSent()),
     ),
-    http.post(u("/api/v1/messages/typing"), () =>
-      resolve(overrides.messages?.typing, 200, responseFixtures.typingIndicator()),
-    ),
+    // Echoes the REQUESTED mode back, as the real route does. A hardcoded
+    // "typing" would make the documented capability check —
+    // `if (res.indicator !== "read") /* bridge predates the option */` —
+    // fire on every mocked markRead() forever, teaching consumers that their
+    // own correct code is broken.
+    http.post(u("/api/v1/messages/typing"), async ({ request }) => {
+      const body = (await request.json().catch(() => ({}))) as {
+        indicator?: "typing" | "read";
+      };
+      return resolve(
+        overrides.messages?.typing,
+        200,
+        responseFixtures.typingIndicator({ indicator: body.indicator ?? "typing" }),
+      );
+    }),
 
     // ----- IG Comments -----
     http.post(u("/api/v1/comments/:commentId/reply"), () =>

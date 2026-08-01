@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0]
+
+### Added
+
+- `messages.markRead({ connection_id, channel, to, message_id })` — blue-ticks
+  the customer's message **without** showing a typing bubble. The "a human saw
+  this" affordance, and the inbox counterpart to `messages.typing()`.
+
+  Use `typing()` when an AI agent is composing a reply: the bubble truthfully
+  says one is coming. Use `markRead()` when a human operator merely *opens* the
+  conversation — nobody promised a reply inside the ~25 seconds a bubble lives,
+  and one that expires unanswered reads worse than plain blue ticks. Without it,
+  human-handled threads are the only ones that never get read receipts, so they
+  look ignored next to the AI-answered ones.
+
+  **Read receipts are cumulative.** WhatsApp marks the given message *and every
+  earlier message in that conversation* read, so one call with the most recent
+  inbound wamid is enough — there is no need to walk the backlog. A repeat for
+  an already-read message comes back as `forwarded: false, reason:
+  "stale_message_id"`, which is a no-op at Meta rather than an error.
+
+  Same response shape and the same transport policy as `typing()` — never
+  retries, deadline capped at 5000ms — because those are properties of the
+  endpoint, not of the bubble. It delegates to `typing()` internally, so the two
+  cannot drift apart.
+
+- `indicator?: "typing" | "read"` on `messages.typing()`'s input, and echoed
+  back on the response. `markRead()` is sugar for `indicator: "read"`; the
+  matching `MessageMarkReadInput` type is `MessageTypingInput` without it.
+
+  **The field is sent only when you set it.** A `typing()` call that leaves it
+  unset puts nothing new on the wire, so v1.13.0 talks to an Atribu deployment
+  that predates the field byte-for-byte as v1.12.0 did. Against such a
+  deployment `markRead()` still marks the message read — the unknown field is
+  ignored and a bubble is shown. `res.indicator` is how you tell: `"read"` was
+  honoured, `undefined` means the bridge is older than the feature. (A 404 means
+  older still: the typing endpoint itself is missing.)
+
 ## [1.12.0]
 
 ### Added

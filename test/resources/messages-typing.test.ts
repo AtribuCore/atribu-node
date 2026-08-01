@@ -75,12 +75,17 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-function forwardedBody(overrides?: { forwarded?: boolean; reason?: string }) {
+function forwardedBody(overrides?: {
+  forwarded?: boolean;
+  reason?: string;
+  indicator?: string;
+}) {
   return {
     data: {
       connection_id: CONNECTION_ID,
       channel: "whatsapp",
       to: "56912345678",
+      indicator: overrides?.indicator ?? "typing",
       forwarded: overrides?.forwarded ?? true,
       ...(overrides?.reason ? { reason: overrides.reason } : {}),
       requested_at: "2026-08-01T12:00:00.000Z",
@@ -165,6 +170,139 @@ describe("messages.typing — wire format", () => {
 
     expect(err).toBeInstanceOf(AtribuApiError);
     expect((err as AtribuApiError).status).toBe(404);
+  });
+});
+
+describe("messages.markRead — wire format", () => {
+  it("sends the same body as typing() plus indicator:\"read\"", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(forwardedBody({ indicator: "read" })));
+    const client = new AtribuClient({
+      apiKey: "atb_live_test_key",
+      baseUrl: "https://test.atribu.example",
+      fetch: fetchSpy,
+    });
+
+    const result = await client.messages.markRead(input);
+
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    // Same endpoint, not a sibling route — markRead is sugar, not a second API.
+    expect(url).toBe("https://test.atribu.example/api/v1/messages/typing");
+    expect(JSON.parse(init.body as string)).toEqual({
+      connection_id: CONNECTION_ID,
+      channel: "whatsapp",
+      to: "56912345678",
+      message_id: WAMID,
+      indicator: "read",
+    });
+
+    expect(result.indicator).toBe("read");
+    expect(result.forwarded).toBe(true);
+  });
+
+  it("typing() OMITS indicator entirely when the caller does not set it", async () => {
+    // The compatibility pin, and the reason markRead sets the field rather than
+    // typing() defaulting it: an Atribu deployment that predates `indicator`
+    // must receive from v1.13.0 exactly the bytes v1.12.0 sent it. Sending
+    // `indicator: "typing"` unasked would be a new field on every legacy
+    // request for no gain — the server's own default already covers it.
+    const fetchSpy = vi.fn().mockResolvedValue(jsonResponse(forwardedBody()));
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
+
+    await client.messages.typing(input);
+
+    const body = JSON.parse(fetchSpy.mock.calls[0]![1].body as string);
+    expect(body).not.toHaveProperty("indicator");
+    expect(Object.keys(body)).toEqual(["connection_id", "channel", "to", "message_id"]);
+  });
+
+  it("typing() forwards an explicit indicator when the caller sets one", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(jsonResponse(forwardedBody()));
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
+
+    await client.messages.typing({ ...input, indicator: "typing" });
+
+    expect(JSON.parse(fetchSpy.mock.calls[0]![1].body as string).indicator).toBe("typing");
+  });
+
+  it("surfaces an older bridge as indicator: undefined, not as an error", async () => {
+    // A deployment predating the field answers 200 without it — and showed a
+    // bubble. The SDK must hand that back verbatim so the consumer can notice.
+    const legacy = forwardedBody() as { data: Record<string, unknown> };
+    delete legacy.data.indicator;
+    const fetchSpy = vi.fn().mockResolvedValue(jsonResponse(legacy));
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
+
+    const result = await client.messages.markRead(input);
+
+    expect(result.indicator).toBeUndefined();
+    expect(result.forwarded).toBe(true);
+  });
+
+  it("returns the no-op branch as data, exactly like typing()", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      jsonResponse(
+        forwardedBody({ forwarded: false, reason: "stale_message_id", indicator: "read" }),
+      ),
+    );
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
+
+    const result = await client.messages.markRead(input);
+
+    expect(result.forwarded).toBe(false);
+    expect(result.reason).toBe("stale_message_id");
+  });
+});
+
+describe("messages.markRead — inherits typing()'s transport policy", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("makes exactly ONE attempt on a 500, even on a retrying client", async () => {
+    // No retries and a 5s ceiling are properties of the ENDPOINT, not of the
+    // bubble: a replayed read receipt is still a second Graph call on a signal
+    // whose value expired. markRead delegates to typing() so these cannot drift.
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation(
+        respondsWith({ error: { code: "internal_error", message: "boom" } }, { status: 500 }),
+      );
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy }).withRetry({
+      maxAttempts: 5,
+      backoff: "none",
+      sleep: () => Promise.resolve(),
+    });
+
+    await expect(client.messages.markRead(input)).rejects.toBeInstanceOf(AtribuApiError);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it("caps the deadline at 5000ms when the client budget is looser", async () => {
+    vi.useFakeTimers();
+    const client = new AtribuClient({
+      apiKey: "atb_live_k",
+      fetch: hangingFetch() as unknown as typeof fetch,
+      timeoutMs: 30_000,
+    });
+
+    await expectAbortsAt(client.messages.markRead(input), 5_000, /timeout 5000ms/);
+  });
+
+  it("still honours an explicit caller timeoutMs", async () => {
+    vi.useFakeTimers();
+    const client = new AtribuClient({
+      apiKey: "atb_live_k",
+      fetch: hangingFetch() as unknown as typeof fetch,
+      timeoutMs: 30_000,
+    });
+
+    await expectAbortsAt(
+      client.messages.markRead(input, { timeoutMs: 2_000 }),
+      2_000,
+      /timeout 2000ms/,
+    );
   });
 });
 
