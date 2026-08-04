@@ -5513,12 +5513,41 @@
                               "type": "string"
                             },
                             "description": "CC recipient emails."
+                          },
+                          "attachments": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "filename": {
+                                  "type": "string",
+                                  "description": "Attachment filename shown to the recipient."
+                                },
+                                "mime_type": {
+                                  "type": "string",
+                                  "description": "MIME type, e.g. image/jpeg or application/pdf."
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "description": "Public HTTPS URL fetched server-side at send time. Provide exactly one of `url` or `data_base64`."
+                                },
+                                "data_base64": {
+                                  "type": "string",
+                                  "description": "Inline base64 file bytes. Provide exactly one of `url` or `data_base64`."
+                                }
+                              },
+                              "required": [
+                                "filename",
+                                "mime_type"
+                              ]
+                            },
+                            "description": "File attachments (max 10, 3MB total per message). Each is a public URL fetched at send time or inline base64."
                           }
                         },
                         "required": [
                           "type"
                         ],
-                        "description": "Email only (Gmail/Outlook). Provide text and/or html; carry the thread anchors from the inbound event to reply in-thread."
+                        "description": "Email only (Gmail/Outlook). Provide text and/or html; carry the thread anchors from the inbound event to reply in-thread. Optional `attachments` (max 10, 3MB total) as public URLs or inline base64."
                       }
                     ]
                   },

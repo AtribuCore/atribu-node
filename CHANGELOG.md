@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0]
+
+### Added
+
+- **Email attachments on `messages.send`** (channel `email`). Email content
+  accepts `attachments` — up to 10 files, **3MB total per message**. Each entry
+  is `{ filename, mime_type }` plus exactly one of:
+
+  - `url` — a public HTTPS URL Atribu fetches server-side at send time, or
+  - `data_base64` — the file bytes inline.
+
+  Works on Gmail and Outlook, on a new send and on an in-thread reply alike.
+  Gmail receives a `multipart/mixed` RFC822 message; Outlook receives Graph
+  inline `fileAttachment`s.
+
+  Attachments are materialized **before** anything reaches the mail provider, so
+  an unreachable URL, a non-public host, or a set of files over the size cap
+  fails the whole call with a 422 — never a half-sent email. URL fetches are
+  validated against a public-host allowlist on every redirect hop.
+
 ## [1.13.0]
 
 ### Added

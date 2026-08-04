@@ -2262,6 +2262,17 @@ export interface paths {
                             reply_to_message_id?: string;
                             /** @description CC recipient emails. */
                             cc?: string[];
+                            /** @description File attachments (max 10, 3MB total per message). Each is a public URL fetched at send time or inline base64. */
+                            attachments?: {
+                                /** @description Attachment filename shown to the recipient. */
+                                filename: string;
+                                /** @description MIME type, e.g. image/jpeg or application/pdf. */
+                                mime_type: string;
+                                /** @description Public HTTPS URL fetched server-side at send time. Provide exactly one of `url` or `data_base64`. */
+                                url?: string;
+                                /** @description Inline base64 file bytes. Provide exactly one of `url` or `data_base64`. */
+                                data_base64?: string;
+                            }[];
                         };
                         /** @description Instagram only. When true, the message is sent with Meta's HUMAN_AGENT tag, letting an authorized human agent reply outside the 24-hour window (up to 7 days). Set this ONLY for messages genuinely sent by a human agent — never for automated/bot replies, which would violate Meta's messaging policy. Ignored on WhatsApp. */
                         human_agent?: boolean;
