@@ -34,6 +34,18 @@
       }
     },
     "schemas": {
+      "ClientCredentialsMeta": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "example": "atr_client_a1b2c3"
+          }
+        },
+        "required": [
+          "client_id"
+        ]
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -372,6 +384,66 @@
           "traceable_pct_by_value"
         ]
       },
+      "TypingIndicatorResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "connection_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "whatsapp"
+                ]
+              },
+              "to": {
+                "type": "string"
+              },
+              "forwarded": {
+                "type": "boolean",
+                "description": "true when the read receipt (plus the typing indicator, unless `indicator: \"read\"`) reached Meta. false when Meta refused the `message_id` (stale / already-read / re-registered number) — a knowing no-op, still a 200."
+              },
+              "indicator": {
+                "type": "string",
+                "enum": [
+                  "typing",
+                  "read"
+                ],
+                "description": "The mode that was applied, echoed back. Absent means the deployment predates this field and therefore behaved as `typing` — the only way to detect that a requested `read` silently showed a bubble."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "stale_message_id",
+                  "message_id_conversation_mismatch"
+                ],
+                "description": "Present only when `forwarded` is false. `stale_message_id` — Meta refused the wamid. `message_id_conversation_mismatch` — the wamid belongs to a different conversation than `to`, so it was never forwarded."
+              },
+              "requested_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "connection_id",
+              "channel",
+              "to",
+              "forwarded",
+              "requested_at"
+            ]
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
       "MediaUploadResponse": {
         "type": "object",
         "properties": {
@@ -627,6 +699,52 @@
           "description",
           "remediation",
           "severity"
+        ]
+      },
+      "WhatsAppCallingSettings": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": {},
+        "description": "Meta's `calling` object, passed through verbatim in both directions. Atribu holds no opinion about its contents — the SIP peer, the SRTP key exchange and the codec list are the caller's recipe. Documented as free-form on purpose: a schema enumerating Meta's fields would reject a field Meta shipped this morning."
+      },
+      "WhatsAppCallingBody": {
+        "type": "object",
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone_number_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WhatsAppCallingSettings"
+          }
+        },
+        "required": [
+          "connection_id",
+          "phone_number_id",
+          "settings"
+        ]
+      },
+      "WhatsAppSipCredential": {
+        "type": "object",
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "sip_user_password": {
+            "type": "string",
+            "description": "Meta-generated digest password for this SIP peer."
+          }
+        },
+        "required": [
+          "sip_user_password"
         ]
       }
     },
@@ -5395,12 +5513,41 @@
                               "type": "string"
                             },
                             "description": "CC recipient emails."
+                          },
+                          "attachments": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "filename": {
+                                  "type": "string",
+                                  "description": "Attachment filename shown to the recipient."
+                                },
+                                "mime_type": {
+                                  "type": "string",
+                                  "description": "MIME type, e.g. image/jpeg or application/pdf."
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "description": "Public HTTPS URL fetched server-side at send time. Provide exactly one of `url` or `data_base64`."
+                                },
+                                "data_base64": {
+                                  "type": "string",
+                                  "description": "Inline base64 file bytes. Provide exactly one of `url` or `data_base64`."
+                                }
+                              },
+                              "required": [
+                                "filename",
+                                "mime_type"
+                              ]
+                            },
+                            "description": "File attachments (max 10, 3MB total per message). Each is a public URL fetched at send time or inline base64."
                           }
                         },
                         "required": [
                           "type"
                         ],
-                        "description": "Email only (Gmail/Outlook). Provide text and/or html; carry the thread anchors from the inbound event to reply in-thread."
+                        "description": "Email only (Gmail/Outlook). Provide text and/or html; carry the thread anchors from the inbound event to reply in-thread. Optional `attachments` (max 10, 3MB total) as public URLs or inline base64."
                       }
                     ]
                   },
@@ -5514,6 +5661,158 @@
           },
           "502": {
             "description": "Upstream Meta send failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/messages/typing": {
+      "post": {
+        "summary": "Mark a WhatsApp message read (with or without a typing indicator)",
+        "description": "Marks the customer's inbound message read and, by default, shows the \"typing…\" bubble, so an agent that takes tens of seconds to compose a reply produces the signals a human agent would. One Meta call: the indicator is a field on the read receipt, so **the read receipt is not optional** — Meta offers no way to show typing without marking read.\n\n**Two modes, via `indicator`.** `typing` (default) = read receipt + bubble, for an agent that is composing. `read` = read receipt only, for a human who just opened the conversation in your inbox — blue ticks without a bubble that would promise a reply nobody made. Everything else on this route is identical between the two, which is why they share one endpoint. Consumers written before `indicator` existed send nothing and keep the original behaviour.\n\nAuth, scope (`whatsapp`) and connection resolution are identical to `POST /api/v1/messages`, including the `oauth_app_authorizations` grant check for OAuth-flow-minted keys.\n\n**Best-effort.** One upstream call, no retries, no queueing, a 4-second upstream budget. The indicator shows for at most 25 seconds and is dismissed the moment you send a message on that thread — there is nothing to cancel and no \"typing off\" call.\n\n**`message_id` is the INBOUND wamid** (the customer's message), not one of yours — Meta derives the recipient from it. An unknown or stale wamid (older than ~24h, already read, number re-registered) answers **200** with `forwarded: false`, not an error: none of those is a caller fault or has a remedy, and non-2xx is reserved for faults somebody can act on.\n\n**This route never answers 404.** An unknown, wrong-profile or unauthorized `connection_id` answers 403 — consumers treat 404 on this path as \"typing is not deployed on this bridge\" and disable the feature.\n\nWhatsApp only today; Instagram and Messenger are the intended extension of this same endpoint (which is why `to` is required even though WhatsApp does not need it). Email has no typing concept.",
+        "tags": [
+          "Messaging"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Target WhatsApp `data_connection`."
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "whatsapp"
+                    ],
+                    "description": "`whatsapp` only today; anything else is a 400."
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The customer's wa_id (conversation external id). Redundant for the Meta call itself — Meta derives the recipient from `message_id` — but load-bearing here: it is the only thing that can catch a `message_id` from a different conversation (see below), it is logged truncated on every non-delivery, and it is what the future Instagram/Messenger extension of this endpoint keys on."
+                  },
+                  "message_id": {
+                    "type": "string",
+                    "description": "The INBOUND wamid the receipt anchors to (e.g. `wamid.HBgLNTY5…`). Unknown/stale values are a 200 no-op. When the wamid is one Atribu has stored AND its conversation belongs to somebody other than `to`, the request is a 200 no-op with `reason: \"message_id_conversation_mismatch\"` and is NOT forwarded — a mismatched pair would blue-tick (and, in `typing` mode, animate) a thread you did not mean to touch."
+                  },
+                  "indicator": {
+                    "type": "string",
+                    "enum": [
+                      "typing",
+                      "read"
+                    ],
+                    "default": "typing",
+                    "description": "Which signal to send. `typing` (the default) marks the message read AND shows the \"typing…\" bubble — use it when an agent is composing a reply. `read` marks the message read ONLY, with no bubble — use it when a human opened the conversation in your inbox: blue ticks say \"a person saw this\", while a bubble would promise a reply within 25 seconds that nobody made.\n\nOmit it for the original behaviour. The applied mode is echoed back in `data.indicator`; if that field is absent the deployment predates this option and showed a bubble regardless."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "channel",
+                  "to",
+                  "message_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Forwarded to Meta, or knowingly no-op'd (`forwarded: false`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TypingIndicatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body, or a channel other than `whatsapp`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid API key, or the connection's Meta token was rejected (reconnect the channel)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The WhatsApp Business Account has no working payment method (Meta 131042) — add one and the call succeeds unchanged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `whatsapp` scope, OR the `connection_id` is unknown / belongs to another profile / is not authorized for this OAuth app. Deliberately 403 rather than 404 — see the description.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (disconnected, or no WhatsApp phone number yet)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Meta rejected the call permanently for a reason other than the `message_id` (which is a 200 no-op)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited. This route has its own bucket, so it cannot consume the send route's allowance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta call failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -8596,6 +8895,87 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 60
+                  },
+                  "buttons": {
+                    "type": "array",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "QUICK_REPLY"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 25
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "URL"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 25
+                            },
+                            "url": {
+                              "type": "string",
+                              "maxLength": 2000,
+                              "format": "uri"
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text",
+                            "url"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "PHONE_NUMBER"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 25
+                            },
+                            "phone_number": {
+                              "type": "string",
+                              "minLength": 5,
+                              "maxLength": 20
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text",
+                            "phone_number"
+                          ]
+                        }
+                      ]
+                    },
+                    "maxItems": 10,
+                    "description": "Static template buttons. Meta caps: 10 total, at most 2 URL and 1 PHONE_NUMBER."
                   }
                 },
                 "required": [
@@ -9016,6 +9396,361 @@
           },
           "409": {
             "description": "Connection not ready (no WhatsApp account row / missing token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/calling": {
+      "get": {
+        "summary": "Read a number's calling settings",
+        "description": "Proxies `GET /{phone-number-id}/settings` and returns Meta's `calling` object verbatim. `connection_id` is required — it is the token resolver's key, and a `phone_number_id` alone resolves nothing. The number is cross-validated against the connection's WABA first. This route NEVER requests `include_sip_credentials`, so SIP credentials are not returned here and are not stored anywhere: the drift snapshot Atribu keeps is an allowlist projection of the reachable settings (calling status, SIP peer, codecs, webhook delivery), so a credential field cannot reach storage even if Meta widens the payload.",
+        "tags": [
+          "WhatsApp Calling"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true,
+            "name": "phone_number_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calling settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "calling": {
+                          "$ref": "#/components/schemas/WhatsAppCallingSettings"
+                        }
+                      },
+                      "required": [
+                        "calling"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "phone_number_id is not on this connection's WABA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (no WhatsApp account row / missing token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Enable or update a number's calling settings",
+        "description": "Proxies `POST /{phone-number-id}/settings` with the `settings` object verbatim, then reads back what Meta actually holds and returns THAT (Meta normalizes and fills defaults, so echoing the request would report settings that were never applied). An ongoing per-number setting, not an onboarding step. Retried at most twice on transient upstream failures (429, 408, 5xx and network errors) — enabling calling is idempotent, unlike the OTP steps, which are never retried because an attempt there counts against Meta's cap.",
+        "tags": [
+          "WhatsApp Calling"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatsAppCallingBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Applied settings, read back from Meta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "calling": {
+                          "$ref": "#/components/schemas/WhatsAppCallingSettings"
+                        }
+                      },
+                      "required": [
+                        "calling"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "phone_number_id is not on this connection's WABA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (no WhatsApp account row / missing token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/calling/sip-credentials": {
+      "get": {
+        "summary": "Read a number's SIP digest credentials",
+        "description": "Returns the Meta-generated SIP credentials for one number, so they can be configured on the SIP server that will answer Meta's INVITEs. **This is the only endpoint that returns a secret.** It is a separate route rather than a flag on `GET /whatsapp/calling` on purpose: that route's guarantee that it never requests `include_sip_credentials` is then a property of the code, not of an argument value. Meta publishes no static SIP egress IP ranges and does not support mTLS, so digest auth is the practical control on who may INVITE your trunk: your server answers with `407` and Meta re-sends carrying the challenge response. `username` is the digest username — the business number as DIGITS ONLY, with NO leading `+`. Meta's guide calls it \"the (normalized) business phone number\", which reads as E.164, but a captured call shows Meta authenticating as `username=\"16065177691\"` while its own request URI carries `sip:+16065177691@...`. It is not the `phone_number_id` and not the punctuated `display_phone_number`. Configure any other spelling and every call is rejected with a 401 that presents as ringing which never answers. The response is an allowlist projection of named fields, never Meta's payload, and it is `Cache-Control: no-store`. Atribu stores none of it: the drift snapshot is written by the settings route and structurally cannot hold a credential. Returns 404 when the number has no SIP credential (calling disabled, or no `sip` configuration).",
+        "tags": [
+          "WhatsApp Calling"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true,
+            "name": "phone_number_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SIP digest credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "username": {
+                          "type": "string",
+                          "description": "Digest username: the business number as digits, NO leading `+` — e.g. `16065177691`. Verified against a live Meta call."
+                        },
+                        "servers": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/WhatsAppSipCredential"
+                          }
+                        }
+                      },
+                      "required": [
+                        "username",
+                        "servers"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "phone_number_id is not on this connection's WABA",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found, or the number has no SIP credential (calling disabled / no `sip` configuration)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection not ready (no WhatsApp account row / missing token)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Meta returned no display_phone_number, so the digest username cannot be determined",
             "content": {
               "application/json": {
                 "schema": {
@@ -9839,10 +10574,349 @@
         }
       }
     },
+    "/api/v1/whatsapp/otp-capture": {
+      "post": {
+        "summary": "Publish an OTP captured off Meta's verification call",
+        "description": "AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), not an API key: this runs before the OAuth exchange has minted one. Embedded Signup v4 has no phone-screen bypass, so Meta may verify a number in-popup by placing a VOICE call that reads six digits aloud. A consumer that captured that call publishes the result here, keyed by the connect's OAuth `state`; the dealer's connect page — which is behind Meta's popup and cannot otherwise learn the code — subscribes and shows it. Held for a few minutes only: this is a live registration secret, it is never logged, and it expires without anybody sweeping it. 503 when the relay store is unavailable (never a silent success: the consumer must know the dealer will see nothing).",
+        "tags": [
+          "WhatsApp Registration"
+        ],
+        "security": [
+          {
+            "clientSecretBasic": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 256,
+                    "description": "The consumer's OAuth `state` for this connect — the correlation id both sides already share."
+                  },
+                  "code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^\\d{6}$",
+                    "description": "The six digits, ONLY when the capture cleared the consumer's confidence gate. Null otherwise."
+                  },
+                  "candidate_code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^\\d{6}$",
+                    "description": "Best guess even when it was not trusted — shown as a hint, never auto-used."
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Combined transcription x parse confidence, in [0,1]."
+                  },
+                  "reads": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8,
+                    "description": "How many times the code was read back (Meta reads it twice)."
+                  },
+                  "uncertain_positions": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5
+                    },
+                    "maxItems": 6,
+                    "description": "0-indexed digit positions the reads disagreed on, so the UI can flag exactly those."
+                  },
+                  "audio_url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uri",
+                    "description": "Short-TTL signed URL for the captured audio, scoped to this capture session. Relayed, never fetched here."
+                  },
+                  "audio_expires_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "When `audio_url` stops working, so a UI can retire ▶ rather than fail on it."
+                  }
+                },
+                "required": [
+                  "state",
+                  "confidence"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Capture held for the connect page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "published": {
+                          "type": "boolean"
+                        },
+                        "expires_in_seconds": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "published",
+                        "expires_in_seconds"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ClientCredentialsMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Client authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`invalid_state` — the state is not a live WhatsApp Embedded Signup connect belonging to this client. The state is a correlation id, not a capability, so publishing under one requires proving it is your own in-flight connect of the right kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for this client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Relay store unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Read back a published OTP capture",
+        "description": "AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), like the publish. Polls the relay for a capture published under this connect's `state`. `capture: null` is the NORMAL answer for most of a connect's life (the dealer is still working through Meta's screens and no call has landed) — a 200 with nothing, not a 404. Entries are bound to the consumer app that published them.",
+        "tags": [
+          "WhatsApp Registration"
+        ],
+        "security": [
+          {
+            "clientSecretBasic": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "state",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The capture, or null when none has landed yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "capture": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "code": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "The six digits — ONLY when the capture cleared the publisher's confidence gate. Null otherwise."
+                            },
+                            "candidate_code": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Best guess even when it was not trusted. A hint for the dealer, never auto-used."
+                            },
+                            "confidence": {
+                              "type": "number",
+                              "description": "Combined transcription x parse confidence in [0,1]."
+                            },
+                            "reads": {
+                              "type": "number",
+                              "description": "How many times the code was read back. Meta reads it twice."
+                            },
+                            "uncertain_positions": {
+                              "type": "array",
+                              "items": {
+                                "type": "number"
+                              },
+                              "description": "0-indexed digit positions the two reads disagreed on, so the UI can flag exactly those."
+                            },
+                            "audio_url": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Short-TTL signed URL for the captured audio, scoped to this capture session. Never public, never logged."
+                            },
+                            "audio_expires_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "captured_at": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "candidate_code",
+                            "confidence",
+                            "reads",
+                            "uncertain_positions",
+                            "audio_url",
+                            "audio_expires_at",
+                            "captured_at"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "capture"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ClientCredentialsMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "state is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Client authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded for this client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Relay store unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/whatsapp/registration/phone-numbers": {
       "post": {
         "summary": "Add (or migrate) a phone number onto a WABA",
-        "description": "Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow.",
+        "description": "Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow. IDEMPOTENT: if the number is already on this WABA, resolves and returns its existing `phone_number_id` with `already_present: true` instead of failing.",
         "tags": [
           "WhatsApp Registration"
         ],
@@ -9896,7 +10970,7 @@
         },
         "responses": {
           "201": {
-            "description": "Phone number added",
+            "description": "Phone number added (or already present, resolved idempotently)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9910,11 +10984,16 @@
                         },
                         "migrated": {
                           "type": "boolean"
+                        },
+                        "already_present": {
+                          "type": "boolean",
+                          "description": "True when the number was already on this WABA and its id was resolved without a new add/migrate."
                         }
                       },
                       "required": [
                         "phone_number_id",
-                        "migrated"
+                        "migrated",
+                        "already_present"
                       ]
                     },
                     "meta": {
@@ -9925,6 +11004,16 @@
                     "data",
                     "meta"
                   ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "WABA has no payment method (Meta 131042) — migrate needs funding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -9951,6 +11040,109 @@
           },
           "502": {
             "description": "Upstream Meta add-number failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List the phone numbers on a WABA",
+        "description": "Proxies `GET /{waba-id}/phone_numbers`. Detects whether a number is ALREADY on the WABA (already-connected onboarding, only_waba_sharing ES where Meta never returns the phone on the connection) and resolves its `phone_number_id` before registration.",
+        "tags": [
+          "WhatsApp Registration"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WABA phone numbers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "phone_number_id — the id every send/registration call keys on."
+                          },
+                          "display_phone_number": {
+                            "type": "string",
+                            "description": "E.164, formatted by Meta (e.g. \"+56 2 2914 5100\")."
+                          },
+                          "verified_name": {
+                            "type": "string"
+                          },
+                          "quality_rating": {
+                            "type": "string"
+                          },
+                          "messaging_limit": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "Cloud API state. CONNECTED = registered + live (skip OTP); PENDING/UNVERIFIED = on the WABA but not yet registered."
+                          },
+                          "code_verification_status": {
+                            "type": "string",
+                            "description": "VERIFIED once the number has cleared OTP."
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "display_phone_number",
+                          "verified_name",
+                          "quality_rating"
+                        ]
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta phone_numbers read failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -10463,6 +11655,10 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "is_self": {
+                            "type": "boolean",
+                            "description": "TRUE when this entry is Atribu's own Meta app. Atribu is the only party that knows its own app id with certainty, so it answers here instead of every consumer keeping a copy — a copy silently goes wrong the moment Atribu's app differs between environments, and being wrong either mutes the customer's AI (our app read as an incumbent) or double-replies (an incumbent read as us). ABSENT — never `false` — when Atribu cannot determine its own id: an all-false list is indistinguishable from 'Atribu is not subscribed', which is the same catastrophic misread this field exists to prevent. Treat absent as 'ask someone else', not as 'no'."
                           }
                         },
                         "required": [
@@ -11635,7 +12831,9 @@
                         "message.history",
                         "contacts.sync",
                         "template.updated",
-                        "channel.health.updated"
+                        "channel.health.updated",
+                        "call.status.updated",
+                        "call.permission.updated"
                       ]
                     }
                   },

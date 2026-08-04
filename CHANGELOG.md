@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0]
+
+### Added
+
+- **Email attachments on `messages.send` (channel: `email`).** Email content accepts `attachments` — max 10 files, 3MB total per message. Each attachment is `{ filename, mime_type }` plus exactly one of `url` (a public HTTPS URL Atribu fetches server-side at send time) or `data_base64` (inline bytes). Works on both Gmail (multipart/mixed RFC822) and Outlook (Graph inline fileAttachments), on new sends and in-thread replies alike. Oversize or unreachable attachments fail the whole send with a 422 before anything reaches the provider — no partial sends.
+
+### Changed
+
+- Regenerated types from the current API spec; the sync also picks up spec drift accumulated since 1.6.1 (WhatsApp template buttons/components detail, health fields, and other additive shapes). Additive only — no breaking type changes surfaced by the test suite.
+
 ## [1.6.1]
 
 ### Documentation

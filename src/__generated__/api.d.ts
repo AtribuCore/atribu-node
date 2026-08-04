@@ -2262,6 +2262,17 @@ export interface paths {
                             reply_to_message_id?: string;
                             /** @description CC recipient emails. */
                             cc?: string[];
+                            /** @description File attachments (max 10, 3MB total per message). Each is a public URL fetched at send time or inline base64. */
+                            attachments?: {
+                                /** @description Attachment filename shown to the recipient. */
+                                filename: string;
+                                /** @description MIME type, e.g. image/jpeg or application/pdf. */
+                                mime_type: string;
+                                /** @description Public HTTPS URL fetched server-side at send time. Provide exactly one of `url` or `data_base64`. */
+                                url?: string;
+                                /** @description Inline base64 file bytes. Provide exactly one of `url` or `data_base64`. */
+                                data_base64?: string;
+                            }[];
                         };
                         /** @description Instagram only. When true, the message is sent with Meta's HUMAN_AGENT tag, letting an authorized human agent reply outside the 24-hour window (up to 7 days). Set this ONLY for messages genuinely sent by a human agent — never for automated/bot replies, which would violate Meta's messaging policy. Ignored on WhatsApp. */
                         human_agent?: boolean;
@@ -2326,6 +2337,156 @@ export interface paths {
                     };
                 };
                 /** @description Upstream Meta send failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/typing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a WhatsApp message read (with or without a typing indicator)
+         * @description Marks the customer's inbound message read and, by default, shows the "typing…" bubble, so an agent that takes tens of seconds to compose a reply produces the signals a human agent would. One Meta call: the indicator is a field on the read receipt, so **the read receipt is not optional** — Meta offers no way to show typing without marking read.
+         *
+         *     **Two modes, via `indicator`.** `typing` (default) = read receipt + bubble, for an agent that is composing. `read` = read receipt only, for a human who just opened the conversation in your inbox — blue ticks without a bubble that would promise a reply nobody made. Everything else on this route is identical between the two, which is why they share one endpoint. Consumers written before `indicator` existed send nothing and keep the original behaviour.
+         *
+         *     Auth, scope (`whatsapp`) and connection resolution are identical to `POST /api/v1/messages`, including the `oauth_app_authorizations` grant check for OAuth-flow-minted keys.
+         *
+         *     **Best-effort.** One upstream call, no retries, no queueing, a 4-second upstream budget. The indicator shows for at most 25 seconds and is dismissed the moment you send a message on that thread — there is nothing to cancel and no "typing off" call.
+         *
+         *     **`message_id` is the INBOUND wamid** (the customer's message), not one of yours — Meta derives the recipient from it. An unknown or stale wamid (older than ~24h, already read, number re-registered) answers **200** with `forwarded: false`, not an error: none of those is a caller fault or has a remedy, and non-2xx is reserved for faults somebody can act on.
+         *
+         *     **This route never answers 404.** An unknown, wrong-profile or unauthorized `connection_id` answers 403 — consumers treat 404 on this path as "typing is not deployed on this bridge" and disable the feature.
+         *
+         *     WhatsApp only today; Instagram and Messenger are the intended extension of this same endpoint (which is why `to` is required even though WhatsApp does not need it). Email has no typing concept.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Target WhatsApp `data_connection`.
+                         */
+                        connection_id: string;
+                        /**
+                         * @description `whatsapp` only today; anything else is a 400.
+                         * @enum {string}
+                         */
+                        channel: "whatsapp";
+                        /** @description The customer's wa_id (conversation external id). Redundant for the Meta call itself — Meta derives the recipient from `message_id` — but load-bearing here: it is the only thing that can catch a `message_id` from a different conversation (see below), it is logged truncated on every non-delivery, and it is what the future Instagram/Messenger extension of this endpoint keys on. */
+                        to: string;
+                        /** @description The INBOUND wamid the receipt anchors to (e.g. `wamid.HBgLNTY5…`). Unknown/stale values are a 200 no-op. When the wamid is one Atribu has stored AND its conversation belongs to somebody other than `to`, the request is a 200 no-op with `reason: "message_id_conversation_mismatch"` and is NOT forwarded — a mismatched pair would blue-tick (and, in `typing` mode, animate) a thread you did not mean to touch. */
+                        message_id: string;
+                        /**
+                         * @description Which signal to send. `typing` (the default) marks the message read AND shows the "typing…" bubble — use it when an agent is composing a reply. `read` marks the message read ONLY, with no bubble — use it when a human opened the conversation in your inbox: blue ticks say "a person saw this", while a bubble would promise a reply within 25 seconds that nobody made.
+                         *
+                         *     Omit it for the original behaviour. The applied mode is echoed back in `data.indicator`; if that field is absent the deployment predates this option and showed a bubble regardless.
+                         * @default typing
+                         * @enum {string}
+                         */
+                        indicator?: "typing" | "read";
+                    };
+                };
+            };
+            responses: {
+                /** @description Forwarded to Meta, or knowingly no-op'd (`forwarded: false`) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TypingIndicatorResponse"];
+                    };
+                };
+                /** @description Malformed body, or a channel other than `whatsapp` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid API key, or the connection's Meta token was rejected (reconnect the channel) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The WhatsApp Business Account has no working payment method (Meta 131042) — add one and the call succeeds unchanged */
+                402: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing `whatsapp` scope, OR the `connection_id` is unknown / belongs to another profile / is not authorized for this OAuth app. Deliberately 403 rather than 404 — see the description. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (disconnected, or no WhatsApp phone number yet) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Meta rejected the call permanently for a reason other than the `message_id` (which is a 200 no-op) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Rate limited. This route has its own bucket, so it cannot consume the send route's allowance. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta call failed */
                 502: {
                     headers: {
                         [name: string]: unknown;
@@ -4165,6 +4326,23 @@ export interface paths {
                         body_text: string;
                         header_text?: string;
                         footer_text?: string;
+                        /** @description Static template buttons. Meta caps: 10 total, at most 2 URL and 1 PHONE_NUMBER. */
+                        buttons?: ({
+                            /** @enum {string} */
+                            type: "QUICK_REPLY";
+                            text: string;
+                        } | {
+                            /** @enum {string} */
+                            type: "URL";
+                            text: string;
+                            /** Format: uri */
+                            url: string;
+                        } | {
+                            /** @enum {string} */
+                            type: "PHONE_NUMBER";
+                            text: string;
+                            phone_number: string;
+                        })[];
                     };
                 };
             };
@@ -4443,6 +4621,278 @@ export interface paths {
                 };
                 /** @description Connection not ready (no WhatsApp account row / missing token) */
                 409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/calling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a number's calling settings
+         * @description Proxies `GET /{phone-number-id}/settings` and returns Meta's `calling` object verbatim. `connection_id` is required — it is the token resolver's key, and a `phone_number_id` alone resolves nothing. The number is cross-validated against the connection's WABA first. This route NEVER requests `include_sip_credentials`, so SIP credentials are not returned here and are not stored anywhere: the drift snapshot Atribu keeps is an allowlist projection of the reachable settings (calling status, SIP peer, codecs, webhook delivery), so a credential field cannot reach storage even if Meta widens the payload.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    phone_number_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Calling settings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                calling: components["schemas"]["WhatsAppCallingSettings"];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description phone_number_id is not on this connection's WABA */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (no WhatsApp account row / missing token) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Enable or update a number's calling settings
+         * @description Proxies `POST /{phone-number-id}/settings` with the `settings` object verbatim, then reads back what Meta actually holds and returns THAT (Meta normalizes and fills defaults, so echoing the request would report settings that were never applied). An ongoing per-number setting, not an onboarding step. Retried at most twice on transient upstream failures (429, 408, 5xx and network errors) — enabling calling is idempotent, unlike the OTP steps, which are never retried because an attempt there counts against Meta's cap.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["WhatsAppCallingBody"];
+                };
+            };
+            responses: {
+                /** @description Applied settings, read back from Meta */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                calling: components["schemas"]["WhatsAppCallingSettings"];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description phone_number_id is not on this connection's WABA */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (no WhatsApp account row / missing token) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/calling/sip-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a number's SIP digest credentials
+         * @description Returns the Meta-generated SIP credentials for one number, so they can be configured on the SIP server that will answer Meta's INVITEs. **This is the only endpoint that returns a secret.** It is a separate route rather than a flag on `GET /whatsapp/calling` on purpose: that route's guarantee that it never requests `include_sip_credentials` is then a property of the code, not of an argument value. Meta publishes no static SIP egress IP ranges and does not support mTLS, so digest auth is the practical control on who may INVITE your trunk: your server answers with `407` and Meta re-sends carrying the challenge response. `username` is the digest username — the business number as DIGITS ONLY, with NO leading `+`. Meta's guide calls it "the (normalized) business phone number", which reads as E.164, but a captured call shows Meta authenticating as `username="16065177691"` while its own request URI carries `sip:+16065177691@...`. It is not the `phone_number_id` and not the punctuated `display_phone_number`. Configure any other spelling and every call is rejected with a 401 that presents as ringing which never answers. The response is an allowlist projection of named fields, never Meta's payload, and it is `Cache-Control: no-store`. Atribu stores none of it: the drift snapshot is written by the settings route and structurally cannot hold a credential. Returns 404 when the number has no SIP credential (calling disabled, or no `sip` configuration).
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    phone_number_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SIP digest credentials */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description Digest username: the business number as digits, NO leading `+` — e.g. `16065177691`. Verified against a live Meta call. */
+                                username: string;
+                                servers: components["schemas"]["WhatsAppSipCredential"][];
+                            };
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description phone_number_id is not on this connection's WABA */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found, or the number has no SIP credential (calling disabled / no `sip` configuration) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready (no WhatsApp account row / missing token) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Meta returned no display_phone_number, so the digest username cannot be determined */
+                502: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4821,6 +5271,213 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/whatsapp/otp-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read back a published OTP capture
+         * @description AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), like the publish. Polls the relay for a capture published under this connect's `state`. `capture: null` is the NORMAL answer for most of a connect's life (the dealer is still working through Meta's screens and no call has landed) — a 200 with nothing, not a 404. Entries are bound to the consumer app that published them.
+         */
+        get: {
+            parameters: {
+                query: {
+                    state: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The capture, or null when none has landed yet */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                capture: {
+                                    /** @description The six digits — ONLY when the capture cleared the publisher's confidence gate. Null otherwise. */
+                                    code: string | null;
+                                    /** @description Best guess even when it was not trusted. A hint for the dealer, never auto-used. */
+                                    candidate_code: string | null;
+                                    /** @description Combined transcription x parse confidence in [0,1]. */
+                                    confidence: number;
+                                    /** @description How many times the code was read back. Meta reads it twice. */
+                                    reads: number;
+                                    /** @description 0-indexed digit positions the two reads disagreed on, so the UI can flag exactly those. */
+                                    uncertain_positions: number[];
+                                    /** @description Short-TTL signed URL for the captured audio, scoped to this capture session. Never public, never logged. */
+                                    audio_url: string | null;
+                                    audio_expires_at: string | null;
+                                    captured_at: string;
+                                } | null;
+                            };
+                            meta: components["schemas"]["ClientCredentialsMeta"];
+                        };
+                    };
+                };
+                /** @description state is required */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Client authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Rate limit exceeded for this client */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Relay store unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Publish an OTP captured off Meta's verification call
+         * @description AUTHENTICATED BY CLIENT CREDENTIALS (`client_secret_basic`), not an API key: this runs before the OAuth exchange has minted one. Embedded Signup v4 has no phone-screen bypass, so Meta may verify a number in-popup by placing a VOICE call that reads six digits aloud. A consumer that captured that call publishes the result here, keyed by the connect's OAuth `state`; the dealer's connect page — which is behind Meta's popup and cannot otherwise learn the code — subscribes and shows it. Held for a few minutes only: this is a live registration secret, it is never logged, and it expires without anybody sweeping it. 503 when the relay store is unavailable (never a silent success: the consumer must know the dealer will see nothing).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description The consumer's OAuth `state` for this connect — the correlation id both sides already share. */
+                        state: string;
+                        /** @description The six digits, ONLY when the capture cleared the consumer's confidence gate. Null otherwise. */
+                        code?: string | null;
+                        /** @description Best guess even when it was not trusted — shown as a hint, never auto-used. */
+                        candidate_code?: string | null;
+                        /** @description Combined transcription x parse confidence, in [0,1]. */
+                        confidence: number;
+                        /** @description How many times the code was read back (Meta reads it twice). */
+                        reads?: number;
+                        /** @description 0-indexed digit positions the reads disagreed on, so the UI can flag exactly those. */
+                        uncertain_positions?: number[];
+                        /**
+                         * Format: uri
+                         * @description Short-TTL signed URL for the captured audio, scoped to this capture session. Relayed, never fetched here.
+                         */
+                        audio_url?: string | null;
+                        /**
+                         * Format: date-time
+                         * @description When `audio_url` stops working, so a UI can retire ▶ rather than fail on it.
+                         */
+                        audio_expires_at?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Capture held for the connect page */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                published: boolean;
+                                expires_in_seconds: number;
+                            };
+                            meta: components["schemas"]["ClientCredentialsMeta"];
+                        };
+                    };
+                };
+                /** @description Malformed JSON body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Client authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description `invalid_state` — the state is not a live WhatsApp Embedded Signup connect belonging to this client. The state is a correlation id, not a capability, so publishing under one requires proving it is your own in-flight connect of the right kind. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Rate limit exceeded for this client */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Relay store unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/whatsapp/registration/phone-numbers": {
         parameters: {
             query?: never;
@@ -4828,11 +5485,69 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List the phone numbers on a WABA
+         * @description Proxies `GET /{waba-id}/phone_numbers`. Detects whether a number is ALREADY on the WABA (already-connected onboarding, only_waba_sharing ES where Meta never returns the phone on the connection) and resolves its `phone_number_id` before registration.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description WABA phone numbers */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description phone_number_id — the id every send/registration call keys on. */
+                                id: string;
+                                /** @description E.164, formatted by Meta (e.g. "+56 2 2914 5100"). */
+                                display_phone_number: string;
+                                verified_name: string;
+                                quality_rating: string;
+                                messaging_limit?: string;
+                                /** @description Cloud API state. CONNECTED = registered + live (skip OTP); PENDING/UNVERIFIED = on the WABA but not yet registered. */
+                                status?: string;
+                                /** @description VERIFIED once the number has cleared OTP. */
+                                code_verification_status?: string;
+                            }[];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta phone_numbers read failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         /**
          * Add (or migrate) a phone number onto a WABA
-         * @description Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow.
+         * @description Proxies `POST /{waba-id}/phone_numbers`. Set `migrate: true` to move an already-registered number onto this WABA in one call (bring-your-own). Returns the new `phone_number_id` to drive the request_code → verify_code → register flow. IDEMPOTENT: if the number is already on this WABA, resolves and returns its existing `phone_number_id` with `already_present: true` instead of failing.
          */
         post: {
             parameters: {
@@ -4858,7 +5573,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Phone number added */
+                /** @description Phone number added (or already present, resolved idempotently) */
                 201: {
                     headers: {
                         [name: string]: unknown;
@@ -4868,9 +5583,20 @@ export interface paths {
                             data: {
                                 phone_number_id: string;
                                 migrated: boolean;
+                                /** @description True when the number was already on this WABA and its id was resolved without a new add/migrate. */
+                                already_present: boolean;
                             };
                             meta: components["schemas"]["Meta"];
                         };
+                    };
+                };
+                /** @description WABA has no payment method (Meta 131042) — migrate needs funding */
+                402: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Missing scope or unauthorized connection */
@@ -5285,6 +6011,8 @@ export interface paths {
                                 id: string | null;
                                 name: string | null;
                                 link: string | null;
+                                /** @description TRUE when this entry is Atribu's own Meta app. Atribu is the only party that knows its own app id with certainty, so it answers here instead of every consumer keeping a copy — a copy silently goes wrong the moment Atribu's app differs between environments, and being wrong either mutes the customer's AI (our app read as an incumbent) or double-replies (an incumbent read as us). ABSENT — never `false` — when Atribu cannot determine its own id: an all-false list is indistinguishable from 'Atribu is not subscribed', which is the same catastrophic misread this field exists to prevent. Treat absent as 'ask someone else', not as 'no'. */
+                                is_self?: boolean;
                             }[];
                             meta: components["schemas"]["Meta"];
                         };
@@ -5934,7 +6662,7 @@ export interface paths {
                          * @description HTTPS URL where Atribu will POST signed events.
                          */
                         url: string;
-                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated")[];
+                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated" | "call.status.updated" | "call.permission.updated")[];
                         providers: ("whatsapp" | "instagram" | "email" | "google_calendar")[];
                     };
                 };
@@ -6847,6 +7575,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ClientCredentialsMeta: {
+            /** @example atr_client_a1b2c3 */
+            client_id: string;
+        };
         ErrorResponse: {
             error: {
                 /** @example invalid_parameter */
@@ -6957,6 +7689,29 @@ export interface components {
             traceable_pct_by_count: number;
             traceable_pct_by_value: number;
         } | null;
+        TypingIndicatorResponse: {
+            data: {
+                /** Format: uuid */
+                connection_id: string;
+                /** @enum {string} */
+                channel: "whatsapp";
+                to: string;
+                /** @description true when the read receipt (plus the typing indicator, unless `indicator: "read"`) reached Meta. false when Meta refused the `message_id` (stale / already-read / re-registered number) — a knowing no-op, still a 200. */
+                forwarded: boolean;
+                /**
+                 * @description The mode that was applied, echoed back. Absent means the deployment predates this field and therefore behaved as `typing` — the only way to detect that a requested `read` silently showed a bubble.
+                 * @enum {string}
+                 */
+                indicator?: "typing" | "read";
+                /**
+                 * @description Present only when `forwarded` is false. `stale_message_id` — Meta refused the wamid. `message_id_conversation_mismatch` — the wamid belongs to a different conversation than `to`, so it was never forwarded.
+                 * @enum {string}
+                 */
+                reason?: "stale_message_id" | "message_id_conversation_mismatch";
+                requested_at: string;
+            };
+            meta: components["schemas"]["Meta"];
+        };
         MediaUploadResponse: {
             data: {
                 /** @example 1234567890123456 */
@@ -7027,6 +7782,22 @@ export interface components {
             remediation: string | null;
             /** @enum {string} */
             severity: "critical" | "warning" | "info";
+        };
+        /** @description Meta's `calling` object, passed through verbatim in both directions. Atribu holds no opinion about its contents — the SIP peer, the SRTP key exchange and the codec list are the caller's recipe. Documented as free-form on purpose: a schema enumerating Meta's fields would reject a field Meta shipped this morning. */
+        WhatsAppCallingSettings: {
+            [key: string]: unknown;
+        };
+        WhatsAppCallingBody: {
+            /** Format: uuid */
+            connection_id: string;
+            phone_number_id: string;
+            settings: components["schemas"]["WhatsAppCallingSettings"];
+        };
+        WhatsAppSipCredential: {
+            hostname?: string;
+            port?: number;
+            /** @description Meta-generated digest password for this SIP peer. */
+            sip_user_password: string;
         };
     };
     responses: never;
