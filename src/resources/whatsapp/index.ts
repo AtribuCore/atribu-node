@@ -1,5 +1,6 @@
 import type { HttpClientLike } from "../../http";
 import { WhatsAppTemplatesResource } from "./templates";
+import { WhatsAppFlowsResource } from "./flows";
 import { WhatsAppBroadcastsResource } from "./broadcasts";
 import { WhatsAppMediaResource } from "./media";
 import { WhatsAppRegistrationResource } from "./registration";
@@ -13,6 +14,8 @@ import { WhatsAppCallingResource } from "./calling";
  */
 export class WhatsAppNamespace {
   readonly templates: WhatsAppTemplatesResource;
+  /** Flow lifecycle (create/publish/…). Sending one is `messages.send()` with `content.type: "flow"`. */
+  readonly flows: WhatsAppFlowsResource;
   readonly broadcasts: WhatsAppBroadcastsResource;
   readonly media: WhatsAppMediaResource;
   readonly registration: WhatsAppRegistrationResource;
@@ -23,6 +26,7 @@ export class WhatsAppNamespace {
 
   constructor(http: HttpClientLike) {
     this.templates = new WhatsAppTemplatesResource(http);
+    this.flows = new WhatsAppFlowsResource(http);
     this.broadcasts = new WhatsAppBroadcastsResource(http);
     this.media = new WhatsAppMediaResource(http);
     this.registration = new WhatsAppRegistrationResource(http);
@@ -38,6 +42,16 @@ export type {
   WhatsAppTemplateCreateResult,
   WhatsAppTemplateSyncResult,
 } from "./templates";
+export type {
+  WhatsAppFlow,
+  WhatsAppFlowDetail,
+  WhatsAppFlowCreateInput,
+  WhatsAppFlowCreateResult,
+  WhatsAppFlowUpdateInput,
+  WhatsAppFlowAsset,
+  WhatsAppFlowJson,
+  WhatsAppFlowJsonUploadResult,
+} from "./flows";
 export type {
   WhatsAppBroadcast,
   WhatsAppBroadcastDetail,

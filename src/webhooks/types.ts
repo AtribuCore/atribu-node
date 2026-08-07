@@ -41,6 +41,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "channel.health.updated",
   "call.status.updated",
   "call.permission.updated",
+  "comment.received",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
@@ -256,6 +257,34 @@ export interface InstagramMessageDeliveryEvent extends BaseEvent {
     recipient_id: string;
     mids: string[];
     watermark: number;
+  };
+}
+
+/**
+ * A comment landed on a connected IG post — ig_login `field=comments` or
+ * fb_login `field=feed` (comments nested in the Page feed). Emitted for
+ * EVERY inbound comment, unconditional on whether it matched an internal
+ * comment-to-DM trigger — including the business's own replies (Meta does
+ * not flag comment self-authorship the way it flags message echoes, so this
+ * is not filtered). `ad_id` is present only when the comment landed on a
+ * boosted post / ad post. `parent_id` is set when the comment is a reply to
+ * another comment.
+ */
+export interface InstagramCommentReceivedEvent extends BaseEvent {
+  type: "comment.received";
+  provider: "instagram";
+  data: {
+    comment_id: string;
+    from_id: string | null;
+    from_username: string | null;
+    text: string | null;
+    media_id: string | null;
+    /** Present only on comments placed on boosted posts / ad posts. */
+    ad_id: string | null;
+    /** Set when this comment is a reply to another comment. */
+    parent_id: string | null;
+    /** Full Meta `change` envelope (field + value). */
+    raw: Record<string, unknown>;
   };
 }
 
@@ -492,6 +521,7 @@ export type AtribuWebhookEvent =
   | WhatsAppCallPermissionUpdatedEvent
   | InstagramMessageReceivedEvent
   | InstagramMessageDeliveryEvent
+  | InstagramCommentReceivedEvent
   | EmailMessageReceivedEvent
   | CalendarEventChangedEvent
   | ConversationStartedEvent;

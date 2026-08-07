@@ -18,6 +18,7 @@ import type {
   InstagramFbLoginMessageData,
   InstagramFbLoginPostbackData,
   InstagramIgLoginChangeData,
+  InstagramCommentReceivedEvent,
   CalendarEventChangedEvent,
 } from "../src/webhooks/types";
 import type {
@@ -39,6 +40,7 @@ import type {
 type WaReceived = Extract<AtribuWebhookEvent, { type: "message.received"; provider: "whatsapp" }>;
 type WaDelivery = Extract<AtribuWebhookEvent, { type: "message.delivery"; provider: "whatsapp" }>;
 type IgReceived = Extract<AtribuWebhookEvent, { type: "message.received"; provider: "instagram" }>;
+type IgCommentReceived = Extract<AtribuWebhookEvent, { type: "comment.received"; provider: "instagram" }>;
 type CalChanged = Extract<AtribuWebhookEvent, { type: "calendar.event.changed" }>;
 
 describe("type narrowing — webhook event union", () => {
@@ -75,6 +77,14 @@ describe("type narrowing — webhook event union", () => {
     expectTypeOf<IgChange>().toEqualTypeOf<InstagramIgLoginChangeData>();
   });
 
+  it("type+provider picks the Instagram comment.received variant", () => {
+    expectTypeOf<IgCommentReceived>().toEqualTypeOf<InstagramCommentReceivedEvent>();
+    expectTypeOf<IgCommentReceived["data"]["comment_id"]>().toEqualTypeOf<string>();
+    expectTypeOf<IgCommentReceived["data"]["from_id"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<IgCommentReceived["data"]["ad_id"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<IgCommentReceived["data"]["parent_id"]>().toEqualTypeOf<string | null>();
+  });
+
   it("type+provider picks the Google Calendar changed variant", () => {
     expectTypeOf<CalChanged>().toEqualTypeOf<CalendarEventChangedEvent>();
     expectTypeOf<CalChanged["provider"]>().toEqualTypeOf<"google_calendar">();
@@ -102,6 +112,7 @@ describe("type narrowing — webhook event union", () => {
       | "channel.health.updated"
       | "call.status.updated"
       | "call.permission.updated"
+      | "comment.received"
     >();
   });
 });

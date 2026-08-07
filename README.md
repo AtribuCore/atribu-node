@@ -381,6 +381,85 @@ await atribu.instagram.triggers.delete(trigger.id);
 await atribu.instagram.triggers.resumeCircuit({ connectionId });
 ```
 
+### Read Instagram media
+
+Every call proxies Meta live — there is no Atribu-side mirror behind this, so
+what you read is the account as it is right now.
+
+```typescript
+// One page, newest first. Meta's own cursor comes back as `nextCursor`.
+let cursor: string | null = null;
+do {
+  const page = await atribu.instagram.media.list({
+    connectionId,
+    limit: 25,
+    ...(cursor ? { after: cursor } : {}),
+  });
+  for (const media of page.media) {
+    // media_url is null on a CAROUSEL_ALBUM parent — read `children` instead.
+    console.log(media.media_type, media.permalink, media.caption);
+    for (const child of media.children ?? []) console.log("  ", child.media_url);
+  }
+  cursor = page.hasNext ? page.nextCursor : null;
+} while (cursor);
+
+// One post by id:
+const media = await atribu.instagram.media.get("17920000000000000", { connectionId });
+```
+
+`media_url` / `thumbnail_url` are short-lived Meta CDN links — fetch them on
+demand rather than storing them.
+
+### Publish to Instagram
+
+Meta's publish flow is two steps — a container, then a publish — and this SDK
+keeps it two steps. Nothing appears on the account until `publish()` runs.
+
+```typescript
+// Single image
+const container = await atribu.instagram.media.createContainer({
+  connection_id: connectionId,
+  media_type: "IMAGE",
+  image_url: "https://cdn.example.com/car.jpg",   // public HTTPS; Meta fetches it
+  caption: "Recién llegado 🚗",
+});
+const { media_id } = await atribu.instagram.media.publish({
+  connection_id: connectionId,
+  creation_id: container.container_id,
+});
+
+// Carousel: one container per child, then a parent that lists them
+const children: string[] = [];
+for (const image_url of imageUrls) {
+  const child = await atribu.instagram.media.createContainer({
+    connection_id: connectionId,
+    media_type: "IMAGE",
+    image_url,
+    is_carousel_item: true,
+  });
+  children.push(child.container_id);
+}
+const parent = await atribu.instagram.media.createContainer({
+  connection_id: connectionId,
+  media_type: "CAROUSEL",
+  children,                                        // 2–10 container ids
+  caption: "Galería",
+});
+await atribu.instagram.media.publish({
+  connection_id: connectionId,
+  creation_id: parent.container_id,
+});
+```
+
+Atribu adds no polling, retry or scheduling on top of Meta — those are yours to
+own. Meta caps publishing at **25 posts per 24h per account**; over that,
+`publish()` throws `AtribuApiError` with status 429. The connection must have
+been authorized with Instagram's content-publishing permission
+(`instagram_business_content_publish` on ig_login,
+`instagram_content_publish` on fb_login) — connections authorized before SDK
+1.16.0 need to reconnect. Video / Reels / Stories containers are not covered
+yet.
+
 ### List authorized connections
 
 ```typescript
@@ -879,6 +958,11 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `instagram.triggers.delete()` | Delete a trigger |
 | `instagram.triggers.testDm()` | Send the opening_message as a one-off DM to a test IGSID |
 | `instagram.triggers.resumeCircuit()` | Manually clear a tripped comment-to-DM circuit |
+| `instagram.contacts.get()` | Resolve an IGSID to that person's public profile |
+| `instagram.media.list()` | Page the account's published media (live Meta read) |
+| `instagram.media.get()` | Read one media object, carousel children expanded |
+| `instagram.media.createContainer()` | Publish step 1 — create an IMAGE or CAROUSEL container |
+| `instagram.media.publish()` | Publish step 2 — make a container live |
 
 ### Webhook verification — `@atribu/node/webhooks`
 | Symbol | Description |

@@ -56,6 +56,17 @@ export interface MockOverrides {
       delete?: EndpointOverride;
       sync?: EndpointOverride;
     };
+    flows?: {
+      list?: EndpointOverride;
+      create?: EndpointOverride;
+      get?: EndpointOverride;
+      update?: EndpointOverride;
+      delete?: EndpointOverride;
+      listAssets?: EndpointOverride;
+      uploadFlowJson?: EndpointOverride;
+      publish?: EndpointOverride;
+      deprecate?: EndpointOverride;
+    };
     broadcasts?: {
       list?: EndpointOverride;
       create?: EndpointOverride;
@@ -85,6 +96,12 @@ export interface MockOverrides {
       delete?: EndpointOverride;
       testDm?: EndpointOverride;
       resume?: EndpointOverride;
+    };
+    media?: {
+      list?: EndpointOverride;
+      get?: EndpointOverride;
+      createContainer?: EndpointOverride;
+      publish?: EndpointOverride;
     };
   };
   oauth?: {
@@ -235,6 +252,39 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
     http.post(u("/api/v1/whatsapp/templates/sync"), () =>
       resolve(overrides.whatsapp?.templates?.sync, 200, responseFixtures.whatsappTemplateSync()),
     ),
+    // ----- WhatsApp flows -----
+    // The static /publish, /deprecate and /assets routes are registered BEFORE
+    // the parameterized /:flowId ones — MSW matches in array order, and
+    // `:flowId` is single-segment so it can't shadow them, but keeping the
+    // specific-first order means nobody has to re-derive that.
+    http.post(u("/api/v1/whatsapp/flows/:flowId/publish"), () =>
+      resolve(overrides.whatsapp?.flows?.publish, 200, responseFixtures.whatsappFlowSuccess()),
+    ),
+    http.post(u("/api/v1/whatsapp/flows/:flowId/deprecate"), () =>
+      resolve(overrides.whatsapp?.flows?.deprecate, 200, responseFixtures.whatsappFlowSuccess()),
+    ),
+    http.get(u("/api/v1/whatsapp/flows/:flowId/assets"), () =>
+      resolve(overrides.whatsapp?.flows?.listAssets, 200, responseFixtures.whatsappFlowAssets()),
+    ),
+    http.post(u("/api/v1/whatsapp/flows/:flowId/assets"), () =>
+      resolve(overrides.whatsapp?.flows?.uploadFlowJson, 200, responseFixtures.whatsappFlowJsonUpload()),
+    ),
+    http.get(u("/api/v1/whatsapp/flows/:flowId"), () =>
+      resolve(overrides.whatsapp?.flows?.get, 200, responseFixtures.whatsappFlowDetail()),
+    ),
+    http.post(u("/api/v1/whatsapp/flows/:flowId"), () =>
+      resolve(overrides.whatsapp?.flows?.update, 200, responseFixtures.whatsappFlowSuccess()),
+    ),
+    http.delete(u("/api/v1/whatsapp/flows/:flowId"), () =>
+      resolve(overrides.whatsapp?.flows?.delete, 204, null),
+    ),
+    http.get(u("/api/v1/whatsapp/flows"), () =>
+      resolve(overrides.whatsapp?.flows?.list, 200, responseFixtures.whatsappFlowList()),
+    ),
+    http.post(u("/api/v1/whatsapp/flows"), () =>
+      resolve(overrides.whatsapp?.flows?.create, 201, responseFixtures.whatsappFlowCreated()),
+    ),
+
     http.delete(u("/api/v1/whatsapp/templates/:name"), () =>
       resolve(overrides.whatsapp?.templates?.delete, 204, null),
     ),
@@ -304,6 +354,23 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
     ),
     http.post(u("/api/v1/instagram/triggers/resume"), () =>
       resolve(overrides.instagram?.triggers?.resume, 200, responseFixtures.instagramTriggerResumed()),
+    ),
+
+    // ----- Instagram media (read + Content Publishing) -----
+    // `/media/publish` is registered BEFORE `/media/:media_id` so the static
+    // publish route wins — msw matches in registration order, and the dynamic
+    // segment would otherwise swallow "publish".
+    http.post(u("/api/v1/instagram/media/publish"), () =>
+      resolve(overrides.instagram?.media?.publish, 201, responseFixtures.instagramMediaPublished()),
+    ),
+    http.get(u("/api/v1/instagram/media/:media_id"), () =>
+      resolve(overrides.instagram?.media?.get, 200, responseFixtures.instagramMediaDetail()),
+    ),
+    http.get(u("/api/v1/instagram/media"), () =>
+      resolve(overrides.instagram?.media?.list, 200, responseFixtures.instagramMediaList()),
+    ),
+    http.post(u("/api/v1/instagram/media"), () =>
+      resolve(overrides.instagram?.media?.createContainer, 201, responseFixtures.instagramMediaContainer()),
     ),
 
     // ----- OAuth -----

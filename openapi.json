@@ -515,6 +515,95 @@
           "meta"
         ]
       },
+      "WhatsAppFlowSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "DRAFT | PUBLISHED | DEPRECATED | BLOCKED | THROTTLED (Meta-owned enum)."
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Typed loosely on reads — Meta may add categories."
+          },
+          "validation_errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            },
+            "description": "Meta's flow.json validation findings, forwarded verbatim. Empty when valid."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "categories"
+        ]
+      },
+      "WhatsAppFlowDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WhatsAppFlowSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "json_version": {
+                "type": "string"
+              },
+              "data_api_version": {
+                "type": "string"
+              },
+              "endpoint_uri": {
+                "type": "string",
+                "description": "Data-exchange endpoint (data_api flows only)."
+              },
+              "preview": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "preview_url": {
+                    "type": "string"
+                  },
+                  "expires_at": {
+                    "type": "string"
+                  }
+                },
+                "description": "Web preview URL for the flow (renders in a browser)."
+              }
+            }
+          }
+        ]
+      },
+      "WhatsAppFlowAsset": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "asset_type": {
+            "type": "string",
+            "description": "FLOW_JSON today."
+          },
+          "download_url": {
+            "type": "string",
+            "description": "Time-limited URL to download the asset bytes."
+          }
+        }
+      },
       "WhatsAppChannelHealth": {
         "type": "object",
         "properties": {
@@ -745,6 +834,115 @@
         },
         "required": [
           "sip_user_password"
+        ]
+      },
+      "InstagramMedia": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "media_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived CDN URL. null on CAROUSEL_ALBUM parents — read the children instead."
+          },
+          "permalink": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO-8601 publish time."
+          },
+          "media_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IMAGE | VIDEO | CAROUSEL_ALBUM (Meta-owned enum)."
+          },
+          "thumbnail_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "VIDEO/REELS only."
+          },
+          "children": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InstagramMediaChild"
+            },
+            "description": "Ordered carousel items; null for non-carousel media."
+          }
+        },
+        "required": [
+          "id",
+          "caption",
+          "media_url",
+          "permalink",
+          "timestamp",
+          "media_type",
+          "thumbnail_url",
+          "children"
+        ]
+      },
+      "InstagramMediaChild": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IMAGE | VIDEO (Meta-owned enum)."
+          },
+          "media_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thumbnail_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Video items only."
+          },
+          "permalink": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "media_type",
+          "media_url",
+          "thumbnail_url",
+          "permalink"
         ]
       }
     },
@@ -5159,7 +5357,7 @@
     "/api/v1/messages": {
       "post": {
         "summary": "Send a channel-agnostic message",
-        "description": "Sends a WhatsApp or Instagram message via a connected `data_connection`. Requires the `whatsapp` or `instagram` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).\n\n**WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.\n\n**Instagram image/video** accept `image_url` / `video_url` directly (Meta fetches the URL). Quick replies are IG-only.",
+        "description": "Sends a WhatsApp or Instagram message via a connected `data_connection`. Requires the `whatsapp` or `instagram` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).\n\n**WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.\n\n**Instagram image/video** accept `image_url` / `video_url` directly (Meta fetches the URL). Quick replies are IG-only.\n\n**WhatsApp Flows** (`content.type='flow'`) send a Meta-hosted multi-screen form behind a CTA button. Manage flows via `/api/v1/whatsapp/flows`; the customer's answers arrive on the `message.received` webhook as `raw.interactive.nfm_reply.response_json`.",
         "tags": [
           "Messaging"
         ],
@@ -5428,6 +5626,109 @@
                           "buttons"
                         ],
                         "description": "WhatsApp only — up to 3 reply buttons. Lands as an `interactive` message; tap returns the button `id` on the `messaging_postbacks` webhook field."
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "flow"
+                            ]
+                          },
+                          "flow_id": {
+                            "type": "string",
+                            "description": "Meta flow id (numeric string). Must be PUBLISHED unless `mode='draft'`."
+                          },
+                          "body": {
+                            "type": "string",
+                            "description": "Body text shown above the CTA button (1024 char max)."
+                          },
+                          "cta": {
+                            "type": "string",
+                            "description": "CTA button label — Meta caps at 30 chars."
+                          },
+                          "header": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "image",
+                                      "video",
+                                      "document"
+                                    ]
+                                  },
+                                  "media_id": {
+                                    "type": "string",
+                                    "description": "Pre-uploaded media id — exactly one of media_id/link."
+                                  },
+                                  "link": {
+                                    "type": "string",
+                                    "description": "Public HTTPS URL — exactly one of media_id/link."
+                                  }
+                                },
+                                "required": [
+                                  "type"
+                                ]
+                              }
+                            ],
+                            "description": "Optional header: a string (text header, 60 char max) or a media object { type: image|video|document, media_id | link }. Media headers on interactive flow messages are a permissive passthrough — Meta's docs list only text here, and Graph is the enforcer; a refusal surfaces as a classified provider error."
+                          },
+                          "footer": {
+                            "type": "string",
+                            "description": "Optional footer (60 char max)."
+                          },
+                          "flow_token": {
+                            "type": "string",
+                            "description": "Opaque session token echoed back in the customer's flow response (`nfm_reply.response_json`). Omit → Meta defaults to 'unused'. Never logged by Atribu."
+                          },
+                          "flow_action": {
+                            "type": "string",
+                            "enum": [
+                              "navigate",
+                              "data_exchange"
+                            ],
+                            "description": "Omit → 'navigate'."
+                          },
+                          "action_payload": {
+                            "type": "object",
+                            "properties": {
+                              "screen": {
+                                "type": "string",
+                                "description": "First screen to render."
+                              },
+                              "data": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            },
+                            "required": [
+                              "screen"
+                            ],
+                            "description": "First screen + its data. Valid with flow_action 'navigate' only."
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "draft",
+                              "published"
+                            ],
+                            "description": "Omit → 'published'. 'draft' sends an unpublished flow for testing."
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "flow_id",
+                          "body",
+                          "cta"
+                        ],
+                        "description": "WhatsApp only — sends a WhatsApp Flow (Meta-hosted multi-screen form) behind a CTA button. The customer's answers come back on the `message.received` webhook as `raw.interactive.nfm_reply.response_json`."
                       },
                       {
                         "type": "object",
@@ -8971,11 +9272,47 @@
                             "text",
                             "phone_number"
                           ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "FLOW"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 25
+                            },
+                            "flow_id": {
+                              "type": "string",
+                              "description": "Meta flow id (numeric string). The out-of-window flow path: the template's button opens this flow."
+                            },
+                            "navigate_screen": {
+                              "type": "string",
+                              "description": "First screen the flow opens on (navigate flows)."
+                            },
+                            "flow_action": {
+                              "type": "string",
+                              "enum": [
+                                "navigate",
+                                "data_exchange"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "text",
+                            "flow_id"
+                          ]
                         }
                       ]
                     },
                     "maxItems": 10,
-                    "description": "Static template buttons. Meta caps: 10 total, at most 2 URL and 1 PHONE_NUMBER."
+                    "description": "Static template buttons. Meta caps: 10 total, at most 2 URL, 1 PHONE_NUMBER and 1 FLOW. Send-time flow params (flow_token, flow_action_data) ride the template send as a sub_type='flow' button component."
                   }
                 },
                 "required": [
@@ -9303,6 +9640,949 @@
           },
           "502": {
             "description": "Upstream Meta template delete failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/flows": {
+      "get": {
+        "summary": "List WhatsApp flows",
+        "description": "Lists ALL flows on the connection's WABA (live Meta read, cursor pagination followed server-side). Includes drafts — filter on `status='PUBLISHED'` before offering flows for sending, or send drafts with `mode='draft'` on `POST /api/v1/messages`.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Flows list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WhatsAppFlowSummary"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta flow list failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a WhatsApp flow",
+        "description": "Creates a flow in DRAFT. Upload its JSON with `POST /api/v1/whatsapp/flows/{flowId}/assets` (or start from a copy via `clone_flow_id`), then publish. Flows can also be authored in Meta's Flow Builder — this API and the Builder edit the same objects.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "SIGN_UP",
+                        "SIGN_IN",
+                        "APPOINTMENT_BOOKING",
+                        "LEAD_GENERATION",
+                        "CONTACT_US",
+                        "CUSTOMER_SUPPORT",
+                        "SURVEY",
+                        "OTHER"
+                      ]
+                    },
+                    "minItems": 1
+                  },
+                  "clone_flow_id": {
+                    "type": "string",
+                    "description": "Copy an existing flow's JSON into the new DRAFT."
+                  },
+                  "endpoint_uri": {
+                    "type": "string",
+                    "description": "HTTPS data-exchange endpoint (data_api flows only)."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "name",
+                  "categories"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Flow created (DRAFT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta flow create failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/flows/{flowId}": {
+      "get": {
+        "summary": "Read a WhatsApp flow",
+        "description": "Reads one flow including `validation_errors`, JSON/data-API versions and a web `preview` URL (requested with `invalidate(false)` so existing preview links keep working).",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Meta flow id (numeric string)."
+            },
+            "required": true,
+            "description": "Meta flow id (numeric string).",
+            "name": "flowId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Flow detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WhatsAppFlowDetail"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid flow id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta flow read failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update a WhatsApp flow's metadata",
+        "description": "Updates `name`, `categories` and/or `endpoint_uri` (at least one required). The flow's JSON is updated via the assets endpoint, not here. POST mirrors the Graph verb 1:1.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Meta flow id (numeric string)."
+            },
+            "required": true,
+            "description": "Meta flow id (numeric string).",
+            "name": "flowId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "SIGN_UP",
+                        "SIGN_IN",
+                        "APPOINTMENT_BOOKING",
+                        "LEAD_GENERATION",
+                        "CONTACT_US",
+                        "CUSTOMER_SUPPORT",
+                        "SURVEY",
+                        "OTHER"
+                      ]
+                    },
+                    "minItems": 1
+                  },
+                  "endpoint_uri": {
+                    "type": "string",
+                    "description": "HTTPS data-exchange endpoint."
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Metadata updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta flow update failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a WhatsApp flow (DRAFT only)",
+        "description": "Deletes a DRAFT flow at Meta. Graph rejects the call for any other status — deprecate published flows instead.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Meta flow id (numeric string)."
+            },
+            "required": true,
+            "description": "Meta flow id (numeric string).",
+            "name": "flowId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Flow deleted"
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid flow id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta flow delete failed (e.g. flow is not a DRAFT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/flows/{flowId}/assets": {
+      "get": {
+        "summary": "List a WhatsApp flow's assets",
+        "description": "Lists the flow's assets — today exactly one, the flow.json (`asset_type='FLOW_JSON'`), whose `download_url` serves the current JSON.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Meta flow id (numeric string)."
+            },
+            "required": true,
+            "description": "Meta flow id (numeric string).",
+            "name": "flowId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assets list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WhatsAppFlowAsset"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid flow id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta assets list failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload a WhatsApp flow's JSON",
+        "description": "Replaces the flow's JSON. Send it as a JSON object or a pre-serialized string — the server builds Meta's multipart upload either way, so the API surface stays JSON-only. Returns Meta's `validation_errors` verbatim: an upload of semantically broken flow JSON SUCCEEDS with findings, and publishing is rejected until they're fixed.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Meta flow id (numeric string)."
+            },
+            "required": true,
+            "description": "Meta flow id (numeric string).",
+            "name": "flowId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "flow_json": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
+                    "description": "The flow.json contents — an object, or a string that parses as JSON."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "flow_json"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload accepted (check validation_errors)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        },
+                        "validation_errors": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          },
+                          "description": "Meta's flow.json validation findings, forwarded verbatim. Empty when valid."
+                        }
+                      },
+                      "required": [
+                        "success",
+                        "validation_errors"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (invalid flow id or flow_json not JSON)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta asset upload failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/flows/{flowId}/publish": {
+      "post": {
+        "summary": "Publish a WhatsApp flow",
+        "description": "DRAFT → PUBLISHED. Meta rejects flows with outstanding `validation_errors`. Once published, a flow's JSON is immutable — clone it to iterate.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Meta flow id (numeric string)."
+            },
+            "required": true,
+            "description": "Meta flow id (numeric string).",
+            "name": "flowId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Flow published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid flow id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta publish failed (e.g. validation errors outstanding)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/whatsapp/flows/{flowId}/deprecate": {
+      "post": {
+        "summary": "Deprecate a WhatsApp flow",
+        "description": "PUBLISHED → DEPRECATED. Terminal — a deprecated flow cannot be re-published; sends referencing it fail.",
+        "tags": [
+          "WhatsApp Flows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Meta flow id (numeric string)."
+            },
+            "required": true,
+            "description": "Meta flow id (numeric string).",
+            "name": "flowId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "connection_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Flow deprecated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing scope or unauthorized connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid flow id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta deprecate failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -12673,6 +13953,546 @@
         }
       }
     },
+    "/api/v1/instagram/media": {
+      "get": {
+        "summary": "List the connected Instagram account's media",
+        "description": "Live proxy of `GET /{ig-user-id}/media` — newest first, with Meta's own cursor forwarded as `pagination.cursor` (pass it back as `after`). Not served from any Atribu mirror: a post published seconds ago is present, an edited caption is current, a deleted post is gone. Requires the `instagram` scope and (for OAuth-flow keys) an active authorization for the connection.",
+        "tags": [
+          "Instagram Media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Meta page size. Default 25."
+            },
+            "required": false,
+            "description": "Meta page size. Default 25.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Cursor from a previous response's `pagination.cursor`."
+            },
+            "required": false,
+            "description": "Cursor from a previous response's `pagination.cursor`.",
+            "name": "after",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Media page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InstagramMedia"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "pagination",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `instagram` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection unhealthy, tokenless, or without an IG business account id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta media list failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an Instagram media container (publish step 1)",
+        "description": "Live proxy of `POST /{ig-user-id}/media`. Creates a **container** — nothing appears on the account until `POST /api/v1/instagram/media/publish` runs with the returned `container_id`. Meta's two-step model is preserved deliberately: a carousel is one container per child (`media_type: 'IMAGE'` + `is_carousel_item: true`), then one `media_type: 'CAROUSEL'` container listing those ids in `children`, then one publish. `image_url` must be a public HTTPS URL that Meta downloads server-side. Video / Reels / Stories containers are not proxied yet. Requires `instagram_business_content_publish` (ig_login) / `instagram_content_publish` (fb_login) on the connection.",
+        "tags": [
+          "Instagram Media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "connection_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "media_type": {
+                        "type": "string",
+                        "enum": [
+                          "IMAGE"
+                        ]
+                      },
+                      "image_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "Public HTTPS JPEG URL Meta downloads."
+                      },
+                      "caption": {
+                        "type": "string",
+                        "maxLength": 2200
+                      },
+                      "is_carousel_item": {
+                        "type": "boolean",
+                        "description": "Set true when this container will be a carousel child."
+                      }
+                    },
+                    "required": [
+                      "connection_id",
+                      "media_type",
+                      "image_url"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "connection_id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "media_type": {
+                        "type": "string",
+                        "enum": [
+                          "CAROUSEL"
+                        ]
+                      },
+                      "children": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 2,
+                        "maxItems": 10,
+                        "description": "Container ids created with `is_carousel_item: true`, in display order."
+                      },
+                      "caption": {
+                        "type": "string",
+                        "maxLength": 2200
+                      }
+                    },
+                    "required": [
+                      "connection_id",
+                      "media_type",
+                      "children"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Container created (not yet live)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "container_id": {
+                          "type": "string",
+                          "description": "Pass as `creation_id` to POST /api/v1/instagram/media/publish."
+                        },
+                        "media_type": {
+                          "type": "string",
+                          "enum": [
+                            "IMAGE",
+                            "CAROUSEL"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "container_id",
+                        "media_type"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `instagram` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection unhealthy, tokenless, or without an IG business account id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error, or Meta refused the container (unreachable image_url, bad aspect ratio)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta container create failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/media/{media_id}": {
+      "get": {
+        "summary": "Read one Instagram media object",
+        "description": "Live proxy of `GET /{ig-media-id}` with the carousel `children` edge expanded. Same fields as the list endpoint. Meta's `media_url` / `thumbnail_url` are short-lived CDN links — fetch them on demand rather than storing them.",
+        "tags": [
+          "Instagram Media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Instagram media id (numeric string)."
+            },
+            "required": true,
+            "description": "Instagram media id (numeric string).",
+            "name": "media_id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Media object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/InstagramMedia"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `instagram` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta media read failed (e.g. media id not on this account)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/media/publish": {
+      "post": {
+        "summary": "Publish an Instagram media container (publish step 2)",
+        "description": "Live proxy of `POST /{ig-user-id}/media_publish`. Makes the container live and returns the published `media_id`, readable via `GET /api/v1/instagram/media/{media_id}`. Atribu adds no polling, retry or scheduling — a container Meta has not finished processing surfaces as a classified provider error for the caller to retry on its own terms. Meta caps publishing at 25 posts per 24h per account; exceeding it comes back as a rate-limit error.",
+        "tags": [
+          "Instagram Media"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "creation_id": {
+                    "type": "string",
+                    "description": "The `container_id` from POST /api/v1/instagram/media."
+                  }
+                },
+                "required": [
+                  "connection_id",
+                  "creation_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Media published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "media_id": {
+                          "type": "string",
+                          "description": "The now-live Instagram media id."
+                        },
+                        "creation_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "media_id",
+                        "creation_id"
+                      ]
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `instagram` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection unhealthy, tokenless, or without an IG business account id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error, or Meta refused the publish",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Meta's 25-posts-per-24h publishing limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta publish failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/webhooks/subscriptions": {
       "get": {
         "summary": "List webhook subscriptions",
@@ -12833,7 +14653,8 @@
                         "template.updated",
                         "channel.health.updated",
                         "call.status.updated",
-                        "call.permission.updated"
+                        "call.permission.updated",
+                        "comment.received"
                       ]
                     }
                   },

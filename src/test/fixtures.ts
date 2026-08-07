@@ -429,6 +429,85 @@ export const responseFixtures = {
     };
   },
 
+  // ----- WhatsApp flows -----
+  whatsappFlowList() {
+    return {
+      data: [
+        {
+          id: "1234567890",
+          name: "Reserva de hora",
+          status: "PUBLISHED",
+          categories: ["APPOINTMENT_BOOKING"],
+          validation_errors: [],
+        },
+        {
+          id: "1234567891",
+          name: "Encuesta post-visita",
+          status: "DRAFT",
+          categories: ["SURVEY"],
+          validation_errors: [],
+        },
+      ],
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappFlowCreated(overrides?: { id?: string }) {
+    return {
+      data: { id: overrides?.id ?? "1234567890" },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappFlowDetail(overrides?: { id?: string; status?: string }) {
+    return {
+      data: {
+        id: overrides?.id ?? "1234567890",
+        name: "Reserva de hora",
+        status: overrides?.status ?? "PUBLISHED",
+        categories: ["APPOINTMENT_BOOKING"],
+        validation_errors: [],
+        json_version: "7.2",
+        data_api_version: "3.0",
+        preview: {
+          preview_url: "https://business.facebook.com/wa/manage/flows/1234567890/preview",
+          expires_at: "2026-08-10T12:00:00Z",
+        },
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappFlowSuccess() {
+    return {
+      data: { success: true },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappFlowAssets() {
+    return {
+      data: [
+        {
+          name: "flow.json",
+          asset_type: "FLOW_JSON",
+          download_url: "https://mock.atribu.test/flow-assets/flow.json",
+        },
+      ],
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  whatsappFlowJsonUpload(overrides?: { validationErrors?: Array<Record<string, unknown>> }) {
+    return {
+      data: {
+        success: true,
+        validation_errors: overrides?.validationErrors ?? [],
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
   // ----- WhatsApp broadcasts (Phase 1) -----
   whatsappBroadcast(overrides?: { id?: string; status?: string }) {
     return {
@@ -674,6 +753,77 @@ export const responseFixtures = {
   instagramTriggerResumed() {
     return {
       data: { resumed: true },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  // ----- Instagram media (live Meta passthrough — no Atribu mirror) -----
+  instagramMedia(overrides?: { id?: string; media_type?: string }) {
+    return {
+      id: overrides?.id ?? "17920000000000000",
+      caption: "Recién llegado 🚗",
+      media_url: "https://scontent.cdninstagram.com/v/fixture-1.jpg",
+      permalink: "https://www.instagram.com/p/FIXTURE1/",
+      timestamp: "2026-08-01T12:00:00+0000",
+      media_type: overrides?.media_type ?? "IMAGE",
+      thumbnail_url: null,
+      children: null,
+    };
+  },
+
+  instagramMediaList() {
+    return {
+      data: [
+        this.instagramMedia(),
+        {
+          ...this.instagramMedia({ id: "17920000000000001", media_type: "CAROUSEL_ALBUM" }),
+          media_url: null,
+          children: [
+            {
+              id: "17920000000000002",
+              media_type: "IMAGE",
+              media_url: "https://scontent.cdninstagram.com/v/fixture-2a.jpg",
+              thumbnail_url: null,
+              permalink: null,
+            },
+            {
+              id: "17920000000000003",
+              media_type: "IMAGE",
+              media_url: "https://scontent.cdninstagram.com/v/fixture-2b.jpg",
+              thumbnail_url: null,
+              permalink: null,
+            },
+          ],
+        },
+      ],
+      pagination: { has_next: true, cursor: "QVFIUmZ..." },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  instagramMediaDetail(overrides?: { id?: string; media_type?: string }) {
+    return {
+      data: this.instagramMedia(overrides),
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  instagramMediaContainer(overrides?: { id?: string; media_type?: "IMAGE" | "CAROUSEL" }) {
+    return {
+      data: {
+        container_id: overrides?.id ?? "17889455560051444",
+        media_type: overrides?.media_type ?? "IMAGE",
+      },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  instagramMediaPublished(overrides?: { mediaId?: string; creationId?: string }) {
+    return {
+      data: {
+        media_id: overrides?.mediaId ?? "17920000000000000",
+        creation_id: overrides?.creationId ?? "17889455560051444",
+      },
       meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
     };
   },

@@ -20,6 +20,7 @@ export {
   type WhatsAppStateSyncItem,
   type InstagramMessageReceivedEvent,
   type InstagramMessageDeliveryEvent,
+  type InstagramCommentReceivedEvent,
   type InstagramMessageReceivedData,
   type InstagramFbLoginMessageData,
   type InstagramFbLoginPostbackData,

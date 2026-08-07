@@ -7,6 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0]
+
+### Added
+
+- `instagram.media` — Instagram media reads, proxied live to Meta:
+
+  - `list({ connectionId, limit?, after? })` → `{ media, nextCursor, hasNext }`.
+    Newest first, Meta's own cursor forwarded verbatim — pass `nextCursor` back
+    as `after` to page. `hasNext` keys off Meta's `paging.next`, so the cursor
+    you get is never a dead one.
+  - `get(mediaId, { connectionId })` → one media object.
+
+  Each item is `id`, `caption`, `media_url`, `permalink`, `timestamp`,
+  `media_type`, `thumbnail_url` and `children` — carousel items expanded, `null`
+  for non-carousel media. `media_url` is `null` on a `CAROUSEL_ALBUM` parent
+  (the children carry the URLs), and Meta's media/thumbnail URLs are short-lived
+  CDN links: fetch them on demand rather than storing them.
+
+  There is no Atribu-side mirror behind this. Every call hits Meta, so `list()`
+  reflects the account as it is right now — a post published seconds ago is
+  present, an edited caption is current, a deleted post is gone.
+
+- `instagram.media` — Content Publishing, keeping Meta's two-step model:
+
+  - `createContainer(input, opts?)` → `{ container_id, media_type }`. Nothing is
+    visible on the account yet. `input` is either
+    `{ connection_id, media_type: "IMAGE", image_url, caption?, is_carousel_item? }`
+    or `{ connection_id, media_type: "CAROUSEL", children, caption? }` (2–10
+    container ids created with `is_carousel_item: true`).
+  - `publish({ connection_id, creation_id }, opts?)` → `{ media_id, creation_id }`.
+
+  The two steps are deliberately not collapsed into a one-shot helper: a
+  carousel is built from the intermediate container ids, and readiness/retry
+  belong to your app, not to Atribu. Nothing here polls, retries or schedules —
+  a container Meta has not finished processing surfaces as a classified error,
+  and Meta's 25-posts-per-24h cap surfaces as `AtribuApiError` status 429.
+
+  Video / Reels / Stories containers are not covered yet (they are Meta's async
+  upload surface); `media_type` accepts `IMAGE` and `CAROUSEL`.
+
+  Requires the connection to have been authorized with Instagram's
+  content-publishing permission (`instagram_business_content_publish` on
+  ig_login, `instagram_content_publish` on fb_login) — connections authorized
+  before this release need to reconnect.
+
+- Test-kit parity: `atribuMockHandlers` gains `instagram.media` overrides
+  (`list`, `get`, `createContainer`, `publish`) plus fixtures, so consumer test
+  setups running with `onUnhandledRequest: "error"` keep working.
+
+- `comment.received` webhook event — an Instagram comment landed on a
+  connected post (ig_login `field=comments` or fb_login `field=feed`).
+  Fanned out for EVERY inbound comment, unconditional on whether it matched
+  an internal comment-to-DM trigger. New `InstagramCommentReceivedEvent`
+  type in the `AtribuWebhookEvent` union: `comment_id`, `from_id`,
+  `from_username`, `text`, `media_id`, `ad_id` (boosted/ad posts only),
+  `parent_id` (set on comment replies), `raw`.
+
+- `InstagramContact` / `GetContactOptions` are now re-exported from the package
+  root; they were previously reachable only through the namespace module.
+
+## [1.15.0]
+
+### Added
+
+- `whatsapp.flows` — full WhatsApp Flows lifecycle: `list()`, `create()`,
+  `get()` (incl. `validation_errors` + web preview URL), `update()` (metadata),
+  `delete()` (drafts only), `listAssets()`, `uploadFlowJson()` (object or
+  pre-serialized string; the server builds Meta's multipart upload),
+  `publish()` and `deprecate()`. Flows are proxied 1:1 to Meta — there is no
+  local mirror, so `list()` always reflects live status.
+
+- `content.type: "flow"` on `messages.send()` — sends a Meta-hosted
+  multi-screen form behind a CTA button: `flow_id`, `body`, `cta` (≤30 chars),
+  optional `header` / `footer` / `flow_token` / `flow_action`
+  (`navigate` | `data_exchange`) / `action_payload` (`navigate` only) /
+  `mode` (`draft` for testing unpublished flows). The customer's answers come
+  back on the `message.received` webhook as
+  `raw.interactive.nfm_reply.response_json` — no new webhook event type, so
+  existing webhook consumers need no changes to start receiving flow replies.
+
+  `header` takes a string (text header) **or** a media object
+  `{ type: "image" | "video" | "document", media_id | link }` (exactly one of
+  `media_id`/`link`). Note: Meta's Flows send guide documents only text
+  headers on interactive flow messages — the media form is a permissive
+  passthrough, and a Graph refusal surfaces as a classified provider error.
+
+- `FLOW` button on `whatsapp.templates.create()` —
+  `{ type: "FLOW", text, flow_id, navigate_screen?, flow_action? }` (at most
+  one per template). The out-of-window flow path: a template whose button
+  opens a WhatsApp Flow. Per-send flow params ride the existing template
+  `components` passthrough on `messages.send()` as a `sub_type: "flow"`
+  button component — no new send surface.
+
 ## [1.14.0]
 
 ### Added
