@@ -381,7 +381,7 @@ await atribu.instagram.triggers.delete(trigger.id);
 await atribu.instagram.triggers.resumeCircuit({ connectionId });
 ```
 
-### Read Instagram media
+### Read Instagram media (v1.16.0+)
 
 Every call proxies Meta live — there is no Atribu-side mirror behind this, so
 what you read is the account as it is right now.
@@ -412,7 +412,7 @@ const media = await atribu.instagram.media.get("17920000000000000", { connection
 `media_url` / `thumbnail_url` are short-lived Meta CDN links — fetch them on
 demand rather than storing them.
 
-### Publish to Instagram
+### Publish to Instagram (v1.16.0+)
 
 Meta's publish flow is two steps — a container, then a publish — and this SDK
 keeps it two steps. Nothing appears on the account until `publish()` runs.
@@ -461,6 +461,66 @@ been authorized with Instagram's content-publishing permission
 `instagram_content_publish` on fb_login) — connections authorized before SDK
 1.16.0 need to reconnect. Video / Reels / Stories containers are not covered
 yet.
+
+### Read Instagram conversations (v1.17.0+)
+
+Also a live Meta read. Useful for importing an account's existing DM history
+into a CRM, but **read the two limits below before promising anyone a full
+archive** — both are enforced by Meta server-side and nothing on this side can
+work around them.
+
+```typescript
+// Page the inbox, then pull each thread.
+let cursor: string | null = null;
+do {
+  const page = await atribu.instagram.conversations.list({
+    connectionId,
+    ...(cursor ? { after: cursor } : {}),
+  });
+
+  for (const convo of page.conversations) {
+    const thread = await atribu.instagram.conversations.messages(convo.id, {
+      connectionId,
+    });
+
+    // `message === null` means Meta withheld the body, not that it was empty.
+    const readable = thread.messages.filter((m) => m.message !== null);
+    const withheld = thread.messages.length - readable.length;
+    // ...persist `readable`; record `withheld` so the sales team knows the
+    // transcript is truncated rather than assuming it is complete.
+  }
+
+  cursor = page.nextCursor;
+} while (cursor);
+
+// Just the thread with one known person:
+const { conversations } = await atribu.instagram.conversations.list({
+  connectionId,
+  userId: igsid,
+});
+```
+
+**Only the 20 most recent messages of a thread carry content.** Older messages
+still enumerate, but Meta refuses their body: they come back with `message`,
+`from`, `to` and `attachments` all `null`, carrying only `id` and
+`created_time`. That is passed through exactly as Meta returned it — the SDK
+never substitutes a placeholder, so a `null` body is always Meta's answer and
+never Atribu's invention. There is no parameter, permission or pagination trick
+that lifts this cap.
+
+**Requests-folder threads with no activity for 30+ days are not returned at
+all.** They are absent from `list()` — not truncated, not throttled. Once a
+thread has aged out there is no way to recover it, so run a history import
+sooner rather than later.
+
+`updated_time` is a *last-activity* stamp. Meta exposes no conversation-creation
+time, so it cannot tell you how far back a thread goes.
+
+Reads need the connection's messaging permission
+(`instagram_business_manage_messages` on ig_login,
+`instagram_manage_messages` + `pages_manage_metadata` on fb_login). A
+conversation id Meta cannot resolve throws `AtribuApiError` with status 422 and
+the Meta code in the message, not an opaque transport error.
 
 ### List authorized connections
 
@@ -771,6 +831,7 @@ WhatsApp + Instagram failures from the underlying Meta APIs now arrive with the 
 | Meta App Review pending | `403 forbidden` | The capability needs Meta App Review for non-tester users. No retry. |
 | Permanently rejected (e.g. recipient stopped marketing on WA — code 131050) | Recipient row only — broadcast keeps going. `whatsapp_broadcast_recipients.error_reason_code` carries the stable Meta classifier code (e.g. `"meta_131050"`) so you can dedupe permanently-failed recipients on the next broadcast create. |
 | Request too complex | `400 invalid_request` | Caller must split into smaller batches. |
+| Object does not exist (code 100 / subcode 33) | `422 invalid_request` | Meta refuses the read: a message past the 20-message history window, or a conversation id that is not on the calling account. Permanent — do not retry. Before v1.17.0 this fell through to the transient path and surfaced as a `502`, whose JSON body the edge replaced with its own error page — so the SDK saw an `http_502` with nothing actionable in it. |
 | Transient Meta failure | `502 provider_error` | Retry with backoff (`err.retry.action === "retry"`). |
 
 ### Reconnect-required (WhatsApp, v1.6.0+)
@@ -965,6 +1026,8 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `instagram.media.get()` | Read one media object, carousel children expanded |
 | `instagram.media.createContainer()` | Publish step 1 — create an IMAGE or CAROUSEL container |
 | `instagram.media.publish()` | Publish step 2 — make a container live |
+| `instagram.conversations.list()` | Page the account's inbox (live Meta read); `userId` narrows to one thread |
+| `instagram.conversations.messages()` | Read a thread's messages — newest 20 carry content, older ones id + timestamp only |
 
 ### Webhook verification — `@atribu/node/webhooks`
 | Symbol | Description |

@@ -7682,6 +7682,217 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instagram/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the connected Instagram account's conversations
+         * @description Live proxy of `GET /{node-id}/conversations?platform=instagram` — one page of the account's inbox, with Meta's own cursor forwarded as `pagination.cursor` (pass it back as `after`). Pass `user_id` (an IGSID) to get just the thread with that person, Meta's documented single-thread filter. Not served from any Atribu mirror. **Two Meta-side limits apply and cannot be overridden:** conversations sitting in the Requests folder with no activity for 30+ days are not returned at all (there is no folder parameter, and no way to recover them once they have aged out), and `updated_time` is a last-activity stamp rather than a creation time. Requires the `instagram` scope, the connection's messaging permission (`instagram_business_manage_messages` for ig_login, `instagram_manage_messages` + `pages_manage_metadata` for fb_login), and (for OAuth-flow keys) an active authorization for the connection.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    /** @description IGSID — narrows the response to the single conversation with that person. */
+                    user_id?: string;
+                    /** @description Meta page size. Default 25. */
+                    limit?: number;
+                    /** @description Cursor from a previous response's `pagination.cursor`. */
+                    after?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Conversation page */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["InstagramConversation"][];
+                            pagination: components["schemas"]["Pagination"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `instagram` scope or OAuth-app not authorized for this connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection unhealthy, tokenless, or missing the node the conversations edge hangs off (page_id for fb_login, ig_business_account_id for ig_login) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error, or Meta refused the read */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Meta's 2-calls-per-second-per-account messaging limit reached */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta conversations list failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instagram/conversations/{conversation_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the messages in an Instagram conversation
+         * @description Live proxy of `GET /{conversation-id}/messages` — one page of a thread's messages, newest first, with the full content field set (`message`, `from`, `to`, `attachments`, `shares`, `reactions`) requested in the same call, so reading a whole inbox costs roughly one call per conversation rather than one per message. **Meta serves content for the 20 most recent messages of a thread only.** Older messages still enumerate, but Meta withholds their body: they arrive with `message: null` and null content fields, carrying just `id` + `created_time`. That is passed through exactly as Meta returned it — Atribu does not fail the page and does not substitute a placeholder record, because deciding what a truncated transcript means is the consumer's business logic. A conversation id that is not on this account surfaces as a 422 with the Meta code intact, not an opaque 502.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    /** @description Meta page size. Default 25. */
+                    limit?: number;
+                    /** @description Cursor from a previous response's `pagination.cursor`. */
+                    after?: string;
+                };
+                header?: never;
+                path: {
+                    /** @description Conversation id from GET /api/v1/instagram/conversations. */
+                    conversation_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Message page */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["InstagramConversationMessage"][];
+                            pagination: components["schemas"]["Pagination"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing `instagram` scope or OAuth-app not authorized for this connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection unhealthy or tokenless */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error, or Meta could not resolve the conversation id */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Meta's 2-calls-per-second-per-account messaging limit reached */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta conversation messages read failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/subscriptions": {
         parameters: {
             query?: never;
@@ -8953,6 +9164,54 @@ export interface components {
             /** @description Video items only. */
             thumbnail_url: string | null;
             permalink: string | null;
+        };
+        InstagramConversation: {
+            /** @description Conversation id — pass to the messages endpoint. */
+            id: string;
+            /** @description When the last message was added. This is a LAST-ACTIVITY stamp: Meta exposes no conversation-creation time, so it cannot tell you how far back a thread goes. */
+            updated_time: string | null;
+            participants: components["schemas"]["InstagramConversationParticipant"][];
+        };
+        InstagramConversationParticipant: {
+            /** @description IGSID of the participant (or the account's own id). */
+            id: string;
+            /** @description @handle — Instagram threads. */
+            username: string | null;
+            /** @description Display name — Page threads only. */
+            name: string | null;
+        };
+        InstagramConversationMessage: {
+            id: string;
+            /** @description ISO-8601 send time. */
+            created_time: string | null;
+            /** @description Text body, or null when Meta withheld it — the documented outcome for any message past the 20 most recent in the thread. The id and created_time still identify the message. */
+            message: string | null;
+            from: components["schemas"]["InstagramMessageParty"];
+            to: components["schemas"]["InstagramMessageParty"][] | null;
+            attachments: components["schemas"]["InstagramMessageAttachment"][] | null;
+            shares: components["schemas"]["InstagramMessageAttachment"][] | null;
+            reactions: {
+                reaction: string | null;
+                username: string | null;
+            }[] | null;
+            /** @description Meta returns this only when true. */
+            is_unsupported: boolean | null;
+        };
+        InstagramMessageParty: {
+            id: string;
+            username: string | null;
+            name: string | null;
+            /** @description Page threads only. */
+            email: string | null;
+        } | null;
+        /** @description Meta returns only a URL for shared media — a shared post or reel does not come back as a re-hostable asset. */
+        InstagramMessageAttachment: {
+            id: string | null;
+            mime_type: string | null;
+            name: string | null;
+            file_url: string | null;
+            image_url: string | null;
+            video_url: string | null;
         };
     };
     responses: never;

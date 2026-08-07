@@ -944,6 +944,244 @@
           "thumbnail_url",
           "permalink"
         ]
+      },
+      "InstagramConversation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Conversation id — pass to the messages endpoint."
+          },
+          "updated_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the last message was added. This is a LAST-ACTIVITY stamp: Meta exposes no conversation-creation time, so it cannot tell you how far back a thread goes."
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstagramConversationParticipant"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "updated_time",
+          "participants"
+        ]
+      },
+      "InstagramConversationParticipant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "IGSID of the participant (or the account's own id)."
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "@handle — Instagram threads."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name — Page threads only."
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "name"
+        ]
+      },
+      "InstagramConversationMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "created_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO-8601 send time."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Text body, or null when Meta withheld it — the documented outcome for any message past the 20 most recent in the thread. The id and created_time still identify the message."
+          },
+          "from": {
+            "$ref": "#/components/schemas/InstagramMessageParty"
+          },
+          "to": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InstagramMessageParty"
+            }
+          },
+          "attachments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InstagramMessageAttachment"
+            }
+          },
+          "shares": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InstagramMessageAttachment"
+            }
+          },
+          "reactions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "reaction": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "username": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "reaction",
+                "username"
+              ]
+            }
+          },
+          "is_unsupported": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Meta returns this only when true."
+          }
+        },
+        "required": [
+          "id",
+          "created_time",
+          "message",
+          "from",
+          "to",
+          "attachments",
+          "shares",
+          "reactions",
+          "is_unsupported"
+        ]
+      },
+      "InstagramMessageParty": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Page threads only."
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "name",
+          "email"
+        ]
+      },
+      "InstagramMessageAttachment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "image_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "video_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "mime_type",
+          "name",
+          "file_url",
+          "image_url",
+          "video_url"
+        ],
+        "description": "Meta returns only a URL for shared media — a shared post or reel does not come back as a re-hostable asset."
       }
     },
     "parameters": {
@@ -14482,6 +14720,302 @@
           },
           "502": {
             "description": "Upstream Meta publish failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/conversations": {
+      "get": {
+        "summary": "List the connected Instagram account's conversations",
+        "description": "Live proxy of `GET /{node-id}/conversations?platform=instagram` — one page of the account's inbox, with Meta's own cursor forwarded as `pagination.cursor` (pass it back as `after`). Pass `user_id` (an IGSID) to get just the thread with that person, Meta's documented single-thread filter. Not served from any Atribu mirror. **Two Meta-side limits apply and cannot be overridden:** conversations sitting in the Requests folder with no activity for 30+ days are not returned at all (there is no folder parameter, and no way to recover them once they have aged out), and `updated_time` is a last-activity stamp rather than a creation time. Requires the `instagram` scope, the connection's messaging permission (`instagram_business_manage_messages` for ig_login, `instagram_manage_messages` + `pages_manage_metadata` for fb_login), and (for OAuth-flow keys) an active authorization for the connection.",
+        "tags": [
+          "Instagram Conversations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "IGSID — narrows the response to the single conversation with that person."
+            },
+            "required": false,
+            "description": "IGSID — narrows the response to the single conversation with that person.",
+            "name": "user_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Meta page size. Default 25."
+            },
+            "required": false,
+            "description": "Meta page size. Default 25.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Cursor from a previous response's `pagination.cursor`."
+            },
+            "required": false,
+            "description": "Cursor from a previous response's `pagination.cursor`.",
+            "name": "after",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InstagramConversation"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "pagination",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `instagram` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection unhealthy, tokenless, or missing the node the conversations edge hangs off (page_id for fb_login, ig_business_account_id for ig_login)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error, or Meta refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Meta's 2-calls-per-second-per-account messaging limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta conversations list failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instagram/conversations/{conversation_id}/messages": {
+      "get": {
+        "summary": "Read the messages in an Instagram conversation",
+        "description": "Live proxy of `GET /{conversation-id}/messages` — one page of a thread's messages, newest first, with the full content field set (`message`, `from`, `to`, `attachments`, `shares`, `reactions`) requested in the same call, so reading a whole inbox costs roughly one call per conversation rather than one per message. **Meta serves content for the 20 most recent messages of a thread only.** Older messages still enumerate, but Meta withholds their body: they arrive with `message: null` and null content fields, carrying just `id` + `created_time`. That is passed through exactly as Meta returned it — Atribu does not fail the page and does not substitute a placeholder record, because deciding what a truncated transcript means is the consumer's business logic. A conversation id that is not on this account surfaces as a 422 with the Meta code intact, not an opaque 502.",
+        "tags": [
+          "Instagram Conversations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Conversation id from GET /api/v1/instagram/conversations."
+            },
+            "required": true,
+            "description": "Conversation id from GET /api/v1/instagram/conversations.",
+            "name": "conversation_id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "connection_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Meta page size. Default 25."
+            },
+            "required": false,
+            "description": "Meta page size. Default 25.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Cursor from a previous response's `pagination.cursor`."
+            },
+            "required": false,
+            "description": "Cursor from a previous response's `pagination.cursor`.",
+            "name": "after",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Message page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InstagramConversationMessage"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "pagination",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing `instagram` scope or OAuth-app not authorized for this connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Connection unhealthy or tokenless",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error, or Meta could not resolve the conversation id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Meta's 2-calls-per-second-per-account messaging limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream Meta conversation messages read failed",
             "content": {
               "application/json": {
                 "schema": {

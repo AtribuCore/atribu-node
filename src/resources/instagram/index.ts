@@ -2,6 +2,7 @@ import type { HttpClientLike } from "../../http";
 import { InstagramTriggersResource } from "./triggers";
 import { InstagramContactsResource } from "./contacts";
 import { InstagramMediaResource } from "./media";
+import { InstagramConversationsResource } from "./conversations";
 
 /**
  * Instagram-specific resource namespace. Mounted on `AtribuClient.instagram`.
@@ -12,11 +13,13 @@ export class InstagramNamespace {
   readonly triggers: InstagramTriggersResource;
   readonly contacts: InstagramContactsResource;
   readonly media: InstagramMediaResource;
+  readonly conversations: InstagramConversationsResource;
 
   constructor(http: HttpClientLike) {
     this.triggers = new InstagramTriggersResource(http);
     this.contacts = new InstagramContactsResource(http);
     this.media = new InstagramMediaResource(http);
+    this.conversations = new InstagramConversationsResource(http);
   }
 }
 
@@ -38,3 +41,14 @@ export type {
   InstagramMediaReadOptions,
   InstagramMediaWriteOptions,
 } from "./media";
+export type {
+  InstagramConversation,
+  InstagramConversationParticipant,
+  InstagramConversationMessage,
+  InstagramConversationPage,
+  InstagramConversationMessagePage,
+  InstagramMessageParty,
+  InstagramMessageAttachment,
+  InstagramConversationListOptions,
+  InstagramConversationMessagesOptions,
+} from "./conversations";

@@ -103,6 +103,10 @@ export interface MockOverrides {
       createContainer?: EndpointOverride;
       publish?: EndpointOverride;
     };
+    conversations?: {
+      list?: EndpointOverride;
+      messages?: EndpointOverride;
+    };
   };
   oauth?: {
     token?: EndpointOverride;
@@ -371,6 +375,24 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
     ),
     http.post(u("/api/v1/instagram/media"), () =>
       resolve(overrides.instagram?.media?.createContainer, 201, responseFixtures.instagramMediaContainer()),
+    ),
+
+    // ----- Instagram conversations (inbox read) -----
+    // The nested `/messages` route is registered BEFORE the collection so the
+    // more specific pattern wins, same registration-order rule as media.
+    http.get(u("/api/v1/instagram/conversations/:conversation_id/messages"), () =>
+      resolve(
+        overrides.instagram?.conversations?.messages,
+        200,
+        responseFixtures.instagramConversationMessageList(),
+      ),
+    ),
+    http.get(u("/api/v1/instagram/conversations"), () =>
+      resolve(
+        overrides.instagram?.conversations?.list,
+        200,
+        responseFixtures.instagramConversationList(),
+      ),
     ),
 
     // ----- OAuth -----

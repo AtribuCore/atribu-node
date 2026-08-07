@@ -152,4 +152,13 @@ export type {
   InstagramMediaListOptions,
   InstagramMediaReadOptions,
   InstagramMediaWriteOptions,
+  InstagramConversation,
+  InstagramConversationParticipant,
+  InstagramConversationMessage,
+  InstagramConversationPage,
+  InstagramConversationMessagePage,
+  InstagramMessageParty,
+  InstagramMessageAttachment,
+  InstagramConversationListOptions,
+  InstagramConversationMessagesOptions,
 } from "./resources/instagram";

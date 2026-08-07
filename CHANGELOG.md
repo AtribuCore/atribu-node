@@ -5,7 +5,44 @@ All notable changes to `@atribu/node` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.17.0]
+
+### Added
+
+- `instagram.conversations` — the Instagram inbox read, proxied live to Meta:
+
+  - `list({ connectionId, userId?, limit?, after? })` →
+    `{ conversations, nextCursor, hasNext }`. One page of the account's
+    conversations with participants and `updated_time`; Meta's own cursor is
+    forwarded verbatim. `userId` (an IGSID) narrows the response to the single
+    thread with that person instead of paging the whole inbox.
+  - `messages(conversationId, { connectionId, limit?, after? })` →
+    `{ messages, nextCursor, hasNext }`. A thread's messages, newest first,
+    with `message` / `from` / `to` / `attachments` / `shares` / `reactions`
+    already expanded — so reading a whole inbox costs roughly one call per
+    conversation, not one per message.
+
+  Two Meta-side limits shape any history import and neither can be worked
+  around: **only the 20 most recent messages of a thread carry content** (older
+  ones arrive with a `null` body and just `id` + `created_time`), and
+  **Requests-folder threads inactive for 30+ days are not returned at all**.
+  Withheld bodies are passed through as Meta returned them — the SDK never
+  substitutes a placeholder record, so `message === null` reliably means "Meta
+  would not give it to us" rather than "the message was empty".
+
+  The mock kit at `@atribu/node/test` covers both endpoints, and its message
+  fixture spans the 20-message boundary so truncation handling can be tested
+  without a live account.
+
+### Fixed
+
+- A Meta "object does not exist" refusal (code 100 / subcode 33) is now
+  classified as permanently fatal, so it surfaces as a `422 invalid_request`
+  carrying the Meta code instead of a `502`. Previously it fell through to the
+  transient path, and the 502's JSON body was replaced by the edge's own error
+  page — the SDK saw an `http_502` with nothing actionable in it. This is the
+  error Meta returns for a message past the 20-message window and for a
+  conversation id that is not on the calling account.
 
 ## [1.16.1]
 

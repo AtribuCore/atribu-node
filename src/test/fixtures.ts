@@ -827,6 +827,72 @@ export const responseFixtures = {
       meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
     };
   },
+
+  // ----- Instagram conversations (live Meta passthrough — no Atribu mirror) -----
+  instagramConversation(overrides?: { id?: string; username?: string; updated_time?: string }) {
+    return {
+      id: overrides?.id ?? "aWdfZAG06MTpJR01lc3NhZ2VUaHJlYWQ6MQ",
+      // Last-activity stamp — Meta exposes no conversation-creation time.
+      updated_time: overrides?.updated_time ?? "2026-08-01T12:00:00+0000",
+      participants: [
+        { id: "9001", username: overrides?.username ?? "jane.doe", name: null },
+        { id: "17841400000000001", username: "concesionario", name: null },
+      ],
+    };
+  },
+
+  instagramConversationList() {
+    return {
+      data: [
+        this.instagramConversation(),
+        this.instagramConversation({
+          id: "aWdfZAG06MTpJR01lc3NhZ2VUaHJlYWQ6Mg",
+          username: "carlos.p",
+          updated_time: "2026-07-30T09:15:00+0000",
+        }),
+      ],
+      pagination: { has_next: true, cursor: "QVFIUmNvbnZv..." },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
+
+  /**
+   * A thread as Meta actually returns one across the 20-message boundary: the
+   * recent message carries its body, the older one comes back as id +
+   * created_time with every content field withheld. Consumers should be able to
+   * exercise that truncation without a live account.
+   */
+  instagramConversationMessageList() {
+    return {
+      data: [
+        {
+          id: "aWdfZAG1pZA1",
+          created_time: "2026-08-01T12:00:00+0000",
+          message: "¿Sigue disponible el Corolla?",
+          from: { id: "9001", username: "jane.doe", name: null, email: null },
+          to: [{ id: "17841400000000001", username: "concesionario", name: null, email: null }],
+          attachments: null,
+          shares: null,
+          reactions: null,
+          is_unsupported: null,
+        },
+        {
+          // Past the 20 most recent — Meta withholds the body.
+          id: "aWdfZAG1pZA21",
+          created_time: "2025-02-11T08:00:00+0000",
+          message: null,
+          from: null,
+          to: null,
+          attachments: null,
+          shares: null,
+          reactions: null,
+          is_unsupported: null,
+        },
+      ],
+      pagination: { has_next: false },
+      meta: { profile_id: SAMPLE_PROFILE_ID, connection_id: SAMPLE_CONNECTION_ID },
+    };
+  },
 };
 
 /** Combined export so consumers can `import { fixtures } from "@atribu/node/test"`. */
