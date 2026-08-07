@@ -396,7 +396,9 @@ do {
     ...(cursor ? { after: cursor } : {}),
   });
   for (const media of page.media) {
-    // media_url is null on a CAROUSEL_ALBUM parent — read `children` instead.
+    // On a CAROUSEL_ALBUM, read `children` for the per-item URLs. The parent's
+    // own media_url is whatever Meta chooses to return — sometimes a cover
+    // image, sometimes null — so don't treat it as the album's contents.
     console.log(media.media_type, media.permalink, media.caption);
     for (const child of media.children ?? []) console.log("  ", child.media_url);
   }

@@ -8933,7 +8933,7 @@ export interface components {
         InstagramMedia: {
             id: string;
             caption: string | null;
-            /** @description Short-lived CDN URL. null on CAROUSEL_ALBUM parents — read the children instead. */
+            /** @description Short-lived CDN URL, or null when Meta omits it. A CAROUSEL_ALBUM parent may carry its own cover URL or not — read `children` for the per-item URLs rather than relying on the parent. */
             media_url: string | null;
             permalink: string | null;
             /** @description ISO-8601 publish time. */

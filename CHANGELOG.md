@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.1]
+
+### Fixed
+
+- Docs only, no behaviour change. 1.16.0 documented `media_url` as always
+  `null` on a `CAROUSEL_ALBUM` parent. Live accounts return a cover URL on some
+  album parents and `null` on others, so the field is now described as
+  Meta-dependent. `children` remains the way to read an album's items — that
+  part was, and stays, correct.
+
 ## [1.16.0]
 
 ### Added
@@ -21,9 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Each item is `id`, `caption`, `media_url`, `permalink`, `timestamp`,
   `media_type`, `thumbnail_url` and `children` — carousel items expanded, `null`
-  for non-carousel media. `media_url` is `null` on a `CAROUSEL_ALBUM` parent
-  (the children carry the URLs), and Meta's media/thumbnail URLs are short-lived
-  CDN links: fetch them on demand rather than storing them.
+  for non-carousel media. On a `CAROUSEL_ALBUM`, read `children` for the
+  per-item URLs; the parent's own `media_url` is Meta-dependent (a cover image
+  on some albums, `null` on others). Meta's media/thumbnail URLs are
+  short-lived CDN links: fetch them on demand rather than storing them.
 
   There is no Atribu-side mirror behind this. Every call hits Meta, so `list()`
   reflects the account as it is right now — a post published seconds ago is
