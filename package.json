@@ -71,7 +71,7 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.1.2",
     "jose": "^6.0.0",
     "msw": "^2.14.6",
     "openapi-typescript": "^7.0.0",
