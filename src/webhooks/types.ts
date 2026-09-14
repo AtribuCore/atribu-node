@@ -16,15 +16,29 @@
  * an unknown event is not a soft failure: the create call 400s, the dealer
  * ends up with no subscription, and their inbound delivery is silently dark.
  *
- * Mirrors `src/lib/webhooks/event-types.ts` in the server repo. The two are a
- * published-package boundary apart, so they cannot import each other; a drift
- * test in the server repo holds them equal.
+ * Mirrors `packages/atribu-api-contract/src/webhook-event-types.ts` in the
+ * server repo. The two are a published-package boundary apart, so they cannot
+ * import each other; a drift test in the server repo holds them equal.
  */
 export const WEBHOOK_PROVIDERS = [
   "whatsapp",
   "instagram",
   "email",
   "google_calendar",
+  "shopify",
+  // Atribu itself — the provider carried by every PLATFORM LIFECYCLE event
+  // (connection.*, handoff.completed, recompute.completed,
+  // conversion.attributed, export.*, profile.freshness.changed).
+  //
+  // Subscriptions match on providers AND events, so these are opt-in: put
+  // atribu in your subscription's `providers` or you will receive none of
+  // them, however you set `events`. For a connection.* event the connector's
+  // real provider (meta_ads, gohighlevel, whatsapp, …) is in `data.provider`.
+  //
+  // NB: no quoted strings in comments inside this array — the drift guard in
+  // the server repo reads it out of the SOURCE with a regex over quoted
+  // tokens, so a quoted example here becomes a phantom vocabulary entry.
+  "atribu",
 ] as const;
 
 export type WebhookProvider = (typeof WEBHOOK_PROVIDERS)[number];
@@ -42,6 +56,21 @@ export const WEBHOOK_EVENT_TYPES = [
   "call.status.updated",
   "call.permission.updated",
   "comment.received",
+  "catalog.updated",
+  "product.stock.changed",
+  "product.price.changed",
+  "checkout.abandoned",
+  "order.status.changed",
+  // Platform lifecycle (#1049) — all carry provider `atribu`.
+  "connection.connected",
+  "connection.reconnect_required",
+  "connection.revoked",
+  "handoff.completed",
+  "recompute.completed",
+  "conversion.attributed",
+  "export.completed",
+  "export.failed",
+  "profile.freshness.changed",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
@@ -53,8 +82,27 @@ interface BaseEvent {
   occurred_at: string;
   /** The consumer OAuth app id (`oauth_apps.id`). */
   app_id: string;
-  /** The `data_connections.id` the event came from. */
-  connection_id: string;
+  /**
+   * The `data_connections.id` the event came from.
+   *
+   * `null` on the platform lifecycle events that have no connection behind
+   * them — `recompute.completed`, `conversion.attributed`,
+   * `profile.freshness.changed`, and `handoff.completed` / `export.*` when
+   * the work was not scoped to one connector. Every channel event
+   * (`message.*`, `comment.received`, `catalog.updated`, …) still always
+   * carries a string, as does every `connection.*` event.
+   */
+  connection_id: string | null;
+}
+
+/**
+ * A media attachment resolved by Atribu to a hosted, browser-fetchable URL
+ * (signed, ~7-day TTL) — so consumers can render inbound media without a Meta
+ * token. Same shape as the Instagram fan-out's attachments.
+ */
+export interface WhatsAppEventAttachment {
+  type: "image" | "video" | "audio" | "file" | (string & {});
+  payload: { url: string };
 }
 
 export interface WhatsAppMessageReceivedEvent extends BaseEvent {
@@ -68,6 +116,15 @@ export interface WhatsAppMessageReceivedEvent extends BaseEvent {
     /** Meta's message type (text, image, video, audio, document, button, interactive, …). */
     type: string;
     text: string | null;
+    /**
+     * Present on media messages when Atribu resolved the Meta `media_id` to a
+     * hosted URL in time (the server has always emitted this; the SDK type
+     * previously omitted it). Absent on text messages and when resolution
+     * failed/timed out — fall back to
+     * `whatsapp.media.get(mediaId, { connectionId })` with the `media_id`
+     * from `raw`.
+     */
+    attachments?: WhatsAppEventAttachment[];
     /** Full Meta message envelope. */
     raw: Record<string, unknown>;
   };
@@ -90,8 +147,11 @@ export interface WhatsAppMessageDeliveryEvent extends BaseEvent {
 //
 // Unlike `message.received`, these three carry the RAW Meta `change.value` as
 // `data` — `metadata` plus `message_echoes[]` / `history[]` / `state_sync[]` at
-// the top level. Media arrives as a bare Meta `media_id` with no hosted URL;
-// resolve it with `whatsapp.media.get(mediaId, { connectionId })`.
+// the top level. Media inside the Meta payload arrives as a bare `media_id`
+// with no hosted URL; resolve it with
+// `whatsapp.media.get(mediaId, { connectionId })`. `message.echo` additionally
+// carries top-level `data.attachments` with a hosted URL when Atribu could
+// resolve the echo's media in time — `media.get` remains the fallback.
 // ---------------------------------------------------------------------------
 
 export interface WhatsAppCoexistenceMetadata {
@@ -128,6 +188,14 @@ export interface WhatsAppMessageEchoEvent extends BaseEvent {
     metadata: WhatsAppCoexistenceMetadata;
     /** Exactly one echo per delivery. */
     message_echoes: WhatsAppMessageEcho[];
+    /**
+     * Present when the echo carries media (a voice note or photo the staff
+     * sent from the phone) and Atribu resolved its `media_id` to a hosted URL
+     * in time. The echo object itself is untouched — its media stays a bare
+     * `media_id`; when `attachments` is absent, resolve it with
+     * `whatsapp.media.get(mediaId, { connectionId })`.
+     */
+    attachments?: WhatsAppEventAttachment[];
   };
 }
 
@@ -288,6 +356,114 @@ export interface InstagramCommentReceivedEvent extends BaseEvent {
   };
 }
 
+/**
+ * The stock band Atribu derives for a variant. `low_stock` is Atribu's own
+ * threshold (5 or fewer available), not something Shopify reports;
+ * `discontinued` means the product left ACTIVE status or was deleted.
+ */
+export type ShopifyStockState = "in_stock" | "low_stock" | "out_of_stock" | "discontinued";
+
+/**
+ * The catalog changed — a TICKLE, never the data. Pull the changed rows with
+ * `client.commerce.products({ updated_since })`; the event carries only enough
+ * to decide whether a pull is worth making. Emitted once per synced page, so a
+ * large catalog produces several.
+ */
+export interface ShopifyCatalogUpdatedEvent extends BaseEvent {
+  type: "catalog.updated";
+  provider: "shopify";
+  data: {
+    /** The newest `updated_at` in the synced page — the cursor to pull from. */
+    updated_since: string | null;
+    product_count: number;
+  };
+}
+
+/**
+ * A variant CROSSED a stock threshold. Emitted only on a transition, never on
+ * every inventory write — `previous_state` and `state` always differ, and both
+ * are always present (a variant whose previous state was unknown emits
+ * nothing rather than a first-sight event a consumer would read as a change).
+ */
+export interface ShopifyProductStockChangedEvent extends BaseEvent {
+  type: "product.stock.changed";
+  provider: "shopify";
+  data: {
+    /** The Shopify variant gid. */
+    variant_id: string;
+    /** The Shopify product gid the variant belongs to. */
+    product_id: string;
+    previous_state: ShopifyStockState;
+    state: ShopifyStockState;
+    /** Available units across all locations; null when the item is untracked. */
+    quantity: number | null;
+  };
+}
+
+/**
+ * A variant's price DROPPED. Increases are deliberately not emitted: the
+ * consumer-facing use is a price-drop follow-up, and an event for every
+ * increase would be noise a consumer has to filter. `price < previous_price`
+ * always holds.
+ */
+export interface ShopifyProductPriceChangedEvent extends BaseEvent {
+  type: "product.price.changed";
+  provider: "shopify";
+  data: {
+    variant_id: string;
+    product_id: string;
+    /** Decimal amounts in the shop's own currency. */
+    previous_price: number;
+    price: number;
+  };
+}
+
+/**
+ * A checkout was abandoned — no `completed_at`, and Shopify marked it closed or
+ * handed over a recovery URL.
+ *
+ * ONE EVENT PER CHECKOUT, not per delivery: Shopify sends `checkouts/update`
+ * many times for one cart, and the event id is keyed on the checkout so the
+ * repeats collapse. `email` / `phone` are whatever the shopper had entered when
+ * they left, so both are frequently null — a recovery flow has to tolerate that
+ * rather than assume a contact.
+ */
+export interface ShopifyCheckoutAbandonedEvent extends BaseEvent {
+  type: "checkout.abandoned";
+  provider: "shopify";
+  data: {
+    checkout_id: string | null;
+    email: string | null;
+    phone: string | null;
+    /** Shopify's own recovery link, when the shop has recovery enabled. */
+    abandoned_checkout_url: string | null;
+    /** The full Shopify checkout body, for anything not lifted above. */
+    raw: Record<string, unknown>;
+  };
+}
+
+/**
+ * An order reached a fulfilment milestone — the WISMO ("where is my order")
+ * signal.
+ *
+ * ONE EVENT PER (ORDER, STATUS): `orders/updated` fires for every order
+ * mutation, so the event id is keyed on the pair and repeats collapse. The two
+ * milestones are separate events, and `delivered` outranks `fulfilled` on an
+ * order whose fulfilments report delivery.
+ */
+export interface ShopifyOrderStatusChangedEvent extends BaseEvent {
+  type: "order.status.changed";
+  provider: "shopify";
+  data: {
+    order_id: string | null;
+    status: "fulfilled" | "delivered";
+    email: string | null;
+    phone: string | null;
+    /** The full Shopify order body. */
+    raw: Record<string, unknown>;
+  };
+}
+
 export interface EmailEventAddress {
   email: string;
   name: string | null;
@@ -324,6 +500,20 @@ export interface EmailMessageReceivedEvent extends BaseEvent {
     text_body: string | null;
     html_body: string | null;
     attachments: EmailEventAttachment[];
+    /**
+     * Gmail labelIds (e.g. `INBOX`, `CATEGORY_PROMOTIONS`). Always `[]` for
+     * Outlook (no labelId concept).
+     */
+    label_ids: string[];
+    /** `true` when the message carried a `List-Unsubscribe` header. */
+    list_unsubscribe: boolean;
+    /**
+     * Raw `Auto-Submitted` header value, lowercased (e.g.
+     * `"auto-generated"`). `null` when the header is absent.
+     */
+    auto_submitted: string | null;
+    /** Raw `Precedence` header value, lowercased (e.g. `"bulk"`). `null` when the header is absent. */
+    precedence: string | null;
     /** Full provider message envelope. */
     raw: Record<string, unknown>;
   };
@@ -509,6 +699,220 @@ export interface WhatsAppCallPermissionUpdatedEvent extends BaseEvent {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Platform lifecycle (#1049).
+//
+// Everything above this line describes something that happened at a CHANNEL —
+// a message, a comment, a product. Everything below describes something that
+// happened to your integration with Atribu itself: a connector went live or
+// died, a recompute finished, a goal produced its first attributed conversion.
+//
+// All nine carry `provider: "atribu"`, and a subscription only receives them
+// if `"atribu"` is in its `providers`. They exist so an agent never has to
+// poll: before them, `GET /api/v1/profile/freshness` was documented as the one
+// route a consumer was expected to poll, and connect/export completion had no
+// signal at all.
+// ---------------------------------------------------------------------------
+
+/** The reconnect hand-off an agent can call to repair a dead connector. */
+export interface AtribuReconnectAction {
+  method: "POST";
+  /** `{provider}` is a placeholder — substitute `data.provider`. */
+  path: string;
+}
+
+/**
+ * A connector finished connecting — an OAuth consent completed and Atribu can
+ * now read from it. Fires on a re-connect of an existing account too (a
+ * repaired token is news to a consumer that saw it break), which is why
+ * `reconnected` is on the payload rather than being left to inference.
+ */
+export interface ConnectionConnectedEvent extends BaseEvent {
+  type: "connection.connected";
+  provider: "atribu";
+  data: {
+    /** `data_connections.provider` — `meta_ads`, `google_ads`, `gohighlevel`, `whatsapp`, … */
+    provider: string;
+    external_account_id: string | null;
+    external_account_name: string | null;
+    /** `true` when a live connection for this account already existed. */
+    reconnected: boolean;
+  };
+}
+
+/**
+ * A connector's grant died and only a human re-consent can fix it. This is the
+ * event that replaces polling `GET /api/v1/connections` for a broken token.
+ *
+ * `reconnect` names the call that starts the repair — deliberately a route,
+ * not a URL: minting a signed reconnect link on an error path would hand out a
+ * capability from a failure response. Substitute `data.provider` into `path`
+ * and call it with your own credential.
+ */
+export interface ConnectionReconnectRequiredEvent extends BaseEvent {
+  type: "connection.reconnect_required";
+  provider: "atribu";
+  data: {
+    provider: string;
+    /** The `data_connections.status` that was written (`reconnect_required` or `error`). */
+    status: string;
+    /** The provider's own words (`invalid_grant`, `401`, …), truncated. Never a friendly sentence. */
+    reason: string | null;
+    reconnect: AtribuReconnectAction;
+  };
+}
+
+/**
+ * A connector was removed — the merchant disconnected it, or the store
+ * uninstalled the app. Distinct from `connection.reconnect_required`: nothing
+ * is recoverable here, the row is gone or dead, and a consumer should stop
+ * expecting data from it rather than offering a repair.
+ */
+export interface ConnectionRevokedEvent extends BaseEvent {
+  type: "connection.revoked";
+  provider: "atribu";
+  data: {
+    provider: string;
+    external_account_id: string | null;
+    /** Why it ended, e.g. `disconnected_by_user`. */
+    reason: string;
+  };
+}
+
+/**
+ * A pending hand-off — an action only a human could take — was completed.
+ *
+ * Emitted exactly once per hand-off: the transition is guarded on
+ * `status = 'pending'`, so a double-tapped button, a redelivered callback and a
+ * lost race all settle without re-announcing.
+ *
+ * `connection_id` is set when the hand-off named one connector (a `connect`
+ * hand-off records it in `result.connection_id`) and null otherwise.
+ *
+ * A WORKSPACE-level hand-off — `checkout`, and any other minted without a
+ * profile — emits nothing at all: subscriptions are per profile, and there is
+ * no honest profile to attribute it to.
+ */
+export interface HandoffCompletedEvent extends BaseEvent {
+  type: "handoff.completed";
+  provider: "atribu";
+  data: {
+    handoff_id: string;
+    /** `connect` | `pick` | `sign_dpa` | `checkout` | `approve` */
+    kind: string;
+    /**
+     * What the completion produced. Always an object — `{}` when the hand-off
+     * produced nothing — never null, so a consumer reads it without a guard.
+     */
+    result: Record<string, unknown>;
+  };
+}
+
+/**
+ * An attribution recompute finished for the profile. `connection_id` is always
+ * null — a recompute is a property of the profile, not of a connector.
+ *
+ * `skipped_early_exit: true` means the chain found no unattributed conversions
+ * and skipped its middle stages. That is a completed recompute, not a failure,
+ * and the numbers a consumer reads afterwards are current either way.
+ */
+export interface RecomputeCompletedEvent extends BaseEvent {
+  type: "recompute.completed";
+  provider: "atribu";
+  data: {
+    profile_id: string;
+    skipped_early_exit: boolean;
+    /** Narrowed to one conversion, when the job was. */
+    conversion_id: string | null;
+    /** One attribution model, when the job named one. */
+    attribution_model: string | null;
+  };
+}
+
+/**
+ * A conversion definition produced its FIRST attributed conversion. Exactly
+ * one of these per definition, ever — the "first" is recorded durably on the
+ * definition row, so it survives restarts, replays and redeliveries.
+ *
+ * This is the onboarding signal: it is the moment a goal stops being
+ * configuration and starts being data.
+ */
+export interface ConversionAttributedEvent extends BaseEvent {
+  type: "conversion.attributed";
+  provider: "atribu";
+  data: {
+    conversion_definition_id: string;
+    conversion_key: string;
+    display_name: string;
+    /** `cash` | `pipeline` | `none` — only `cash` counts toward ROAS. */
+    revenue_type: string;
+    /** The conversion that did it. */
+    conversion_id: string;
+    conversion_time: string | null;
+  };
+}
+
+/** Per-destination export tallies. */
+export interface ExportDestinationCounts {
+  sent: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
+}
+
+/**
+ * A conversion-export run finished with nothing failed. `sent` can be 0 with
+ * `skipped > 0` — a run that correctly suppressed every candidate is a
+ * completed run, not a failed one.
+ */
+export interface ExportCompletedEvent extends BaseEvent {
+  type: "export.completed";
+  provider: "atribu";
+  data: {
+    profile_id: string;
+    meta: ExportDestinationCounts;
+    google: ExportDestinationCounts;
+    duration_ms: number;
+    /** `true` when the run was an explicit replay of named export rows. */
+    replay: boolean;
+  };
+}
+
+/**
+ * A conversion-export run finished with at least one FAILED candidate. The
+ * counts are the whole run's, not just the failures — a run that sent 400 and
+ * failed 2 reports both, because a consumer that reacts to this event needs to
+ * know it was partial.
+ */
+export interface ExportFailedEvent extends BaseEvent {
+  type: "export.failed";
+  provider: "atribu";
+  data: {
+    profile_id: string;
+    meta: ExportDestinationCounts;
+    google: ExportDestinationCounts;
+    duration_ms: number;
+    replay: boolean;
+  };
+}
+
+/**
+ * The profile's attribution freshness advanced — the same `recomputed_at` /
+ * `status` pair `GET /api/v1/profile/freshness` returns, pushed instead of
+ * polled. Emitted only when the value actually moved.
+ */
+export interface ProfileFreshnessChangedEvent extends BaseEvent {
+  type: "profile.freshness.changed";
+  provider: "atribu";
+  data: {
+    profile_id: string;
+    recomputed_at: string | null;
+    /** `ready` once the profile has ever been projected; `pending` before that. */
+    status: string;
+    previous_recomputed_at: string | null;
+  };
+}
+
 export type AtribuWebhookEvent =
   | WhatsAppMessageReceivedEvent
   | WhatsAppMessageDeliveryEvent
@@ -524,4 +928,18 @@ export type AtribuWebhookEvent =
   | InstagramCommentReceivedEvent
   | EmailMessageReceivedEvent
   | CalendarEventChangedEvent
-  | ConversationStartedEvent;
+  | ConversationStartedEvent
+  | ShopifyCatalogUpdatedEvent
+  | ShopifyProductStockChangedEvent
+  | ShopifyProductPriceChangedEvent
+  | ShopifyCheckoutAbandonedEvent
+  | ShopifyOrderStatusChangedEvent
+  | ConnectionConnectedEvent
+  | ConnectionReconnectRequiredEvent
+  | ConnectionRevokedEvent
+  | HandoffCompletedEvent
+  | RecomputeCompletedEvent
+  | ConversionAttributedEvent
+  | ExportCompletedEvent
+  | ExportFailedEvent
+  | ProfileFreshnessChangedEvent;

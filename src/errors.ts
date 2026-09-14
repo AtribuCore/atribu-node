@@ -53,10 +53,23 @@ export interface ApiErrorBody {
   message: string;
   status: number;
   request_id?: string;
+  /** Deep link to the docs section explaining this exact code (#1065). Always
+   * present on a real Atribu error envelope — derived from `code` server-side. */
+  docs_url?: string;
+  /** Present on `insufficient_scope` when the missing scope(s) are known by name. */
+  required_scopes?: string[];
   /** Present + true when the connection's token was revoked and re-auth is needed. */
   reconnect_required?: boolean;
   /** Where to send the user to re-authorize, when the channel can build one. */
   reconnect_url?: string;
+  /**
+   * #1067 — present + true on a resource-limit denial (e.g.
+   * `profile_limit_reached`) the caller can fix by upgrading the plan or
+   * freeing up the resource.
+   */
+  upgrade_required?: boolean;
+  /** Present when `upgrade_required` is true. */
+  upgrade?: { plan: string };
 }
 
 export class AtribuApiError extends AtribuError {
@@ -69,6 +82,16 @@ export class AtribuApiError extends AtribuError {
   readonly reconnectRequired: boolean;
   /** Where to send the user to reconnect, when the API provided one. */
   readonly reconnectUrl: string | null;
+  /** #1067 — true on a resource-limit denial fixable by upgrading. */
+  readonly upgradeRequired: boolean;
+  /** #1067 — the plan the denial was evaluated against, when upgradeRequired is true. */
+  readonly upgradePlan: string | null;
+  /** Deep link to the docs section explaining this exact `code` (#1065). Null
+   * only when the response body didn't carry one (e.g. a non-Atribu proxy
+   * error) — every real Atribu error envelope sets it. */
+  readonly docsUrl: string | null;
+  /** The scope(s) missing on an `insufficient_scope` error, when named (#1065). */
+  readonly requiredScopes: string[] | null;
 
   constructor(args: {
     code: ApiErrorCode;
@@ -79,6 +102,10 @@ export class AtribuApiError extends AtribuError {
     responseBody: unknown;
     reconnectRequired?: boolean;
     reconnectUrl?: string | null;
+    upgradeRequired?: boolean;
+    upgradePlan?: string | null;
+    docsUrl?: string | null;
+    requiredScopes?: string[] | null;
   }) {
     super(`[${args.code}] ${args.message}`);
     this.code = args.code;
@@ -88,6 +115,10 @@ export class AtribuApiError extends AtribuError {
     this.responseBody = args.responseBody;
     this.reconnectRequired = args.reconnectRequired ?? false;
     this.reconnectUrl = args.reconnectUrl ?? null;
+    this.upgradeRequired = args.upgradeRequired ?? false;
+    this.upgradePlan = args.upgradePlan ?? null;
+    this.docsUrl = args.docsUrl ?? null;
+    this.requiredScopes = args.requiredScopes ?? null;
   }
 
   isRetryable(): boolean {

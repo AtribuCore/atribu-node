@@ -11,10 +11,7 @@ permissions:
 
 jobs:
   ci:
-    # Self-hosted pool (AtribuCore/atribu infra/ci-runner/README.md). CI_RUNNER repo var
-    # is the switch ('atribu-ci'); unset/blank falls back to ubuntu-latest. publish.yml
-    # deliberately stays on ubuntu-latest: npm provenance needs a cloud-hosted runner.
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

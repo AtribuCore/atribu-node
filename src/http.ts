@@ -36,6 +36,21 @@ export interface RequestOptions {
   multipart?: FormData;
   /** Override the Authorization header (used by /oauth/* with client-credentials). */
   authOverride?: string;
+  /**
+   * Send NO `Authorization` header, and never resolve a credential to build one.
+   *
+   * The `public.*` resources set this. It is the difference between "this client
+   * has no credential yet" — which is `authOverride`'s absence, and which throws
+   * a helpful `AtribuConfigError` naming the call that needed one — and "this
+   * ROUTE takes no credential", which is a property of the endpoint and true
+   * however the client was built.
+   *
+   * Deliberately opt-IN per request rather than a client-wide flag: a
+   * credentialed client may legitimately call a public route (see
+   * `AtribuClient.public`), and it must not stop sending its credential
+   * everywhere else because it did.
+   */
+  anonymous?: boolean;
   idempotencyKey?: string;
   /**
    * When `false`, the opt-in `RetryingHttpClient` must NOT replay this
@@ -90,6 +105,18 @@ export interface RequestOptions {
   oauthErrorShape?: boolean;
   /** When true, return raw Response without JSON parse (used by 204 / RFC 7009 empty 200). */
   expectEmpty?: boolean;
+  /**
+   * When true, resolve with the response body as a raw string instead of
+   * parsing it as JSON. For the endpoints that render a second, non-JSON body
+   * of the same rows — `analytics.drillCsv()` today.
+   *
+   * `safeJson` would already hand back the raw text for anything that fails to
+   * parse, but that is an accident of the error path, not a contract: a
+   * one-column CSV of bare numbers parses fine as JSON and would come back as a
+   * number. Asking for text explicitly is the difference between a guarantee
+   * and a coincidence.
+   */
+  expectText?: boolean;
   /** Extra headers to merge. */
   headers?: Record<string, string>;
 }
@@ -114,7 +141,7 @@ export class HttpClient implements HttpClientLike {
 
   async request<T>(opts: RequestOptions): Promise<T> {
     const url = this.buildUrl(opts.path, opts.query);
-    const headers = this.buildHeaders(opts);
+    const headers = await this.buildHeaders(opts);
 
     let body: BodyInit | undefined;
     if (opts.multipart) {
@@ -168,7 +195,10 @@ export class HttpClient implements HttpClientLike {
 
     const requestId = res.headers.get("x-request-id");
     const text = await res.text();
-    const parsed = text ? safeJson(text) : null;
+    // A non-JSON success body still has to go through the error branch below
+    // when the status says so — an error envelope is always JSON, whatever the
+    // 200 body would have been.
+    const parsed = opts.expectText && res.ok ? null : text ? safeJson(text) : null;
 
     if (!res.ok) {
       if (opts.oauthErrorShape) {
@@ -192,8 +222,14 @@ export class HttpClient implements HttpClientLike {
         responseBody: parsed,
         reconnectRequired: body?.reconnect_required ?? false,
         reconnectUrl: body?.reconnect_url ?? null,
+        upgradeRequired: body?.upgrade_required ?? false,
+        upgradePlan: body?.upgrade?.plan ?? null,
+        docsUrl: body?.docs_url ?? null,
+        requiredScopes: body?.required_scopes ?? null,
       });
     }
+
+    if (opts.expectText) return text as T;
 
     return parsed as T;
   }
@@ -206,10 +242,22 @@ export class HttpClient implements HttpClientLike {
         url.searchParams.set(key, String(value));
       }
     }
+    // LAST, and `set` rather than `append`: the profile a client was built for
+    // is not a default a caller may talk over. A session token reaches every
+    // profile its owner is a member of, so a resource method that could steer
+    // `profile_id` would be a cross-tenant read one typo away.
+    if (this.cfg.profileId) {
+      url.searchParams.set("profile_id", this.cfg.profileId);
+    }
+    // #487 — the same rule one grain up, and mutually exclusive with the above
+    // by construction (`resolveConfig` refuses a client carrying both).
+    if (this.cfg.workspaceId) {
+      url.searchParams.set("workspace_id", this.cfg.workspaceId);
+    }
     return url.toString();
   }
 
-  private buildHeaders(opts: RequestOptions): Record<string, string> {
+  private async buildHeaders(opts: RequestOptions): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       Accept: "application/json",
       "User-Agent": this.cfg.userAgentSuffix
@@ -223,19 +271,36 @@ export class HttpClient implements HttpClientLike {
     } else if (opts.body !== undefined && opts.method !== "GET") {
       headers["Content-Type"] = "application/json";
     }
-    if (opts.authOverride) {
+    if (opts.anonymous) {
+      // Nothing. NOT `Authorization: ""` and not a resolved-then-dropped token:
+      // `getToken()` is a callback that can throw (no live session), and a
+      // public route must answer for a signed-out reader whatever the client
+      // around it is carrying.
+    } else if (opts.authOverride) {
       headers.Authorization = opts.authOverride;
     } else {
-      // A client may legitimately be built with no apiKey — the client-credential
-      // surfaces (whatsapp.otpCapture) exist precisely because the key does not
-      // exist yet. Anything else must fail HERE, naming the call that needed one,
-      // rather than sending `Bearer ` and collecting a confusing 401.
-      if (!this.cfg.apiKey) {
+      // A client may legitimately be built with no credential — the
+      // client-credential surfaces (whatsapp.otpCapture) exist precisely because
+      // the key does not exist yet. Anything else must fail HERE, naming the call
+      // that needed one, rather than sending `Bearer ` and collecting a
+      // confusing 401.
+      //
+      // All three credentials ride the same header: the API distinguishes an
+      // `atb_live_` key from an `atb_user_` MCP token (#1084) from a
+      // three-segment session JWT by shape, never by a second header.
+      //
+      // #610 — `getToken()` is resolved fresh on EVERY request, never cached:
+      // that is the entire point of the callback form of `accessToken`. A
+      // caller whose token throws (e.g. no live session) sees that error here,
+      // BEFORE `fetch` is ever called — same failure mode as the "constructed
+      // with neither" case below, just discovered a request later.
+      const token = await this.cfg.getToken();
+      if (!token) {
         throw new AtribuConfigError(
-          `apiKey is required for ${opts.method} ${opts.path} — this client was constructed without one`,
+          `apiKey or accessToken is required for ${opts.method} ${opts.path} — this client was constructed with neither`,
         );
       }
-      headers.Authorization = `Bearer ${this.cfg.apiKey}`;
+      headers.Authorization = `Bearer ${token}`;
     }
     if (mutating(opts.method)) {
       headers["Idempotency-Key"] = opts.idempotencyKey ?? this.cfg.generateIdempotencyKey();

@@ -23,6 +23,28 @@ export interface IdTokenHintPayload {
   issuer?: string;
   /** Expiration relative to now. Default "5m". Examples: "5m", "10m", numeric seconds. */
   expiresIn?: string | number;
+  /**
+   * YOUR id for the tenant this consent is for — emitted as the `external_ref`
+   * claim (ADR 0020).
+   *
+   * Required for an app Atribu has set to `profile_resolution: "external_ref"`:
+   * the consent then lands on the profile you provisioned under this exact ref
+   * through `POST /api/v1/profiles`, and NOT on one derived from `email`. Get
+   * it wrong or leave it out and `/oauth/authorize` bounces to your
+   * `redirect_uri` with `error=invalid_request` and `error_description` of
+   * `unknown_external_ref` / `external_ref_required` respectively — provision
+   * the tenant, then retry.
+   *
+   * Ignored by Atribu for an app on the default `"email"` mode, so adding it
+   * ahead of the switch is safe.
+   *
+   * A first-class option rather than an `extraClaims` entry because the claim
+   * name is part of Atribu's contract, not yours: a typo in `extraClaims`
+   * produces a token that verifies and then fails at consent with
+   * `external_ref_required`, which reads like a server bug. Set here it also
+   * WINS over an `extraClaims.external_ref` of the same name.
+   */
+  externalRef?: string;
   /** Atribu's recognized claims plus any custom ones. */
   extraClaims?: Record<string, unknown>;
 }
@@ -75,8 +97,30 @@ export async function signIdTokenHint(input: SignIdTokenHintInput): Promise<stri
   if (!input.subject) throw new AtribuConfigError("signIdTokenHint: subject is required");
   if (!input.email) throw new AtribuConfigError("signIdTokenHint: email is required");
 
+  // Trimmed and rejected empty rather than emitted blank: Atribu treats a blank
+  // claim as absent, so a `" "` would come back as `external_ref_required` from
+  // a token that visibly carried the key — the hardest shape to debug from the
+  // consumer's side. Fail here, where the value is.
+  let externalRef: string | undefined;
+  if (input.externalRef !== undefined) {
+    externalRef = input.externalRef.trim();
+    if (!externalRef) {
+      throw new AtribuConfigError(
+        "signIdTokenHint: externalRef must be a non-empty string when provided",
+      );
+    }
+  }
+
   const jose = await loadJose();
-  const claims: Record<string, unknown> = { email: input.email, ...(input.extraClaims ?? {}) };
+  const claims: Record<string, unknown> = {
+    email: input.email,
+    ...(input.extraClaims ?? {}),
+    // LAST, so the first-class option wins over a hand-rolled `extraClaims`
+    // entry of the same name. Spread conditionally so an absent option leaves
+    // any pre-existing `extraClaims.external_ref` alone — consumers who adopted
+    // the claim before this option existed keep working unchanged.
+    ...(externalRef ? { external_ref: externalRef } : {}),
+  };
 
   const jwt = new jose.SignJWT(claims)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })

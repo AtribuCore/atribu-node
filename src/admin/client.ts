@@ -23,7 +23,15 @@ export class AtribuAdminClient {
       );
     }
     const http = new HttpClient({
-      apiKey: config.adminSecret,
+      getToken: () => config.adminSecret,
+      credential: "api_key",
+      profileId: null,
+      // The admin surface is workspace-agnostic as well as profile-agnostic:
+      // an `admin_secret_` reaches every tenant by design and names none.
+      workspaceId: null,
+      // …and not USER-scoped either (#648): `userScoped` says "this client reads
+      // /api/v1/me", which an admin secret is not a principal for.
+      userScoped: false,
       baseUrl: (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
       fetch: fetchImpl,
       timeoutMs: config.timeoutMs ?? DEFAULT_TIMEOUT_MS,

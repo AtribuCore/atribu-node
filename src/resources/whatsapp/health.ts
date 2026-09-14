@@ -18,14 +18,19 @@ export interface HealthGetOptions {
  * as `tokenValid:false` with a critical issue rather than an error — check
  * `canSend`/`tokenValid`/`issues`, don't rely on a throw.
  *
- * `get()` serves the persisted snapshot (with `refreshedAt` + a `stale` flag);
- * `refresh()` forces a live Meta re-read, updates the snapshot + trend history,
+ * `get()` serves the persisted snapshot (with `refreshedAt` + a `stale` flag),
+ * revalidating against Meta once it is older than the 6h TTL; `refresh()`
+ * forces a live Meta re-read regardless, updates the snapshot + trend history,
  * and returns the fresh object.
+ *
+ * `stale:true` means the values were not confirmed against Meta just now — a
+ * throttled revalidation, or one whose live read failed. Before acting on a
+ * verdict in a way the customer will see, `refresh()` and check `stale`.
  */
 export class WhatsAppHealthResource {
   constructor(private readonly http: HttpClientLike) {}
 
-  /** Cached snapshot (stale-while-revalidate). A never-refreshed channel reads live. */
+  /** Cached snapshot, revalidated past the TTL. A never-refreshed channel reads live. */
   async get(
     connectionId: string,
     opts: HealthGetOptions = {},

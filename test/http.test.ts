@@ -109,6 +109,73 @@ describe("HttpClient via AtribuClient.messages.send", () => {
     expect(apiErr.retry.action).toBe("fix_and_retry");
   });
 
+  it("surfaces docs_url and required_scopes from the error envelope (#1065)", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            code: "insufficient_scope",
+            message: "This API key does not have the 'campaigns:read' scope",
+            status: 403,
+            request_id: "req_xyz",
+            docs_url: "https://www.atribu.app/docs/api/errors#insufficient_scope",
+            required_scopes: ["campaigns:read"],
+          },
+        },
+        { status: 403 },
+      ),
+    );
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
+    let caught: unknown;
+    try {
+      await client.messages.send({
+        connection_id: "00000000-0000-0000-0000-000000000000",
+        channel: "whatsapp",
+        to: "+1",
+        // @ts-expect-error — bad content
+        content: { type: "unknown" },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(AtribuApiError);
+    const apiErr = caught as AtribuApiError;
+    expect(apiErr.docsUrl).toBe("https://www.atribu.app/docs/api/errors#insufficient_scope");
+    expect(apiErr.requiredScopes).toEqual(["campaigns:read"]);
+  });
+
+  it("defaults docsUrl/requiredScopes to null when the envelope omits them", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            code: "validation_error",
+            message: "content.type unknown",
+            status: 422,
+            request_id: "req_xyz",
+          },
+        },
+        { status: 422 },
+      ),
+    );
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
+    let caught: unknown;
+    try {
+      await client.messages.send({
+        connection_id: "00000000-0000-0000-0000-000000000000",
+        channel: "whatsapp",
+        to: "+1",
+        // @ts-expect-error — bad content
+        content: { type: "unknown" },
+      });
+    } catch (err) {
+      caught = err;
+    }
+    const apiErr = caught as AtribuApiError;
+    expect(apiErr.docsUrl).toBeNull();
+    expect(apiErr.requiredScopes).toBeNull();
+  });
+
   it("surfaces Retry-After on 429", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
@@ -172,11 +239,21 @@ describe("HttpClient via AtribuClient.messages.send", () => {
       return vi.fn(
         (_url: string, init: RequestInit) =>
           new Promise<Response>((_resolve, reject) => {
-            init.signal?.addEventListener("abort", () => {
+            const abort = (): void => {
               const err = new Error("The operation was aborted");
               err.name = "AbortError";
               reject(err);
-            });
+            };
+            // Real `fetch` rejects immediately when handed an ALREADY-aborted
+            // signal rather than waiting for an `abort` event that already
+            // fired — #610 made `HttpClient.request` await the credential
+            // resolver before building the merged signal, which opened a real
+            // (if narrow) window for the caller's own signal to abort before
+            // `fetch` is reached. A mock that only listens for a future event
+            // hangs forever in exactly that window; matching real fetch's
+            // synchronous check is what a correct mock does here.
+            if (init.signal?.aborted) abort();
+            else init.signal?.addEventListener("abort", abort);
           }),
       );
     }

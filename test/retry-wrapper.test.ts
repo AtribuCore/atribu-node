@@ -578,6 +578,24 @@ describe("AtribuClient.withRetry", () => {
     expect(base.messages).toBe(baseMessages); // original unchanged
     expect(retry.messages).not.toBe(baseMessages); // new resource on wrapped http
   });
+
+  // `_fromHttp` builds the retrying client by hand-listing every resource in
+  // an `Object.assign` block, separate from the constructor's own list — two
+  // places that must agree with zero enforcement between them. `channelRules`
+  // (#656/#899) and `dmAds` (this fix) both went missing there and answered
+  // `undefined` on any `withRetry`-wrapped client, silently, because every
+  // OTHER resource was still listed. Enumerate every key the constructor sets
+  // so a THIRD resource can't repeat it.
+  it("carries every resource the base client has, not just the ones spelled out by hand", () => {
+    const base = new AtribuClient({ apiKey: "k", fetch: vi.fn() });
+    const retry = base.withRetry({ maxAttempts: 2 });
+    const baseKeys = Object.keys(base as unknown as Record<string, unknown>);
+    const retryRecord = retry as unknown as Record<string, unknown>;
+    for (const key of baseKeys) {
+      if (key === "_http") continue;
+      expect(retryRecord[key], `AtribuClient._fromHttp is missing "${key}"`).toBeDefined();
+    }
+  });
 });
 
 describe("isRetryableError", () => {

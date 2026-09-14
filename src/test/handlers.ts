@@ -237,8 +237,11 @@ export function atribuMockHandlers(overrides: MockOverrides = {}): HttpHandler[]
     http.get(u("/api/v1/connections/:id"), () =>
       resolve(overrides.connections?.get, 200, responseFixtures.connectionDetail()),
     ),
+    // 200, not 204, since #501: the revoke reports how many API keys it cut and
+    // a null-body status cannot carry that. A caller pinning the old empty
+    // answer overrides this with `{ status: 204 }`.
     http.delete(u("/api/v1/connections/:id"), () =>
-      resolve(overrides.connections?.revoke, 204, null),
+      resolve(overrides.connections?.revoke, 200, responseFixtures.connectionRevoked()),
     ),
 
     // ----- WhatsApp health -----

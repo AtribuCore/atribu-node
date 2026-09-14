@@ -17,7 +17,18 @@ export interface TrackEventInput {
   /** Arbitrary event properties (for purchase: value, currency, order_id). */
   properties?: Record<string, unknown>;
   /** PII for identity resolution — links this event to the customer profile. */
-  user_traits?: { email?: string; phone?: string; first_name?: string; last_name?: string };
+  user_traits?: {
+    email?: string;
+    phone?: string;
+    first_name?: string;
+    last_name?: string;
+    /** YOUR customer id. Read-only match key — never enough on its own to create a profile. */
+    external_id?: string;
+    /** A government id (e.g. a Chilean RUT). Unlike external_id, creates a profile on its own. */
+    national_id?: string;
+    /** ISO 3166-1 alpha-2 hint for national_id parsing. Defaults to "CL". */
+    country?: string;
+  };
   utm?: { source?: string; medium?: string; campaign?: string; content?: string; term?: string };
   /** fbclid / gclid / msclkid / ttclid — enables cookieless click-id stitching. */
   click_ids?: Record<string, string>;
@@ -33,7 +44,7 @@ export interface PurchaseInput {
   currency: string;
   /** Your order/transaction id — becomes the idempotency key. */
   orderId: string;
-  userTraits?: { email?: string; phone?: string; first_name?: string; last_name?: string };
+  userTraits?: TrackEventInput["user_traits"];
   utm?: TrackEventInput["utm"];
   clickIds?: Record<string, string>;
   properties?: Record<string, unknown>;

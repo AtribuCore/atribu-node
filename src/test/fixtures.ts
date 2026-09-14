@@ -354,11 +354,16 @@ export const responseFixtures = {
         id: i === 0 ? SAMPLE_CONNECTION_ID : `00000000-0000-0000-0000-${String(items + i).padStart(12, "0")}`,
         channel: "whatsapp" as const,
         status: "connected",
+        status_reason: null,
         display_name: "Atribu Test",
         external_id: "12345678901234",
         provider_subtype: null,
         authorized_at: "2026-05-15T12:00:00Z",
         created_at: "2026-05-15T11:00:00Z",
+        // #542 — every row carries both; a mock missing them would describe a
+        // narrower object than the type it stands in for.
+        kind: "messaging" as const,
+        currency: null,
       })),
       meta: { profile_id: SAMPLE_PROFILE_ID },
     };
@@ -370,12 +375,28 @@ export const responseFixtures = {
         id: overrides?.id ?? SAMPLE_CONNECTION_ID,
         channel: overrides?.channel ?? "whatsapp",
         status: "connected",
+        status_reason: null,
         display_name: "Atribu Test",
         external_id: "12345678901234",
         provider_subtype: null,
         authorized_at: "2026-05-15T12:00:00Z",
         created_at: "2026-05-15T11:00:00Z",
+        kind: "messaging" as const,
+        currency: null,
       },
+      meta: { profile_id: SAMPLE_PROFILE_ID },
+    };
+  },
+
+  /**
+   * What `DELETE /api/v1/connections/{id}` answers since #501 — a 200 carrying
+   * the number of API keys the revocation cut, not the old empty 204. Two,
+   * because one is the caller's own key and the realistic case a consumer has
+   * to reason about is that revoking a connection kills the token it is holding.
+   */
+  connectionRevoked(overrides?: { revokedKeys?: number }) {
+    return {
+      data: { revoked_keys: overrides?.revokedKeys ?? 2 },
       meta: { profile_id: SAMPLE_PROFILE_ID },
     };
   },

@@ -5,6 +5,327 @@ All notable changes to `@atribu/node` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `client.whatsapp.ads.list({ limit, after })` — every click-to-WhatsApp ad on
+  the profile, with the destination it opens (type, the business's WhatsApp
+  number, the Page), the creative's call-to-action type, the greeting, and
+  `greeting_status`. The question `welcomeMessage()` cannot answer: it needs an
+  ad id, and you only learn one from a conversation that already happened.
+  - `greeting_status` is `"present" | "none" | "unreadable"`. `greeting` is
+    `null` for the last two, and they are different facts — `none` is a normal
+    ad whose advertiser configured no greeting (final), `unreadable` is a
+    creative Meta would not show Atribu (worth asking again once the Meta
+    connection is fixed).
+  - An ad is listed when WhatsApp is named either by its ad set's
+    `destination_type` or by its creative's call-to-action; an ad commonly
+    carries only one of the two.
+  - Served from Atribu's nightly Meta sync, never a live Graph call, so polling
+    it costs the advertiser's `ads_management` quota nothing. `last_synced_at`
+    says how stale each row is, and an ad launched since the last sync is not
+    listed yet — its greeting is still readable by id through
+    `welcomeMessage()`.
+  - Keyset pagination on `ad_id`: pass `page.nextCursor` back as `after`.
+  - No spend, no metrics, no customer data on this surface.
+
+- `client.whatsapp.ads.welcomeMessage(adId, { connectionId })` — the welcome
+  message ("Saludo automático") a click-to-WhatsApp ad shows a customer BEFORE
+  their first message. Meta never delivers it over the webhook: the `referral`
+  object on the first inbound message carries the ad's headline, body and
+  thumbnail, and the greeting is ad configuration readable only from the
+  Marketing API. Without it an assistant composing the first reply greets
+  someone who has already been greeted, and asks what it can help with after
+  they have already said.
+  - Returns `welcome: null` when the ad has no greeting configured — a complete
+    answer, not a failure. Check the field; do not rely on a throw.
+  - `welcome.autofill_message` and `welcome.ice_breakers[]` are what the
+    customer most likely TAPPED instead of typing, so a first message equal to
+    one of them is a button press, not a sentence they composed.
+  - Cached per (profile, ad) server-side: `cached` says whether the answer came
+    from that cache, and `fetched_at` is when it was read from Meta — not when
+    you called.
+  - `404` when Meta does not show Atribu the ad (deleted, or invisible to the
+    workspace's token — Graph does not distinguish the two), `409` when the
+    profile has no usable Meta Ads connection, `502` on a transient Meta
+    failure.
+  - Since #1420 it answers from the nightly sync's own row when that row is
+    fresh, so for an ad the tenant actually runs the call costs no Graph quota
+    at all. The behaviour is unchanged: same response, `cached: true`.
+
+- **Nine platform-lifecycle webhook events on a new `atribu` provider (#1049)** —
+  `connection.connected`, `connection.reconnect_required`, `connection.revoked`,
+  `handoff.completed`, `recompute.completed`, `conversion.attributed`,
+  `export.completed`, `export.failed`, `profile.freshness.changed`, each with a
+  typed interface in the `AtribuWebhookEvent` union. They exist so an integration
+  never has to poll for completion.
+  - Opt in through `providers`, not `events`: delivery matches on both, so a
+    subscription whose `providers` is `["whatsapp"]` receives none of them.
+  - `conversion.attributed` fires exactly once per conversion definition, ever.
+  - `handoff.completed` fires exactly once per hand-off, and only on completion
+    (`failed` / `cancelled` emit nothing); a workspace-level hand-off, minted
+    without a profile, emits nothing at all.
+  - `connection.reconnect_required` carries `data.reconnect = {method, path}` —
+    a route to call with your own credential, never a signed URL.
+- `client.legal` (#1051) — DPA / BAA signing, and the two acts an agreement
+  needs. `signDpa()` / `signBaa()` mint a **hand-off**: a session-less URL for
+  a person and an id to poll, because your agent cannot agree to a contract on
+  a customer's behalf. A document that is already accepted comes back
+  `status: "completed"` with `result.already_accepted` and no URL — re-running
+  a checklist never asks for a second signature. `acceptDpa()` / `acceptBaa()`
+  record an acceptance for the SIGNED-IN caller and answer `403` for an API
+  key, which is the point rather than an omission; they take an optional
+  `{ document_version }` naming which of the shipped texts you displayed
+  (allowlisted, never recorded as given).
+- `client.workspaces.startCheckout(workspaceId, { plan, interval? })` (#1052) —
+  mint a Stripe Checkout hand-off for a plan upgrade. `plan` is `growth` or
+  `agency`; `interval` defaults to `monthly`. Session bearers only (the route
+  is workspace-scoped, so an API key has no workspace to be scoped to) and the
+  caller must be a workspace `owner` or `admin`. A workspace already on that
+  plan — a trial on it included — comes back `completed` with
+  `result.no_change` and no URL, never a second subscription.
+- `WorkspaceSubscription` grows `upgrade_available[]` (#1052): the plans ABOVE
+  the current tier, cheapest first, each with `currency`, `price` (the monthly
+  list price) and `annual_monthly_price` (the per-MONTH rate when billed
+  annually, not the yearly total) as ADR 0018 exact decimal strings, plus the
+  route that mints a checkout for it. An empty array means "nothing to sell" —
+  the top plan, an unranked tier like `enterprise`, or nothing above — and
+  should not render an upgrade prompt.
+- New exported types: `LegalHandoff`, `LegalAcceptance`, `LegalAcceptInput`,
+  `LegalDocument`, `CheckoutHandoff`, `CheckoutSessionInput`.
+
+### Changed
+
+- **`connection_id` on every webhook event is now `string | null`.** It is `null`
+  on the lifecycle events with no connector behind them (`recompute.completed`,
+  `conversion.attributed`, `profile.freshness.changed`, `export.*`). Every
+  channel event and every `connection.*` event still always carries a string, so
+  the wire is unchanged — but a handler that used it as a `string` must narrow.
+
+
+### Fixed
+
+- `WhatsAppConversationMessage`, `WhatsAppConversationMessagesPage`,
+  `WhatsAppSendMessageOptions`, `WhatsAppSendInteractiveInput` and
+  `WhatsAppSendTemplateOptions` were exported from `./resources/whatsapp` but
+  never re-exported from the package's top-level `index.ts`, so `import type
+  { WhatsAppConversationMessage } from "@atribu/node"` failed with "has no
+  exported member" — the console's #649 rewiring caught it. Same pattern as
+  every other `WhatsApp*` type in this file; these five were added in the
+  conversations resource's own PR and missed the top-level re-export.
+
+- `client.withRetry().payments` was `undefined` — `payments` was wired into the
+  constructor but not into `_fromHttp`, so `webpay()` threw a TypeError on any
+  retrying client. The fourth resource to hit this trap after `dmAds`,
+  `channelRules` and `commerce`; `retry-wrapper.test.ts` enumerates the base
+  client's keys to catch it and was red.
+
+### Added
+
+- `content.type: "location"` on `messages.send()` — a WhatsApp location pin:
+  `latitude` / `longitude` (range-checked) plus optional `name` / `address`.
+  WhatsApp only; Instagram and email answer the usual 422.
+- `client.conversations` (#649) — the unified inbox: `conversations` /
+  `conversation_messages`, channel-agnostic across WhatsApp, Instagram and
+  email. Distinct from `client.whatsapp.conversations` /
+  `client.instagram.conversations` (Vitrina's own messaging surfaces, keyed
+  by connection/IGSID) — this reads and replies to Atribu's OWN inbox record
+  of those conversations. Requires `conversations:read` for the seven reads
+  (`list`, `messages`, `organicMatches`, `labels`, `reviewProposals`,
+  `pendingReviewsCount`, `unlinkedInstagramPayments`,
+  `searchInstagramConversations`) and `conversations:write` for the seven
+  writes (`sendMessage`, `saveDraft`, `applyLabels`, `linkCustomer`,
+  `unlinkCustomer`, `decideReviewProposal`, `resolveUser` — the last one a
+  GET with real side effects, a live Instagram Graph API call plus a
+  channel_data cache write-through).
+- `client.profile.create({ workspace_id, name, timezone?, currency?,
+  site_domain? })` (#488, PR-2) — a session-authenticated owner/admin adds a
+  profile to a workspace they already run. `POST /api/v1/profiles` now
+  admits a Supabase session bearer as well as the original app-credential
+  (Basic auth) flow; the two are unrelated operations sharing one URL — the
+  session branch creates neither a new workspace nor a shadow user, and
+  carries no idempotency key (it always creates). An analyst, a guest, or a
+  workspace you do not belong to all resolve the same 404 a nonexistent
+  workspace would.
+- `client.workspaces.subscription(workspaceId)` (#488, PR-2) — the
+  workspace's current subscription: plan tier, status, billing period,
+  trial dates and cancellation state. `null` when the workspace has no
+  `subscriptions` row. Deliberately narrower than the full row: no
+  Stripe/Shopify ids, no entitlement amounts, and no `cancel_at` (a live
+  Stripe field, never persisted — only the stored `cancel_at_period_end`
+  is served).
+- `client.workspaces.list()` rows also carry `acquisition_source` (#488,
+  PR-2) — `workspaces.acquisition_source`, additive.
+- `client.whatsapp.conversations.listMessages(conversationId, { before, limit })`
+  (#649) — a newest-first page of one WhatsApp conversation's messages.
+  Paginates with `before` (the oldest returned `message_timestamp`), not an
+  opaque cursor — `pagination.cursor` is never populated on this route.
+  Returns the whole envelope (like the analytics-area resources), because
+  `pagination.has_next` is how a caller decides whether to page again.
+
+- `client.profile.update()`, `client.profile.updateOutcomeDefinition()`,
+  `client.profile.replaceOutcomeDefinitions()`,
+  `client.profile.recordAuditEvent()` and `client.profile.darkMessagingSpend()`
+  — the settings/onboarding batch (#488), the last profile-scoped
+  writes/reads the console made straight off a browser Supabase client.
+  `update()` is a partial patch over `mode` / `default_attribution_model` /
+  `currency` / `onboarding_completed` and returns the same envelope
+  `client.profile.get()` does; setting `onboarding_completed: true` stamps a
+  `PROFILE_ONBOARDING_COMPLETED` audit row server-side in the same call.
+  `replaceOutcomeDefinitions()` deletes-then-inserts one WHOLE
+  `outcome_definitions` family (`pipeline_stage` | `order_event`) — there is
+  no per-row create. `recordAuditEvent()` is narrowly allowlisted, not a
+  general audit-log proxy.
+- `client.workspaces.mcpSettings()` / `updateMcpSettings()` /
+  `mcpWritebackAudits()` — the workspace MCP privacy panel (#488): the PII
+  default and write-back toggle for agent tools, and the write-back audit
+  log. `updateMcpSettings()` is owner/admin only.
+- `client.whatsapp.conversations.sendMessage(id, { text?, file? })` /
+  `.sendInteractive(id, { body, buttons, header? })` /
+  `.sendTemplate(id, { templateName, languageCode, components })` (#649) —
+  send into a WhatsApp conversation by its `conversations.id`, which
+  `AtribuClient.messages.send()` cannot express (it targets a raw phone
+  number via `connection_id`, with no `conversations` row concept).
+  `sendMessage` refuses with `whatsapp_service_window_expired` (422) once
+  the conversation's 24h customer-service window has closed; use
+  `sendTemplate` to re-engage instead — Meta exempts template sends from
+  the window, not interactive ones.
+
+- `client.workspaces.list()` rows carry three more facts, additively (#488):
+  `default_timezone` (the WORKSPACE's IANA zone, not the caller's browser
+  zone), `member_count` (active members — a count, never the roster), and
+  `brief`, the same six `28d` attention counters
+  `/workspaces/{id}/top-performers/brief` returns. `brief` is NULLABLE and its
+  two falsy-looking answers differ: the zero row means nothing needs
+  attention, `null` means the counters could not be computed. Nothing was
+  removed or renamed, so an existing consumer is unaffected.
+
+- `client.commerce` — a connected store's catalogue and orders (#391).
+  `commerce.products.list({ updated_since, cursor, limit })` walks the
+  catalogue as an ASCENDING change feed with variants nested; a product the
+  store deactivated or deleted comes back with `active: false`, because a
+  mirror has to learn about a removal. `commerce.orders.list({ order_ref |
+  email | phone })` is the "where is my order" lookup — at least one selector
+  is required (a call with none is a 400, not a dump of the merchant's order
+  history) and the row carries NO customer identity. Prices and order totals
+  are exact decimal strings.
+
+- Real `data` types for the five `shopify` webhook events, which shipped as
+  `Record<string, unknown>` placeholders. `ShopifyProductStockChangedEvent`
+  now narrows to `previous_state` / `state` / `quantity` with a
+  `ShopifyStockState` union, `ShopifyOrderStatusChangedEvent` to
+  `"fulfilled" | "delivered"`, and so on. Type-level only — `verifyWebhook`
+  does no runtime narrowing, so nothing on the wire changed.
+
+- `accessToken` on `AtribuClientConfig` — a Supabase **session** access token,
+  for a client acting as the signed-in user rather than as a machine. It rides
+  the same `Authorization: Bearer` header an `apiKey` does (the API tells the
+  two apart by shape), but it identifies a *person* rather than a tenant, so a
+  client built with it also requires `profileId` and threads `?profile_id=` onto
+  every request. Passing both credentials is an `AtribuConfigError` at
+  construction.
+
+- `profileId` on `AtribuClientConfig` — applied AFTER any per-call query, so a
+  resource method can never steer a request at a different tenant than the one
+  the client was built for. Optional with an `apiKey`, where the key already
+  carries the scope.
+
+- Nine resources covering every profile-scoped v1 route: `analytics`
+  (overview, campaigns, campaign conversions, breakdown, drill + drill CSV,
+  funnels, new-vs-returning, LTV, customers, visitors), `attribution` (models,
+  explore, messaging), `organic` (posts, post, story), `ads` (creative
+  analysis), `quality` (UTM health + the on-demand `refreshUtm` scan),
+  `recommendations` (list, diagnose, apply,
+  dismiss), `exports` (destinations, ledger, create, get), `tracking` (keys,
+  issueKey, snippet, GTM + Shopify installers) and `reports` (templates,
+  schedules CRUD, deliveries, generate, get, send). Plus
+  `connections.pending()` / `connections.finalizePending()` for the post-OAuth
+  account picker. Every request and response type is indexed out of the
+  generated OpenAPI `paths` — none is hand-written.
+
+  These resolve with the **whole response envelope** rather than unwrapping
+  `data`: the analytics reads carry `pagination.cursor`, `status_counts` and
+  `meta` beside it, and unwrapping would drop the cursor.
+
+- `accessToken` on `AtribuClientConfig` now also accepts a CALLBACK —
+  `() => string | Promise<string>` — resolved fresh by the HTTP layer on every
+  request rather than once at construction. For a long-lived client acting as
+  a signed-in user whose session token rotates while the client stays open
+  (a browser tab), this replaces the old workaround of constructing with a
+  placeholder string and overwriting the `Authorization` header from a custom
+  `fetch`. A plain string still works exactly as before — pass one when the
+  token is genuinely static for the client's lifetime.
+
+### Changed
+
+- The "no credential" error now reads `apiKey or accessToken is required for
+  <METHOD> <path>`, since either satisfies it.
+
+## [1.19.0] - 2026-09-14
+
+> 1.18.0 was bumped in this monorepo but never mirrored/published to npm
+> (`npm view @atribu/node version` still answered `1.17.0`). Its changes ship
+> for the first time as part of 1.19.0.
+
+### Added
+
+- `externalRef` on `signIdTokenHint()` (ADR 0020) — names the tenant a consent
+  lands on for an app Atribu has switched to `profile_resolution:
+  "external_ref"`: the claim is emitted as `external_ref` and consent then
+  resolves `(client_id, external_ref)` against the profile you provisioned
+  under that exact ref, instead of deriving one from `email`. Ignored by
+  Atribu for an app still on the default `"email"` mode, so adding it ahead of
+  the switch is safe; a blank value is rejected client-side rather than signed,
+  and an explicit `externalRef` wins over an `extraClaims.external_ref` of the
+  same name so a pre-#1416 consumer's `extraClaims` usage keeps working
+  unchanged.
+- `client.whatsapp.ads.list({ limit, after })` — every click-to-WhatsApp ad on
+  the profile, with its destination, call-to-action type, and greeting
+  (`greeting`, `greeting_status`). Served from Atribu's nightly Meta sync
+  (never a live Graph call), keyset-paginated on `ad_id`. Answers the
+  account-wide question `welcomeMessage()` cannot: that call needs an ad id,
+  and you only learn one from a conversation that already happened.
+- Regenerated `api.d.ts` types for four app-credential routes — the `adopt`
+  operation stamping `external_ref` onto a provisioned profile (#1415), the
+  app-declared `atribu_attribution` entitlement toggle (#1418, ADR 0021), and
+  profile `archive` (#1433). None of the three gets a wrapped resource method:
+  per the SDK's existing pattern, a new field or route on an already-typed
+  path flows through the generated types with no runtime change required.
+
+### Changed
+
+- `connections.disconnect()` doc comment: a delegated `attribution:write` key
+  may now call it on a profile its own app provisioned (still a 403 on a
+  human-owned profile or one another app provisioned). No signature or
+  runtime change — `disconnect()` already existed; only the server-side grant
+  and the regenerated types moved.
+
+## [1.18.0]
+
+### Added
+
+- `attachments` on the `message.echo` event's `data` — when a staff member
+  sends media (a voice note, a photo) from the WhatsApp Business App under
+  coexistence, Atribu now resolves the echo's Meta `media_id` to a hosted,
+  browser-fetchable URL and attaches it as top-level
+  `data.attachments: [{ type, payload: { url } }]`, the same shape
+  `message.received` carries. The raw `message_echoes[0]` object is untouched
+  (its media stays a bare `media_id`). Resolution is best-effort and
+  time-boxed server-side: when it fails or times out the event is delivered
+  without `attachments` — `whatsapp.media.get(mediaId, { connectionId })`
+  remains the fallback. Previously an echoed voice note reached consumers as
+  a bare `media_id` only, which rendered as an empty message in apps without
+  a Meta token.
+
+- `WhatsAppEventAttachment` type, exported from `@atribu/node/webhooks`.
+
+### Fixed
+
+- `WhatsAppMessageReceivedEvent.data` now declares the `attachments` field the
+  server has always emitted on inbound media messages. Types-only — nothing
+  changed on the wire; SDK consumers simply could not see the field existed.
+
 ## [1.17.0]
 
 ### Added

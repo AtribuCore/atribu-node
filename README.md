@@ -27,6 +27,11 @@ The official Node.js SDK for the [Atribu API](https://www.atribu.app). Fully typ
 | `calendar` | Atribu booking calendars — events and sharing |
 | `webhooks` | Subscriptions, replay, and HMAC verification of inbound deliveries |
 | `connections` | The authorized accounts everything else is addressed by |
+| `analytics` | The dashboard reads — overview KPIs, campaigns, breakdowns, funnels, LTV, customers, visitors, KPI drill-downs (JSON + CSV) |
+| `attribution` | Model comparison, per-conversion explanation, messaging attribution |
+| `organic`, `ads`, `quality` | Organic posts and stories, ad creative analysis, UTM health |
+| `recommendations` | List, diagnose, apply and dismiss |
+| `exports`, `tracking`, `reports` | Conversion exports, tracking keys + installers, report templates / schedules / deliveries |
 | `/oauth`, `/next`, `/test` | Consumer OAuth helpers, a Next.js route handler, and MSW test doubles |
 
 **Jump to:** [Install](#installation) · [Quick start](#quick-start) · [Configuration](#configuration) · [Examples](#examples) · [Verifying webhooks](#verifying-webhooks) · [OAuth](#oauth-flow) · [Errors](#error-handling) · [Retries](#retries) · [Testing](#testing) · [Tracing](#opentelemetry--datadog-apm--sentry) · [API reference](#sdk-reference)
@@ -71,6 +76,48 @@ const atribu = new AtribuClient({
 ```
 
 `Idempotency-Key` is auto-sent on every mutating POST. `request_id` is surfaced on every error.
+
+### Acting as a signed-in user — `accessToken` (v1.19.0+)
+
+An API key **is** a tenant: it is minted against exactly one Profile, so it
+carries its own scope. A signed-in user is a *person*, who may reach several —
+so a session-authenticated client has to say which Profile it means:
+
+```typescript
+const atribu = new AtribuClient({
+  accessToken: session.access_token,   // a Supabase session JWT
+  profileId: "…-…-…",                  // REQUIRED with accessToken
+});
+```
+
+- Pass **exactly one** of `apiKey` / `accessToken`. Both is an
+  `AtribuConfigError` at construction — only one can reach the wire, and
+  silently picking a winner is how the wrong tenant gets read. They travel on
+  the same `Authorization: Bearer` header; the API tells them apart by shape.
+- `profileId` is threaded onto **every** request as `?profile_id=`, applied
+  after any per-call query, so a resource method can never talk to a different
+  tenant than the one the client was built for.
+
+`accessToken` also accepts a **callback** — `() => string | Promise<string>` —
+for a client that stays alive across a token rotation (a browser tab held open
+for a while). It is called fresh on every request, never once at construction:
+
+```typescript
+const atribu = new AtribuClient({
+  accessToken: async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw new Error("no session");
+    return data.session.access_token;
+  },
+  profileId: "…-…-…",
+});
+```
+
+A callback that throws fails the request it was called for, before `fetch` is
+ever reached — build a client per render (cheap; nothing is read from the
+session until the first request) rather than caching one across a sign-out.
+- It is optional with an `apiKey` (the key already carries the scope), and the
+  API ignores it there.
 
 ### Building a client without an API key
 
@@ -968,6 +1015,83 @@ The SDK's `User-Agent` and Atribu's `X-Request-Id` give you log-grep correlation
 | `webhooks.subscriptions.test()` | Fire a synthetic event to test your handler |
 | `webhooks.deliveries.replay()` | Re-deliver a dead webhook |
 | `withRetry()` | Return a new client that retries transient errors |
+
+### Commerce namespace — `client.commerce`
+A connected store's catalogue and orders — the PULL half of the commerce sync,
+which the five `shopify` webhook event kinds push transitions for. Both methods
+resolve with the whole envelope, like the analytics reads below, because
+`pagination.cursor` is what a paginated list cannot be used without.
+
+| Method | Description |
+|---|---|
+| `commerce.products.list()` | The catalogue as a change feed — pass `updated_since`, walk `pagination.cursor`. Variants nested; `active: false` means removed at the store |
+| `commerce.orders.list()` | "Where is my order", by `order_ref` / `email` / `phone` — at least one is REQUIRED. Returns no customer identity |
+
+### Analytics namespace — `client.analytics`
+Every method resolves with the **whole response envelope**, not just `data` —
+the analytics reads carry `pagination.cursor`, `status_counts` and `meta`
+alongside it, and unwrapping would drop the cursor a paginated list cannot be
+used without.
+
+| Method | Description |
+|---|---|
+| `analytics.overview()` | KPIs (spend, revenue, ROAS, CAC) + the previous period of equal length |
+| `analytics.campaigns()` | Campaign / ad-set / ad performance under one model |
+| `analytics.campaignConversions()` | The conversions one campaign is credited with |
+| `analytics.breakdown()` | One or more dimensions of the same read (`dimensions=channel,campaign`) |
+| `analytics.drill()` | The rows behind a KPI tile, in seven kinds |
+| `analytics.drillCsv()` | The same rows as `text/csv`, resolved as a raw string |
+| `analytics.funnels()` | Stage-by-stage conversion for one funnel definition |
+| `analytics.newVsReturning()` | New vs. returning customer cohorts |
+| `analytics.ltv()` | Lifetime-value curves by acquisition cohort |
+| `analytics.customers()` | Customers who achieved a goal (paginated; PII needs `customers:read`) |
+| `analytics.visitors()` | Visitors in the window (paginated; same PII rule) |
+
+### Attribution namespace — `client.attribution`
+| Method | Description |
+|---|---|
+| `attribution.models()` | The same window scored under several models side by side |
+| `attribution.explore()` | One conversion's touch path and how the credit was split |
+| `attribution.messaging()` | Messaging-originated conversions, bucketed by how confidently the ad is known |
+
+### Organic, ads + quality — `client.organic` / `client.ads` / `client.quality`
+| Method | Description |
+|---|---|
+| `organic.posts()` | Organic posts across Instagram and Facebook (cursor-paginated) |
+| `organic.post()` | One post, with its attributed conversions |
+| `organic.story()` | One story (no date range — a story's window is its own life) |
+| `ads.creativeAnalysis()` | The stored creative analysis for one ad |
+| `quality.utm()` | UTM health over the last `days` (capped at the 30-day buffer retention) |
+| `quality.refreshUtm()` | RUN the scan `utm()` reads the cache of — `attribution:write`, capped at 6/hour |
+| `quality.refreshUtm()` | RUN the scan `utm()` reads the cache of — `attribution:write`, capped at 6/hour |
+
+### Recommendations namespace — `client.recommendations`
+| Method | Description |
+|---|---|
+| `recommendations.list()` | Open recommendations, filterable by status / kind / risk |
+| `recommendations.diagnose()` | The evidence behind one recommendation's score |
+| `recommendations.apply()` | Execute it — terminal, nothing to poll; `Idempotency-Key` always sent |
+| `recommendations.dismiss()` | Stop it surfacing (idempotent) |
+
+### Exports, tracking + reports
+| Method | Description |
+|---|---|
+| `exports.destinations()` | The export destinations configured for the profile |
+| `exports.ledger()` | Per-delivery history — what shipped, what was skipped, and why |
+| `exports.create()` | Schedule an export run (202 + a batch id; this QUEUES, it does not send) |
+| `exports.get()` | One export batch and what it did |
+| `tracking.keys()` | The profile's tracking write keys |
+| `tracking.issueKey()` | Mint one — the plaintext key is in that response and nowhere else |
+| `tracking.snippet()` | The `<script>` snippet for a key + domain |
+| `tracking.gtmInstaller()` | The same install as a GTM container import |
+| `tracking.shopifyPixelInstaller()` | The same install as a Shopify Web Pixel extension |
+| `reports.templates()` | Report templates available to the profile |
+| `reports.schedules()` / `createSchedule()` / `updateSchedule()` / `deleteSchedule()` | Recurring report schedules |
+| `reports.deliveries()` | Delivery history |
+| `reports.generate()` | Render a report for a window (date range is a **query** parameter) |
+| `reports.get()` | One rendered report |
+| `reports.send()` | Email a rendered report |
+| `connections.pending()` / `finalizePending()` | The post-OAuth account picker: list candidates, commit one |
 
 ### Calendar namespace — `client.calendar`
 | Method | Description |

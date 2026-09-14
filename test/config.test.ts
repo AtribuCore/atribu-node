@@ -98,7 +98,15 @@ describe("resolveConfig", () => {
     ).toThrow(AtribuConfigError);
   });
 
+  // `ResolvedConfig.apiKey` became `token` in #590, when a second credential
+  // (a Supabase session JWT) started riding the same Authorization header —
+  // the field holds whichever one was supplied, so naming it `apiKey` would
+  // have been a lie half the time. `credential` says which. `token` became
+  // `getToken` in #610, when `accessToken` grew a callback form: EVERY
+  // credential now resolves through one function, static or not.
   it("keeps a provided apiKey", () => {
-    expect(resolveConfig({ apiKey: "atb_live_x" }).apiKey).toBe("atb_live_x");
+    const resolved = resolveConfig({ apiKey: "atb_live_x" });
+    expect(resolved.getToken()).toBe("atb_live_x");
+    expect(resolved.credential).toBe("api_key");
   });
 });

@@ -33,8 +33,30 @@ describe("connections resource", () => {
       expect(conn.status).toBe("connected");
     });
 
-    it("revokes returns void (204)", async () => {
-      await expect(newClient().connections.revoke(fixtures.ids.connectionId)).resolves.toBeUndefined();
+    it("revoke reports how many API keys the cascade cut (#501)", async () => {
+      await expect(
+        newClient().connections.revoke(fixtures.ids.connectionId),
+      ).resolves.toEqual({ revokedKeys: 2 });
+    });
+  });
+
+  describe("against an Atribu that still answers 204", () => {
+    // The claim `revoke()`'s doc makes, as a test rather than a comment: an
+    // older deployment answers an empty 204, the body parses to nothing, and
+    // the method reports 0 instead of throwing on `res.data` of null.
+    const server = setupServer(
+      ...atribuMockHandlers({
+        baseUrl: BASE,
+        connections: { revoke: { status: 204, body: null } },
+      }),
+    );
+    beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+    afterAll(() => server.close());
+
+    it("reports revokedKeys: 0 rather than throwing", async () => {
+      await expect(
+        newClient().connections.revoke(fixtures.ids.connectionId),
+      ).resolves.toEqual({ revokedKeys: 0 });
     });
   });
 

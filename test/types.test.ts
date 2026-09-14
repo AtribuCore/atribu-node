@@ -12,8 +12,12 @@ import { describe, expectTypeOf, it } from "vitest";
 import type { AtribuClient } from "../src/client";
 import type {
   AtribuWebhookEvent,
+  WebhookProvider,
+  WebhookEventType,
   WhatsAppMessageReceivedEvent,
   WhatsAppMessageDeliveryEvent,
+  WhatsAppMessageEchoEvent,
+  WhatsAppEventAttachment,
   InstagramMessageReceivedEvent,
   InstagramFbLoginMessageData,
   InstagramFbLoginPostbackData,
@@ -39,6 +43,7 @@ import type {
 // runtime. Lets us avoid `in` checks on `{}`-shaped fixtures.
 type WaReceived = Extract<AtribuWebhookEvent, { type: "message.received"; provider: "whatsapp" }>;
 type WaDelivery = Extract<AtribuWebhookEvent, { type: "message.delivery"; provider: "whatsapp" }>;
+type WaEcho = Extract<AtribuWebhookEvent, { type: "message.echo" }>;
 type IgReceived = Extract<AtribuWebhookEvent, { type: "message.received"; provider: "instagram" }>;
 type IgCommentReceived = Extract<AtribuWebhookEvent, { type: "comment.received"; provider: "instagram" }>;
 type CalChanged = Extract<AtribuWebhookEvent, { type: "calendar.event.changed" }>;
@@ -54,6 +59,22 @@ describe("type narrowing — webhook event union", () => {
   it("type+provider picks the WA delivery variant", () => {
     expectTypeOf<WaDelivery>().toEqualTypeOf<WhatsAppMessageDeliveryEvent>();
     expectTypeOf<WaDelivery["data"]["recipient_id"]>().toEqualTypeOf<string>();
+  });
+
+  it("WA received + echo both carry OPTIONAL resolved attachments", () => {
+    // Optional on purpose: present only on media messages whose media_id
+    // Atribu resolved in time. A required field here would teach consumers
+    // to assume every media message has a hosted URL — the timeout path
+    // deliberately ships without one.
+    expectTypeOf<WaReceived["data"]["attachments"]>().toEqualTypeOf<
+      WhatsAppEventAttachment[] | undefined
+    >();
+
+    expectTypeOf<WaEcho>().toEqualTypeOf<WhatsAppMessageEchoEvent>();
+    expectTypeOf<WaEcho["data"]["attachments"]>().toEqualTypeOf<
+      WhatsAppEventAttachment[] | undefined
+    >();
+    expectTypeOf<WhatsAppEventAttachment["payload"]>().toEqualTypeOf<{ url: string }>();
   });
 
   it("Instagram message.received has three nested data shapes", () => {
@@ -93,27 +114,23 @@ describe("type narrowing — webhook event union", () => {
     expectTypeOf<CalChanged["data"]["extended_private"]>().toEqualTypeOf<Record<string, string>>();
   });
 
-  it("provider field is constrained to WhatsApp | Instagram | Email | Google Calendar", () => {
-    expectTypeOf<AtribuWebhookEvent["provider"]>().toEqualTypeOf<
-      "whatsapp" | "instagram" | "email" | "google_calendar"
-    >();
+  it("provider field is constrained to the WEBHOOK_PROVIDERS vocabulary", () => {
+    // Asserted against `WebhookProvider` — derived from the `WEBHOOK_PROVIDERS`
+    // const array in `src/webhooks/types.ts`, which is itself the mirror of
+    // the server repo's `src/lib/webhooks/event-types.ts` — rather than a
+    // hardcoded literal union here. A hardcoded list silently drifts the
+    // moment a provider (e.g. `shopify`, #497) is added to that array but not
+    // to every `*Event` interface's `provider` literal; deriving it means
+    // this test can only fail for a *real* narrowing mismatch, never for
+    // being stale.
+    expectTypeOf<AtribuWebhookEvent["provider"]>().toEqualTypeOf<WebhookProvider>();
   });
 
-  it("type field is constrained to known event types", () => {
-    expectTypeOf<AtribuWebhookEvent["type"]>().toEqualTypeOf<
-      | "message.received"
-      | "message.delivery"
-      | "conversation.started"
-      | "calendar.event.changed"
-      | "message.echo"
-      | "message.history"
-      | "contacts.sync"
-      | "template.updated"
-      | "channel.health.updated"
-      | "call.status.updated"
-      | "call.permission.updated"
-      | "comment.received"
-    >();
+  it("type field is constrained to the WEBHOOK_EVENT_TYPES vocabulary", () => {
+    // Same rationale as the provider assertion above: derived from
+    // `WebhookEventType` (`WEBHOOK_EVENT_TYPES` in `src/webhooks/types.ts`)
+    // instead of re-typing the event list by hand.
+    expectTypeOf<AtribuWebhookEvent["type"]>().toEqualTypeOf<WebhookEventType>();
   });
 });
 
