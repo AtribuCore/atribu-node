@@ -51969,6 +51969,18 @@
             "description": "A conversation's `id`, from `GET /api/v1/conversations`. A conversation belonging to another profile is 404, indistinguishable from one that does not exist.",
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before."
+            },
+            "required": false,
+            "description": "Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before.",
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -52081,6 +52093,45 @@
           },
           "404": {
             "description": "Conversation not found (or belongs to another profile)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`Idempotency-Key` replayed while the first send is still in flight (`idempotency_key_in_flight`), or reused for a different operation or request body (`idempotency_key_conflict`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -52244,7 +52295,7 @@
           "session",
           "user_token"
         ],
-        "x-atribu-idempotency": "none",
+        "x-atribu-idempotency": "header",
         "x-atribu-scope-grain": "profile"
       }
     },
@@ -72733,6 +72784,20 @@
             "userToken": []
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before."
+            },
+            "required": false,
+            "description": "Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -73341,7 +73406,7 @@
             }
           },
           "409": {
-            "description": "Connection not ready (status != connected)",
+            "description": "Connection not ready (`connection_not_ready`), or an `Idempotency-Key` replayed while the first send is still in flight (`idempotency_key_in_flight`) or reused for a different request body (`idempotency_key_conflict`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -73385,7 +73450,7 @@
         "x-atribu-auth": [
           "api_key"
         ],
-        "x-atribu-idempotency": "none",
+        "x-atribu-idempotency": "header",
         "x-atribu-scope-grain": "profile"
       }
     },
@@ -76975,6 +77040,18 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before."
+            },
+            "required": false,
+            "description": "Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before.",
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -77049,6 +77126,16 @@
               }
             }
           },
+          "409": {
+            "description": "`Idempotency-Key` replayed while the first send is still in flight (`idempotency_key_in_flight`), or reused for a different operation or request body (`idempotency_key_conflict`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "413": {
             "description": "File exceeds the per-type size cap",
             "content": {
@@ -77088,7 +77175,7 @@
           "session",
           "user_token"
         ],
-        "x-atribu-idempotency": "none",
+        "x-atribu-idempotency": "header",
         "x-atribu-scope-grain": "profile"
       }
     },

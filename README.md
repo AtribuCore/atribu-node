@@ -77,6 +77,32 @@ const atribu = new AtribuClient({
 
 `Idempotency-Key` is auto-sent on every mutating POST. `request_id` is surfaced on every error.
 
+### Retrying a send safely — `idempotencyKey` (v1.21.0+)
+
+The auto-sent key above is generated fresh **per attempt**, so it deduplicates
+nothing — including `RetryingHttpClient`'s own replays. To make a retried send
+safe, pass a key **you can reproduce**, typically your own message id:
+
+```typescript
+await atribu.messages.send(input, { idempotencyKey: message.id });
+await atribu.conversations.sendMessage(id, { text }, { idempotencyKey: message.id });
+```
+
+Honoured on `POST /api/v1/messages` (WhatsApp, Instagram and email),
+`POST /api/v1/conversations/{id}/messages` and
+`POST /api/v1/whatsapp/conversations/{id}/messages`:
+
+| repeat | what happens |
+|---|---|
+| same key, first request finished, within **24 h** | the first response is replayed verbatim — **nothing is sent** |
+| same key, first request **still in flight** | `409 idempotency_key_in_flight` — retry the same key with backoff |
+| same key, **different body** | `409 idempotency_key_conflict` — resend the original body, or mint a new key |
+| no key | every request sends, exactly as before |
+
+Scope is your **API key** + the **route** + the key value, so two consumers can
+use the same key string without colliding. Only a 2xx is stored: a send that
+genuinely failed can be retried under the same key.
+
 ### Acting as a signed-in user — `accessToken` (v1.19.0+)
 
 An API key **is** a tenant: it is minted against exactly one Profile, so it

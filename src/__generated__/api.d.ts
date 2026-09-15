@@ -10860,7 +10860,10 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /** @description Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before. */
+                    "Idempotency-Key"?: string;
+                };
                 path: {
                     /** @description A conversation's `id`, from `GET /api/v1/conversations`. A conversation belonging to another profile is 404, indistinguishable from one that does not exist. */
                     id: string;
@@ -10920,6 +10923,23 @@ export interface paths {
                 };
                 /** @description Conversation not found (or belongs to another profile) */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `Idempotency-Key` replayed while the first send is still in flight (`idempotency_key_in_flight`), or reused for a different operation or request body (`idempotency_key_conflict`) */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -21215,7 +21235,10 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /** @description Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before. */
+                    "Idempotency-Key"?: string;
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -21453,7 +21476,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Connection not ready (status != connected) */
+                /** @description Connection not ready (`connection_not_ready`), or an `Idempotency-Key` replayed while the first send is still in flight (`idempotency_key_in_flight`) or reused for a different request body (`idempotency_key_conflict`) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -23576,7 +23599,10 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /** @description Optional (#1517). A client-generated retry token, unique per logical send — Vitrina uses the message id. Scoped to your API key, this route and this key: a repeat within 24 hours replays the first response verbatim and sends nothing, a repeat that arrives while the first send is still in flight answers 409 `idempotency_key_in_flight` (retry with backoff), and a repeat carrying a different body answers 409 `idempotency_key_conflict` (mint a fresh key). Only a 2xx is stored, so a send that failed can be retried under the same key. Omit the header and every request sends, exactly as before. */
+                    "Idempotency-Key"?: string;
+                };
                 path: {
                     id: string;
                 };
@@ -23624,6 +23650,15 @@ export interface paths {
                 };
                 /** @description No such conversation for this profile */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description `Idempotency-Key` replayed while the first send is still in flight (`idempotency_key_in_flight`), or reused for a different operation or request body (`idempotency_key_conflict`) */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };

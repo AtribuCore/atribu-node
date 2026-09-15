@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-09-15
+
+### Changed
+
+- **`Idempotency-Key` is now HONOURED on the message-send routes** (#1517).
+  Nothing in this SDK's surface changed — `messages.send(input, { idempotencyKey })`
+  and `conversations.sendMessage(id, body, { idempotencyKey })` already
+  accepted the option — but the server now acts on it, so passing one finally
+  buys you something:
+  - `POST /api/v1/messages` (WhatsApp, Instagram and email),
+    `POST /api/v1/conversations/{id}/messages` and
+    `POST /api/v1/whatsapp/conversations/{id}/messages`.
+  - A repeat within **24 hours** replays the first response verbatim and sends
+    nothing. Scope is your API key + the route + the key value.
+  - A repeat that arrives while the first send is **still in flight** answers
+    `409 idempotency_key_in_flight` rather than risking a second delivery —
+    retry the same key with backoff.
+  - A repeat carrying a **different body** answers `409 idempotency_key_conflict`.
+  - Only a 2xx is stored, so a send that genuinely failed can be retried under
+    the same key.
+  - **Pass your own key to get any of this.** The auto-generated
+    `Idempotency-Key` this SDK puts on every mutating POST is regenerated per
+    attempt, so `RetryingHttpClient`'s own replays do NOT deduplicate. Use a
+    value you can reproduce on a retry — your message id.
+- `api.d.ts` regenerated: the three send operations now declare the
+  `Idempotency-Key` header parameter and a `409` response.
+
+
 ### Added
 
 - `client.whatsapp.ads.list({ limit, after })` — every click-to-WhatsApp ad on
