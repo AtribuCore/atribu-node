@@ -39,6 +39,32 @@ describe("buildAuthorizeUrl", () => {
     expect(new URL(url).searchParams.get("scope")).toBe("whatsapp instagram");
   });
 
+  /**
+   * #1455 — the union used to be `whatsapp | instagram | calendar`, three
+   * scopes behind `CONNECT_SCOPES` in `src/lib/oauth/exchange.ts`. Every entry
+   * below is one `/oauth/authorize` really accepts; a compile error here is the
+   * drift this test exists to catch, so it deliberately asserts the whole list
+   * rather than a sample.
+   */
+  it("accepts every connect scope /oauth/authorize serves", () => {
+    const scopes = [
+      "whatsapp",
+      "instagram",
+      "email",
+      "calendar",
+      "calendar_read",
+      "analytics",
+      "analytics_pii",
+      "attribution_write",
+      "connections",
+      "attribution",
+    ] as const;
+    for (const scope of scopes) {
+      const url = buildAuthorizeUrl({ ...base, scope });
+      expect(new URL(url).searchParams.get("scope")).toBe(scope);
+    }
+  });
+
   it("includes PKCE params when challenge present", () => {
     const url = buildAuthorizeUrl({
       ...base,

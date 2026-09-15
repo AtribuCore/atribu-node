@@ -3,7 +3,7 @@
   "info": {
     "title": "Atribu API",
     "version": "1.0.0",
-    "description": "Marketing attribution API. Get campaign ROAS, visitor analytics, customer journeys, and revenue attribution data.\n\n## Authentication\n\nAll requests require a Bearer token in the `Authorization` header:\n```\nAuthorization: Bearer atb_live_your_key_here\n```\n\nGet your API key from **Settings > API Keys** in the Atribu dashboard.\n\nTwo more credentials ride the same header, both identifying a PERSON rather than a tenant, and both requiring `?profile_id=<uuid>` on profile-scoped routes:\n\n- an **MCP user token** (`atb_user_…`) — a public integration path, and the credential an AI agent holds after the MCP OAuth flow at `https://mcp.atribu.app` (or after `POST /api/v1/me/mcp-tokens`). One token covers both the MCP server and this API. See the `userToken` security scheme.\n- a **Supabase session access token** — Atribu's own dashboard, 120 requests/minute per user. See the `bearerAuth` security scheme.\n\n## Scopes\n\nAPI keys have granular scopes:\n- `analytics:read` — Read aggregated analytics: overview, timeseries, breakdowns, quality, touches, and channel/referrer/page/keyword/country/device/browser/OS dimensions.\n- `campaigns:read` — Read campaign, ad set and ad performance: ROAS, trends, archetypes, creative patterns, DM ads, forecast outlook and top performers.\n- `conversions:read` — Read conversion counts and revenue, including cash-only revenue and conversion timeseries.\n- `commerce:read` — Read the merchant's product catalogue (products, variants, stock and prices) and look an order up by number, email or phone. Returns no customer identity.\n- `customers:read` — Read the customer list and per-customer journey detail — personally identifiable information.\n- `visitors:read` — Read the visitor list — personally identifiable information.\n- `realtime:read` — Read the live visitor count.\n- `exports:read` — Read the conversion-export/signal-sync surface: Meta CAPI wiring diagnostics, dataset quality, Custom Audiences, export deliveries, and the compliance state behind Platform-Safe Mode.\n- `exports:write` — Configure the conversion-export pipeline: create, edit and disable export destinations (Meta dataset/pixel, Google Ads conversion action) and the signal rules that map a conversion definition to a platform event, and send a Meta test event.\n- `events:write` — Ingest server-side outcome events (e.g. a closed sale) via POST /api/v1/events.\n- `goals:write` — Create, list and edit conversion goal definitions.\n- `attribution:write` — Trigger an attribution recompute for a profile.\n- `tracking:write` — Configure a site's tracking installation: issue and revoke tracking keys, change the tracker's session/enrichment settings (which enqueues a full attribution replay), and start an install verification.\n- `reports:write` — Create, schedule, generate and send attribution reports (report schedules, deliveries and send).\n- `workspaces:write` — Create a workspace (POST /api/v1/workspaces). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `profiles:write` — Create a profile inside a workspace the caller already belongs to (POST /api/v1/profiles). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `campaigns:apply` — Apply or dismiss a campaign recommendation. Not granted by default — a workspace admin must opt a key into it.\n- `creatives:write` — Queue an on-demand AI analysis of one ad's creative (`POST /api/v1/ads/{id}/creative-analysis`). Each accepted call queues a model call against the workspace's daily creative-analysis allowance, so it is capped per profile and per key per day and is not granted by default — a workspace admin must opt a key into it.\n- `calendar` — Create, update and delete events on Atribu booking calendars.\n- `calendar.manage` — Create, list and share (ACL) Atribu booking calendars.\n- `calendar.read` — Read-only access to Atribu booking calendars and their events.\n- `whatsapp` — Send and manage WhatsApp messages, templates, flows, broadcasts, calling and phone-number registration.\n- `whatsapp:read` — Read WhatsApp conversations, messages, templates and broadcasts. A read-only subset of `whatsapp`, which also allows sending and managing them.\n- `instagram` — Send and manage Instagram DMs, comment replies, triggers and media.\n- `email` — Read and send connected email (Gmail/Outlook): drafts, threads, labels and search.\n- `conversations:read` — Read the unified inbox: conversation list and message threads across WhatsApp, Instagram and email, plus organic/ad match suggestions, contact-extraction review proposals and the Instagram DM↔payment reconciliation worklist.\n- `conversations:write` — Reply on a conversation, save an email draft, apply Gmail labels, link/unlink a conversation to a customer, and approve/reject a contact-extraction review proposal.\n\nSee the API changelog (docs/api-changelog.md) for scope-catalogue changes — scopes are frozen into a key at mint time, so a key minted before a new scope was added to a grant does not carry it; re-mint via `client_credentials`.\n\n## Rate Limits\n\nDefault: 60 requests/minute. Check `X-RateLimit-Remaining` header.\nHeavy endpoints (customers, visitors, journey) cost 3x.\n\nA few endpoints also carry their own sustained bucket, because one call is far more work than a read. That bucket is separate from the per-minute allowance, so it can neither consume it nor be consumed by it:\n\n| Endpoint | Own bucket |\n|---|---|\n| `POST /api/v1/quality/utm/refresh` | 6 scans/hour per key (each is an 8-12s live scan) |\n| `POST /api/v1/profiles` | 200 provisioning calls/hour per app credential |\n\n## Date Range\n\nMost endpoints require `date_from` and `date_to` in YYYY-MM-DD format. Maximum range: 366 days.",
+    "description": "Marketing attribution API. Get campaign ROAS, visitor analytics, customer journeys, and revenue attribution data.\n\n## Authentication\n\nAll requests require a Bearer token in the `Authorization` header:\n```\nAuthorization: Bearer atb_live_your_key_here\n```\n\nGet your API key from **Settings > API Keys** in the Atribu dashboard.\n\nTwo more credentials ride the same header, both identifying a PERSON rather than a tenant, and both requiring `?profile_id=<uuid>` on profile-scoped routes:\n\n- an **MCP user token** (`atb_user_…`) — a public integration path, and the credential an AI agent holds after the MCP OAuth flow at `https://mcp.atribu.app` (or after `POST /api/v1/me/mcp-tokens`). One token covers both the MCP server and this API. See the `userToken` security scheme.\n- a **Supabase session access token** — Atribu's own dashboard, 120 requests/minute per user. See the `bearerAuth` security scheme.\n\n## Scopes\n\nAPI keys have granular scopes:\n- `analytics:read` — Read aggregated analytics: overview, timeseries, breakdowns, quality, touches, and channel/referrer/page/keyword/country/device/browser/OS dimensions.\n- `campaigns:read` — Read campaign, ad set and ad performance: ROAS, trends, archetypes, creative patterns, DM ads, forecast outlook and top performers.\n- `conversions:read` — Read conversion counts and revenue, including cash-only revenue and conversion timeseries.\n- `commerce:read` — Read the merchant's product catalogue (products, variants, stock and prices) and look an order up by number, email or phone. Returns no customer identity.\n- `customers:read` — Read the customer list and per-customer journey detail — personally identifiable information.\n- `visitors:read` — Read the visitor list — personally identifiable information.\n- `realtime:read` — Read the live visitor count.\n- `exports:read` — Read the conversion-export/signal-sync surface: Meta CAPI wiring diagnostics, dataset quality, Custom Audiences, export deliveries, and the compliance state behind Platform-Safe Mode.\n- `exports:write` — Configure the conversion-export pipeline: create, edit and disable export destinations (Meta dataset/pixel, Google Ads conversion action) and the signal rules that map a conversion definition to a platform event, and send a Meta test event.\n- `events:write` — Ingest server-side outcome events (e.g. a closed sale) via POST /api/v1/events.\n- `goals:write` — Create, list and edit conversion goal definitions.\n- `attribution:write` — Trigger an attribution recompute for a profile.\n- `tracking:write` — Configure a site's tracking installation: issue and revoke tracking keys, change the tracker's session/enrichment settings (which enqueues a full attribution replay), and start an install verification.\n- `reports:write` — Create, schedule, generate and send attribution reports (report schedules, deliveries and send).\n- `workspaces:write` — Create a workspace (POST /api/v1/workspaces). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `profiles:write` — Create a profile inside a workspace the caller already belongs to (POST /api/v1/profiles). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `campaigns:apply` — Apply or dismiss a campaign recommendation. Not granted by default — a workspace admin must opt a key into it, or the app must hold the `attribution` connect scope.\n- `creatives:write` — Queue an on-demand AI analysis of one ad's creative (`POST /api/v1/ads/{id}/creative-analysis`). Each accepted call queues a model call against the workspace's daily creative-analysis allowance, so it is capped per profile and per key per day and is not granted by default — a workspace admin must opt a key into it, or the app must hold the `attribution` connect scope.\n- `connections:read` — Read the state of a profile's connections: the connection list and detail, and the progress of a running sync.\n- `connections:write` — Run the connect rail: mint a connect hand-off URL, list the candidate accounts behind a parked provider token, finalize the selection, trigger a sync, and disconnect a connection.\n- `calendar` — Create, update and delete events on Atribu booking calendars.\n- `calendar.manage` — Create, list and share (ACL) Atribu booking calendars.\n- `calendar.read` — Read-only access to Atribu booking calendars and their events.\n- `whatsapp` — Send and manage WhatsApp messages, templates, flows, broadcasts, calling and phone-number registration.\n- `whatsapp:read` — Read WhatsApp conversations, messages, templates and broadcasts. A read-only subset of `whatsapp`, which also allows sending and managing them.\n- `instagram` — Send and manage Instagram DMs, comment replies, triggers and media.\n- `email` — Read and send connected email (Gmail/Outlook): drafts, threads, labels and search.\n- `conversations:read` — Read the unified inbox: conversation list and message threads across WhatsApp, Instagram and email, plus organic/ad match suggestions, contact-extraction review proposals and the Instagram DM↔payment reconciliation worklist.\n- `conversations:write` — Reply on a conversation, save an email draft, apply Gmail labels, link/unlink a conversation to a customer, and approve/reject a contact-extraction review proposal.\n\nSee the API changelog (docs/api-changelog.md) for scope-catalogue changes — scopes are frozen into a key at mint time, so a key minted before a new scope was added to a grant does not carry it; re-mint via `client_credentials`.\n\n## Rate Limits\n\nDefault: 60 requests/minute. Check `X-RateLimit-Remaining` header.\nHeavy endpoints (customers, visitors, journey) cost 3x.\n\nA few endpoints also carry their own sustained bucket, because one call is far more work than a read. That bucket is separate from the per-minute allowance, so it can neither consume it nor be consumed by it:\n\n| Endpoint | Own bucket |\n|---|---|\n| `POST /api/v1/quality/utm/refresh` | 6 scans/hour per key (each is an 8-12s live scan) |\n| `POST /api/v1/profiles` | 200 provisioning calls/hour per app credential |\n\n## Date Range\n\nMost endpoints require `date_from` and `date_to` in YYYY-MM-DD format. Maximum range: 366 days.",
     "contact": {
       "name": "Atribu Support",
       "url": "https://www.atribu.app"
@@ -6144,10 +6144,9 @@
             "minItems": 1,
             "maxItems": 8,
             "example": [
-              "analytics",
-              "analytics_pii"
+              "connections"
             ],
-            "description": "The delegation this app receives over the new profile. Defaults to [\"analytics\"]. Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write) — a connection scope such as `whatsapp` is rejected, because a profile-level grant naming one would authorize nothing while appearing to."
+            "description": "The delegation this app receives over the new profile. Defaults to [\"connections\"] (#1455 — connectivity is what a freshly provisioned profile is for; the `attribution` bundle is set by Atribu when you declare the `atribu_attribution` entitlement, not requested here). Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write, connections, attribution) — a connection scope such as `whatsapp` is rejected, because a profile-level grant naming one would authorize nothing while appearing to."
           }
         },
         "required": [
@@ -6182,7 +6181,7 @@
               "type": "string"
             },
             "example": [
-              "analytics"
+              "connections"
             ],
             "description": "The scopes the grant now carries."
           }
@@ -6306,9 +6305,9 @@
             "minItems": 1,
             "maxItems": 8,
             "example": [
-              "analytics"
+              "connections"
             ],
-            "description": "The delegation this app receives over the profile. Defaults to [\"analytics\"]. Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write). Upserted on every call, replay included — a re-adopt that widens or narrows this list is a re-consent."
+            "description": "The delegation this app receives over the profile. Defaults to [\"connections\"]. Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write, connections, attribution). Upserted on every call, replay included — a re-adopt that widens or narrows this list is a re-consent."
           }
         },
         "required": [
@@ -6341,7 +6340,7 @@
               "type": "string"
             },
             "example": [
-              "analytics"
+              "connections"
             ],
             "description": "The scopes the grant now carries."
           }
@@ -7731,7 +7730,7 @@
               "null"
             ],
             "properties": {
-              "new_winners_count": {
+              "top_performer_count": {
                 "type": "integer"
               },
               "at_risk_count": {
@@ -7770,7 +7769,7 @@
               }
             },
             "required": [
-              "new_winners_count",
+              "top_performer_count",
               "at_risk_count",
               "at_risk_spend_dollars",
               "lift_backed_count",
@@ -9228,7 +9227,7 @@
       "WorkspaceTopPerformersBrief": {
         "type": "object",
         "properties": {
-          "new_winners_count": {
+          "top_performer_count": {
             "type": "integer"
           },
           "at_risk_count": {
@@ -9267,7 +9266,7 @@
           }
         },
         "required": [
-          "new_winners_count",
+          "top_performer_count",
           "at_risk_count",
           "at_risk_spend_dollars",
           "lift_backed_count",
@@ -11260,7 +11259,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "A one-hour signed URL for a stored file, or the row's `external_url`. Falls back to the external link rather than disappearing if storage cannot mint one — the row is the record that the agreement exists."
           }
         },
         "required": [
@@ -11465,21 +11465,33 @@
           },
           "medianValue": {
             "type": [
-              "number",
+              "string",
               "null"
-            ]
+            ],
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "Median seeded member value, or null when the seed has no valued members."
           },
           "totalSeedValue": {
-            "type": "number"
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `\"9.00\" > \"10.00\"`, and that failure is silent."
           },
           "refundsSubtracted": {
-            "type": "number"
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `\"9.00\" > \"10.00\"`, and that failure is silent."
           },
           "cashCustomers": {
-            "type": "number"
+            "type": "integer"
           },
           "leadCustomers": {
-            "type": "number"
+            "type": "integer"
           },
           "members": {
             "type": "array",
@@ -11535,194 +11547,194 @@
         "type": "object",
         "properties": {
           "link": {
+            "$ref": "#/components/schemas/ConversionSyncSetupLink"
+          }
+        },
+        "required": [
+          "link"
+        ]
+      },
+      "ConversionSyncSetupLink": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "The client-facing `/s/<token>` page. SECRET-BEARING: the unguessable link token is part of the URL, so anyone holding this string can open the provisioning flow. Treat it like a credential — do not log it, and do not put it in a URL bar a screen-share can read."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "openedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connectedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fixRequestedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "opened",
+              "connected",
+              "provisioning",
+              "choice_required",
+              "action_required",
+              "ready",
+              "revoked",
+              "expired"
+            ]
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "agencyName": {
+            "type": "string",
+            "description": "The agency workspace's name, or `Atribu` when it has none. PERSONAL DATA in practice: a sole trader's workspace is usually their own name."
+          },
+          "inviterName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PERSONAL DATA — the name of the person who created the link. Falls back through the account's `full_name`, then `name`, then the LOCAL PART OF THEIR EMAIL, so a user with no profile metadata publishes half their address here."
+          },
+          "clientName": {
+            "type": "string",
+            "description": "PERSONAL DATA in practice — the client profile's name, frequently a person's or a clinic owner's."
+          },
+          "metaUserName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PERSONAL DATA — the display name of the Meta account holder who authorised the link, as Meta's `/me` reported it."
+          },
+          "missingPermissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Meta permissions the authorising user did not grant, from `['ads_read', 'ads_management']`. Empty once provisioning succeeds."
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "connect",
+                    "ad_account",
+                    "business",
+                    "dataset",
+                    "wire"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "active",
+                    "done",
+                    "skipped",
+                    "failed"
+                  ]
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "status"
+              ]
+            },
+            "description": "The provisioning ladder, newest state per stage. Rebuilt on every state change; empty before the client opens the link."
+          },
+          "adAccounts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "currency"
+              ]
+            },
+            "description": "The client's active Meta ad accounts, offered ONLY while `status` is `choice_required` — `null` in every other state, which is a state signal and not an absence of accounts. `currency` is an ISO-4217 CODE, never an amount."
+          },
+          "resultSummary": {
             "type": [
               "object",
               "null"
             ],
             "properties": {
-              "id": {
-                "type": "string"
-              },
-              "url": {
-                "type": "string"
-              },
-              "createdAt": {
-                "type": "string"
-              },
-              "openedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "connectedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "completedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "fixRequestedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "status": {
+              "business": {
                 "type": "string",
                 "enum": [
-                  "pending",
-                  "opened",
-                  "connected",
-                  "provisioning",
-                  "choice_required",
-                  "action_required",
-                  "ready",
-                  "revoked",
-                  "expired"
+                  "existing",
+                  "created",
+                  "skipped"
                 ]
               },
-              "expiresAt": {
+              "businessName": {
                 "type": "string"
               },
-              "agencyName": {
+              "datasetId": {
                 "type": "string"
               },
-              "inviterName": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+              "pixelCreated": {
+                "type": "boolean"
               },
-              "clientName": {
+              "adAccountId": {
                 "type": "string"
               },
-              "metaUserName": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+              "adAccountName": {
+                "type": "string"
               },
-              "missingPermissions": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "stages": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "key": {
-                      "type": "string",
-                      "enum": [
-                        "connect",
-                        "ad_account",
-                        "business",
-                        "dataset",
-                        "wire"
-                      ]
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "pending",
-                        "active",
-                        "done",
-                        "skipped",
-                        "failed"
-                      ]
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "key",
-                    "status"
-                  ]
-                }
-              },
-              "adAccounts": {
-                "type": [
-                  "array",
-                  "null"
-                ],
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "currency": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "currency"
-                  ]
-                }
-              },
-              "resultSummary": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "business": {
-                    "type": "string",
-                    "enum": [
-                      "existing",
-                      "created",
-                      "skipped"
-                    ]
-                  },
-                  "businessName": {
-                    "type": "string"
-                  },
-                  "datasetId": {
-                    "type": "string"
-                  },
-                  "pixelCreated": {
-                    "type": "boolean"
-                  },
-                  "adAccountId": {
-                    "type": "string"
-                  },
-                  "adAccountName": {
-                    "type": "string"
-                  },
-                  "currency": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "required": [
-                  "business",
-                  "datasetId",
-                  "pixelCreated",
-                  "adAccountId",
-                  "adAccountName",
-                  "currency"
-                ]
-              },
-              "lastError": {
+              "currency": {
                 "type": [
                   "string",
                   "null"
@@ -11730,29 +11742,42 @@
               }
             },
             "required": [
-              "id",
-              "url",
-              "createdAt",
-              "openedAt",
-              "connectedAt",
-              "completedAt",
-              "fixRequestedAt",
-              "status",
-              "expiresAt",
-              "agencyName",
-              "inviterName",
-              "clientName",
-              "metaUserName",
-              "missingPermissions",
-              "stages",
-              "adAccounts",
-              "resultSummary",
-              "lastError"
-            ]
+              "business",
+              "datasetId",
+              "pixelCreated",
+              "adAccountId",
+              "adAccountName",
+              "currency"
+            ],
+            "description": "What provisioning actually created, once it has finished. `currency` is an ISO-4217 CODE. Null until then."
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last provisioning attempt failed. USUALLY a stable machine token (`token_missing`, `no_ad_account`, `missing_ads_management`) but NOT guaranteed to be one: two paths put raw upstream text here — a Meta Graph error message and a Postgres error message — so do not switch on it without a default."
           }
         },
         "required": [
-          "link"
+          "id",
+          "url",
+          "createdAt",
+          "openedAt",
+          "connectedAt",
+          "completedAt",
+          "fixRequestedAt",
+          "status",
+          "expiresAt",
+          "agencyName",
+          "inviterName",
+          "clientName",
+          "metaUserName",
+          "missingPermissions",
+          "stages",
+          "adAccounts",
+          "resultSummary",
+          "lastError"
         ]
       },
       "ConversionSyncTransparencyResponse": {
@@ -13211,61 +13236,7 @@
         "type": "object",
         "properties": {
           "link": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "url": {
-                "type": "string",
-                "description": "The client-facing `/s/<token>` page."
-              },
-              "status": {
-                "type": "string"
-              },
-              "expiresAt": {
-                "type": "string"
-              },
-              "createdAt": {
-                "type": "string"
-              },
-              "openedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "connectedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "completedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "fixRequestedAt": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            },
-            "required": [
-              "id",
-              "url",
-              "status",
-              "expiresAt",
-              "createdAt",
-              "openedAt",
-              "connectedAt",
-              "completedAt",
-              "fixRequestedAt"
-            ],
-            "additionalProperties": {}
+            "$ref": "#/components/schemas/ConversionSyncSetupLink"
           },
           "handoff_id": {
             "type": [
@@ -13307,8 +13278,48 @@
           },
           "stats": {
             "type": "object",
-            "properties": {},
-            "additionalProperties": {}
+            "properties": {
+              "cashCustomers": {
+                "type": "integer",
+                "description": "Buyers that made it into the seed."
+              },
+              "totalCashIn": {
+                "type": "string",
+                "format": "decimal",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "example": "1234.56",
+                "description": "Sum of positive cash across the deduped input window — `conversions.value_amount_reporting`."
+              },
+              "totalSeedValue": {
+                "type": "string",
+                "format": "decimal",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "example": "1234.56",
+                "description": "Sum of the member values actually seeded, refunds already netted out."
+              },
+              "refundsSubtracted": {
+                "type": "string",
+                "format": "decimal",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "example": "1234.56",
+                "description": "Refunded cash removed from the seed values, as a positive amount."
+              },
+              "duplicateRowsDropped": {
+                "type": "integer"
+              },
+              "leadCustomers": {
+                "type": "integer",
+                "description": "Qualified leads available for the identity-only fallback seed."
+              }
+            },
+            "required": [
+              "cashCustomers",
+              "totalCashIn",
+              "totalSeedValue",
+              "refundsSubtracted",
+              "duplicateRowsDropped",
+              "leadCustomers"
+            ]
           },
           "lookalikes": {
             "type": "array",
@@ -14504,7 +14515,8 @@
                       "type": "string"
                     },
                     "is_directional": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Always `true`. A structural reminder that this is a DIRECTIONAL read of traceable ROAS and fatigue — never a causal or incrementality claim. Consumers must label it as such."
                     },
                     "basis": {
                       "type": "array",
@@ -14515,7 +14527,8 @@
                   },
                   "required": [
                     "direction",
-                    "strength"
+                    "strength",
+                    "is_directional"
                   ],
                   "additionalProperties": {},
                   "description": "The directional call and WHAT it was derived from. `basis` names the signals that actually contributed — read it with `fatigue_unavailable` below, because a missing signal lowers confidence rather than changing the direction."
@@ -18362,6 +18375,12 @@
           "enabled": {
             "type": "boolean",
             "description": "`true` starts Atribu's pipeline for this profile — recompute, the AI agent, conversation/conversion extraction, automatic events, and the ad-platform sync's performance-shaped work (insights/spend, messaging metrics, attribution, conversions, exports) — and enqueues the standard backfill window for any ad-platform connection this profile already holds. `false` returns the profile to connectivity-only mode: the ad-platform sync keeps refreshing structure and conversational configuration (campaign/ad names, the CTWA greeting) but skips everything performance-shaped. Nothing is ever deleted by turning this off."
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-15T12:04:11.000Z",
+            "description": "When YOU made this decision (the subscription event's own timestamp), ISO-8601 with an offset. Optional, and omitting it keeps the previous behaviour: the last call to arrive wins.\n\nSend it if your delivery is at-least-once and unordered — an outbox retry, a webhook fan-out. Atribu records the newest value it has seen and IGNORES any later delivery carrying a strictly older one, answering `200` with `changed: false` and `ignored_stale: true` and writing nothing at all. That is the only protection against a retried cancellation landing after the renewal that superseded it; idempotency alone cannot order two contradictory calls."
           }
         },
         "required": [
@@ -18388,14 +18407,53 @@
           },
           "changed": {
             "type": "boolean",
-            "description": "False when the entitlement was already at this value — a replay. Replays still answer HTTP 200 and, for `enabled: true`, still enqueue a (cheaper, cursor-based) sync pass, so a call that flipped the entitlement but failed before enqueueing the backfill can be recovered by calling again with the same body."
+            "description": "False when the entitlement was already at this value — a replay. A replay answers HTTP 200 and enqueues NOTHING: the backfill fires once, on the real transition, because a duplicate delivery from an at-least-once outbox must not cost a second full sync pass. If a call flipped the entitlement and then failed before the backfill was enqueued, recover it with `POST /api/v1/connections/sync` (`force_full: true`) — the same endpoint a \"Hard refresh\" uses — not by replaying this one.\n\nThe grant side is the exception and converges on every call: see `grant`."
+          },
+          "grant": {
+            "type": "object",
+            "properties": {
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "example": [
+                  "connections",
+                  "attribution"
+                ],
+                "description": "The connect scopes your profile-level grant carries NOW. `enabled: true` sets `[\"connections\", \"attribution\"]`; `enabled: false` narrows it back to `[\"connections\"]`. The grant itself is never revoked — connections are free."
+              },
+              "revoked_keys": {
+                "type": "integer",
+                "example": 0,
+                "description": "How many API keys this call revoked. Non-zero only on an `enabled: false` that found the grant actually carrying `attribution`; those keys stop authenticating within ~10 seconds. A repeated `enabled: false` reports 0 and revokes nothing, so a retry cannot kill the core key you minted after the first one — and a grant that never carried `attribution` (an older delegation such as `[\"analytics\", \"attribution_write\"]`) is left exactly as it is, keys included: turning off an add-on only undoes what turning it on did."
+              },
+              "revoked": {
+                "type": "boolean",
+                "example": false,
+                "description": "True when the workspace owner has REVOKED your delegation on this profile from their connected-apps page. The entitlement still flipped — it is a billing fact — but nothing was written to the grant, `scopes` is empty, and no key was touched. Atribu will not silently re-authorize an app a human disconnected. Re-consent by replaying `POST /api/v1/profiles` (or `POST /api/v1/profiles/{profileId}/adopt`) for this dealer, then call this endpoint again."
+              }
+            },
+            "required": [
+              "scopes",
+              "revoked_keys",
+              "revoked"
+            ],
+            "description": "What this call did to your OAuth grant on this profile (#1455). Never carries a secret — mint a fresh key yourself with `grant_type=client_credentials`."
+          },
+          "ignored_stale": {
+            "type": "boolean",
+            "example": false,
+            "description": "True when this delivery was DISCARDED because its `occurred_at` is strictly older than the decision time already recorded — an out-of-order outbox retry. Nothing was written: no entitlement change, no grant change, no key revocation, no audit event. `enabled` then reports the value Atribu currently holds, not the one you sent. Treat it as success and stop retrying that delivery."
           }
         },
         "required": [
           "profile_id",
           "feature",
           "enabled",
-          "changed"
+          "changed",
+          "grant",
+          "ignored_stale"
         ]
       },
       "OrganicPost": {
@@ -21959,6 +22017,74 @@
           "current_task"
         ],
         "description": "State of the last (or in-flight) sync run for this connection. Always present on both kinds; every field reflects what the connector last recorded."
+      },
+      "ConnectionPixel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The Meta pixel / dataset id. This is the value `meta_pixel_id` takes on `POST /api/v1/exports/destinations` — the reason this endpoint exists.",
+            "example": "1234567890123456"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The pixel's name in Events Manager. `null` when Meta returned none."
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the pixel was created, in Meta's own ISO-8601 spelling (offset, not `Z`). `null` when Meta did not return it."
+          },
+          "last_fired_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When this pixel last received an event, in Meta's own ISO-8601 spelling. `null` means Meta returned no value — typically a pixel that has NEVER fired, which is the signal that matters when choosing between several."
+          },
+          "is_unavailable": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`true` when Meta reports the pixel as unavailable (disabled or otherwise unusable). `null` is NOT `false`: it means Meta returned no verdict, so treat it as unknown rather than as healthy."
+          },
+          "owner_business": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "description": "The Business Manager that owns the pixel, when Meta discloses it. `null` when it did not — commonly because Atribu's token holds no `business_management` on that business, which is normal for a shared asset and is not an error. A pixel owned by a business other than the ad account's own is readable here but may still refuse server events."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "last_fired_at",
+          "is_unavailable",
+          "owner_business"
+        ]
       },
       "RevokedConnection": {
         "type": "object",
@@ -39745,6 +39871,7 @@
           }
         },
         "x-atribu-scopes": [
+          "connections:write",
           "attribution:write"
         ],
         "x-atribu-auth": [
@@ -39999,6 +40126,7 @@
           }
         },
         "x-atribu-scopes": [
+          "connections:write",
           "attribution:write"
         ],
         "x-atribu-auth": [
@@ -40161,7 +40289,9 @@
           "calendar.manage",
           "calendar.read",
           "analytics:read",
-          "attribution:write"
+          "attribution:write",
+          "connections:read",
+          "connections:write"
         ],
         "x-atribu-auth": [
           "api_key",
@@ -40317,7 +40447,9 @@
           "calendar.manage",
           "calendar.read",
           "analytics:read",
-          "attribution:write"
+          "attribution:write",
+          "connections:read",
+          "connections:write"
         ],
         "x-atribu-auth": [
           "api_key",
@@ -40510,7 +40642,314 @@
           "calendar.manage",
           "calendar.read",
           "analytics:read",
-          "attribution:write"
+          "attribution:write",
+          "connections:read",
+          "connections:write"
+        ],
+        "x-atribu-auth": [
+          "api_key",
+          "session",
+          "user_token"
+        ],
+        "x-atribu-idempotency": "none",
+        "x-atribu-scope-grain": "profile"
+      }
+    },
+    "/api/v1/connections/{id}/pixels": {
+      "get": {
+        "summary": "List the Meta pixels on an ad-account connection",
+        "description": "The pixels (datasets) on a `meta_ads` connection's ad account, so you can pick the `meta_pixel_id` that `POST /api/v1/exports/destinations` requires.\n\n**Why this exists.** A delegated key had no way to discover a pixel id: `GET /api/v1/conversion-sync/dataset` only reconciles a dataset that is *already* configured, and `POST /api/v1/conversion-sync/setup-links` mints a console link for a signed-in human and refuses API keys. Without this read the only way to finish a Conversion Sync setup over the API was to ask the account owner to copy an id out of Events Manager.\n\nOne live Meta Graph call per request, and **never cached** — you are about to write a destination against the answer, so a pixel deleted or disabled since must not still be on offer.\n\n`id` is the only field Meta always returns; everything else is `null` when Meta did not answer it. `null` is not `false` — see `is_unavailable`.\n\n404 for an id on another profile and for an id that does not exist; the two are deliberately indistinguishable. A connection that exists but is not `meta_ads` answers 409 rather than 404, because you can read that same row through `GET /api/v1/connections/{id}` and pretending it is missing would be a lie.",
+        "tags": [
+          "Connections"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ad account's pixels. An account with none answers `200` with an empty list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "pixels": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ConnectionPixel"
+                          }
+                        }
+                      },
+                      "required": [
+                        "pixels"
+                      ]
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "profile_id": {
+                          "type": "string",
+                          "example": "uuid"
+                        }
+                      },
+                      "required": [
+                        "profile_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                },
+                "example": {
+                  "data": {
+                    "pixels": [
+                      {
+                        "id": "1234567890123456",
+                        "name": "Dealer Santiago — Web",
+                        "created_at": "2025-04-02T11:20:15-0700",
+                        "last_fired_at": "2026-09-14T08:41:02-0700",
+                        "is_unavailable": false,
+                        "owner_business": {
+                          "id": "998877665544332",
+                          "name": "Grupo Dealer"
+                        }
+                      },
+                      {
+                        "id": "6543210987654321",
+                        "name": "Legacy pixel",
+                        "created_at": "2023-11-19T04:05:00-0800",
+                        "last_fired_at": null,
+                        "is_unavailable": null,
+                        "owner_business": null
+                      }
+                    ]
+                  },
+                  "meta": {
+                    "profile_id": "3f1c9d2e-7a64-4a6f-9d58-0b3a2c1e4d55"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The connection has no usable Meta token, or Meta rejected it (code 190). Carries `reconnect_required` and the hand-off action to call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Connection not found or not on this key's profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`invalid_state` — the connection exists but is not a `meta_ads` connection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`id` is not a UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Meta answered with an error this API could not classify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-atribu-scopes": [
+          "exports:read"
         ],
         "x-atribu-auth": [
           "api_key",
@@ -53588,7 +54027,7 @@
     "/api/v1/handoffs/{id}": {
       "get": {
         "summary": "Poll a hand-off you handed to a human",
-        "description": "Some steps only a human can take — granting an OAuth consent, picking a Meta ad account, signing a DPA, paying for a plan, approving a write you proposed. Each of those is minted as a **hand-off**: you get a URL, give it to your user, and poll here until they are done.\n\n**There is no `POST /api/v1/handoffs`.** A hand-off is created by the route for the thing it hands off, which is the only place that knows what completing it means. This is the one poll they all share.\n\n**An expired hand-off is 200 with `status: \"expired\"`, never 404.** Expiry is derived at read time, so there is no window in which a dead hand-off still reads `pending`, and no ambiguity between 'this one lapsed, mint another' and 'that id is wrong'.\n\n**`url` is returned only while `status` is `pending`.** Whoever holds it can complete the hand-off — the page is session-less by design, so your user does not need an Atribu account or an open session — which is exactly why a settled hand-off stops returning it.\n\nA hand-off minted by another workspace is 404, the same answer an id that never existed gets.\n\nScope: `analytics:read` — the mint is what needs authority, not the question about it.",
+        "description": "Some steps only a human can take — granting an OAuth consent, picking a Meta ad account, signing a DPA, paying for a plan, approving a write you proposed. Each of those is minted as a **hand-off**: you get a URL, give it to your user, and poll here until they are done.\n\n**There is no `POST /api/v1/handoffs`.** A hand-off is created by the route for the thing it hands off, which is the only place that knows what completing it means. This is the one poll they all share.\n\n**An expired hand-off is 200 with `status: \"expired\"`, never 404.** Expiry is derived at read time, so there is no window in which a dead hand-off still reads `pending`, and no ambiguity between 'this one lapsed, mint another' and 'that id is wrong'.\n\n**`url` is returned only while `status` is `pending`.** Whoever holds it can complete the hand-off — the page is session-less by design, so your user does not need an Atribu account or an open session — which is exactly why a settled hand-off stops returning it.\n\nA hand-off minted by another workspace is 404, the same answer an id that never existed gets.\n\nScope: `connections:read` OR `analytics:read`. The mint is what needs authority, not the question about it — but the `connect` kind (#1046) is minted under `connections:write`, so this poll accepts `connections:read` alongside `analytics:read` for the same reason the rest of the connect rail dual-accepts: a credential minted with only the `connections` core scope must be able to read back a hand-off it just started.",
         "tags": [
           "Analytics"
         ],
@@ -53686,6 +54125,7 @@
           }
         },
         "x-atribu-scopes": [
+          "connections:read",
           "analytics:read"
         ],
         "x-atribu-auth": [
@@ -53905,6 +54345,7 @@
           }
         },
         "x-atribu-scopes": [
+          "connections:write",
           "attribution:write"
         ],
         "x-atribu-auth": [
@@ -72033,7 +72474,7 @@
           }
         },
         "x-atribu-scopes": [
-          "goals:write"
+          "analytics:read"
         ],
         "x-atribu-auth": [
           "api_key"
@@ -101418,7 +101859,7 @@
     "/api/v1/workspaces/{workspaceId}/top-performers/brief": {
       "get": {
         "summary": "The six counters that summarise a workspace's leaderboard",
-        "description": "A one-row summary of the SAME window `/top-performers` reads. None of the six is a lifetime total: `new_winners_count` is new *in this window* and `at_risk_count` is ads whose predicted hazard crossed a tier *in this window*, so rendering them beside a lifetime figure compares two different questions.\n\n`lift_backed_count` is the one to read first — how many ads have an EXPERIMENT behind them rather than a score. It is normally small, and that is the true state.\n\n`open_recs_value_dollars` is a forecast (the summed `expected_impact_dollars` of the open recommendations), never realised cash.\n\nA workspace with nothing scored answers 200 with every counter at zero. A FAILED read answers 5xx — the two are never the same response.\n\n**Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).\n\nA workspace owner, admin or analyst sees every profile in the workspace; anyone else sees only the profiles they hold a membership on. That narrowing happens in the database, not in the response shape, so a guest gets a 200 over a smaller set — never someone else's rows.",
+        "description": "A one-row summary of the SAME window `/top-performers` reads. None of the six is a lifetime total: `top_performer_count` is ads performing like top performers *in this window* and `at_risk_count` is ads whose predicted hazard crossed a tier *in this window*, so rendering them beside a lifetime figure compares two different questions.\n\n`lift_backed_count` is the one to read first — how many ads have an EXPERIMENT behind them rather than a score. It is normally small, and that is the true state.\n\n`open_recs_value_dollars` is a forecast (the summed `expected_impact_dollars` of the open recommendations), never realised cash.\n\nA workspace with nothing scored answers 200 with every counter at zero. A FAILED read answers 5xx — the two are never the same response.\n\n**Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).\n\nA workspace owner, admin or analyst sees every profile in the workspace; anyone else sees only the profiles they hold a membership on. That narrowing happens in the database, not in the response shape, so a guest gets a 200 over a smaller set — never someone else's rows.",
         "tags": [
           "Campaigns"
         ],
@@ -110450,52 +110891,7 @@
                   "type": "object",
                   "properties": {
                     "data": {
-                      "type": "object",
-                      "properties": {
-                        "compliance": {
-                          "type": [
-                            "object",
-                            "null"
-                          ],
-                          "properties": {},
-                          "additionalProperties": {}
-                        },
-                        "documents": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "document_type": {
-                                "type": "string"
-                              },
-                              "document_name": {
-                                "type": "string"
-                              },
-                              "open_url": {
-                                "type": [
-                                  "string",
-                                  "null"
-                                ],
-                                "description": "A one-hour signed URL for a stored file, or the row's `external_url`. Falls back to the external link rather than disappearing if storage cannot mint one — the row is the record that the agreement exists."
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "document_type",
-                              "document_name",
-                              "open_url"
-                            ],
-                            "additionalProperties": {}
-                          }
-                        }
-                      },
-                      "required": [
-                        "compliance",
-                        "documents"
-                      ]
+                      "$ref": "#/components/schemas/ConversionSyncLegalState"
                     },
                     "meta": {
                       "type": "object",
@@ -111000,8 +111396,48 @@
                         },
                         "stats": {
                           "type": "object",
-                          "properties": {},
-                          "additionalProperties": {}
+                          "properties": {
+                            "cashCustomers": {
+                              "type": "integer",
+                              "description": "Buyers that made it into the seed."
+                            },
+                            "totalCashIn": {
+                              "type": "string",
+                              "format": "decimal",
+                              "pattern": "^-?\\d+(\\.\\d+)?$",
+                              "example": "1234.56",
+                              "description": "Sum of positive cash across the deduped input window — `conversions.value_amount_reporting`."
+                            },
+                            "totalSeedValue": {
+                              "type": "string",
+                              "format": "decimal",
+                              "pattern": "^-?\\d+(\\.\\d+)?$",
+                              "example": "1234.56",
+                              "description": "Sum of the member values actually seeded, refunds already netted out."
+                            },
+                            "refundsSubtracted": {
+                              "type": "string",
+                              "format": "decimal",
+                              "pattern": "^-?\\d+(\\.\\d+)?$",
+                              "example": "1234.56",
+                              "description": "Refunded cash removed from the seed values, as a positive amount."
+                            },
+                            "duplicateRowsDropped": {
+                              "type": "integer"
+                            },
+                            "leadCustomers": {
+                              "type": "integer",
+                              "description": "Qualified leads available for the identity-only fallback seed."
+                            }
+                          },
+                          "required": [
+                            "cashCustomers",
+                            "totalCashIn",
+                            "totalSeedValue",
+                            "refundsSubtracted",
+                            "duplicateRowsDropped",
+                            "leadCustomers"
+                          ]
                         },
                         "lookalikes": {
                           "type": "array",
@@ -112016,61 +112452,7 @@
                       "type": "object",
                       "properties": {
                         "link": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "url": {
-                              "type": "string",
-                              "description": "The client-facing `/s/<token>` page."
-                            },
-                            "status": {
-                              "type": "string"
-                            },
-                            "expiresAt": {
-                              "type": "string"
-                            },
-                            "createdAt": {
-                              "type": "string"
-                            },
-                            "openedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "connectedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "completedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "fixRequestedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "url",
-                            "status",
-                            "expiresAt",
-                            "createdAt",
-                            "openedAt",
-                            "connectedAt",
-                            "completedAt",
-                            "fixRequestedAt"
-                          ],
-                          "additionalProperties": {}
+                          "$ref": "#/components/schemas/ConversionSyncSetupLink"
                         },
                         "handoff_id": {
                           "type": [
@@ -118088,61 +118470,7 @@
                       "type": "object",
                       "properties": {
                         "link": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "url": {
-                              "type": "string",
-                              "description": "The client-facing `/s/<token>` page."
-                            },
-                            "status": {
-                              "type": "string"
-                            },
-                            "expiresAt": {
-                              "type": "string"
-                            },
-                            "createdAt": {
-                              "type": "string"
-                            },
-                            "openedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "connectedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "completedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "fixRequestedAt": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "url",
-                            "status",
-                            "expiresAt",
-                            "createdAt",
-                            "openedAt",
-                            "connectedAt",
-                            "completedAt",
-                            "fixRequestedAt"
-                          ],
-                          "additionalProperties": {}
+                          "$ref": "#/components/schemas/ConversionSyncSetupLink"
                         },
                         "handoff_id": {
                           "type": [
@@ -122153,7 +122481,7 @@
     "/api/v1/conversion-sync/scaling": {
       "get": {
         "summary": "Budget-scaling guidance for every active ad set",
-        "description": "A per-ad-set directional call from the traceable-ROAS trend, the validated Cox fatigue signal and an instrumentation-health gate. No new attribution math — the guidance is the shared `deriveScaleGuidance`.\n\n**Budgets are MINOR units.** Read them with `minor_per_major`; a hardcoded `/100` is wrong by two orders of magnitude for every whole-unit currency. When `currency_unavailable` is true the unit is unknown and no symbol should be printed.",
+        "description": "A per-ad-set directional call from the traceable-ROAS trend, an early-stage Cox fatigue signal and an instrumentation-health gate. No new attribution math — the guidance is the shared `deriveScaleGuidance`.\n\n**The fatigue leg is directional, not validated.** The deployed Cox models carry no held-out cross-validation, so a `fatiguing` direction is a hint to look, not a proven verdict. Weight it accordingly, and do not present it to an end user as validated.\n\n**Budgets are MINOR units.** Read them with `minor_per_major`; a hardcoded `/100` is wrong by two orders of magnitude for every whole-unit currency. When `currency_unavailable` is true the unit is unknown and no symbol should be printed.",
         "tags": [
           "Conversion Sync"
         ],
@@ -122295,7 +122623,8 @@
                                     "type": "string"
                                   },
                                   "is_directional": {
-                                    "type": "boolean"
+                                    "type": "boolean",
+                                    "description": "Always `true`. A structural reminder that this is a DIRECTIONAL read of traceable ROAS and fatigue — never a causal or incrementality claim. Consumers must label it as such."
                                   },
                                   "basis": {
                                     "type": "array",
@@ -122306,7 +122635,8 @@
                                 },
                                 "required": [
                                   "direction",
-                                  "strength"
+                                  "strength",
+                                  "is_directional"
                                 ],
                                 "additionalProperties": {},
                                 "description": "The directional call and WHAT it was derived from. `basis` names the signals that actually contributed — read it with `fatigue_unavailable` below, because a missing signal lowers confidence rather than changing the direction."
@@ -138346,6 +138676,7 @@
           }
         },
         "x-atribu-scopes": [
+          "connections:write",
           "attribution:write"
         ],
         "x-atribu-auth": [
@@ -138476,6 +138807,7 @@
           }
         },
         "x-atribu-scopes": [
+          "connections:read",
           "analytics:read"
         ],
         "x-atribu-auth": [
@@ -138664,6 +138996,7 @@
           }
         },
         "x-atribu-scopes": [
+          "connections:write",
           "attribution:write"
         ],
         "x-atribu-auth": [
@@ -142708,7 +143041,7 @@
     "/api/v1/profiles/{profileId}/entitlements/{feature}": {
       "put": {
         "summary": "Set a profile's Atribu entitlement (app-authenticated)",
-        "description": "Explicit, idempotent, audited: the app that provisioned this profile turns Atribu's own pipeline on or off for it (ADR 0021).\n\n**HTTP Basic app credentials only** — the same `client_id:client_secret` pair `POST /api/v1/profiles` uses. Never a session bearer and never an `atb_live_` key: an entitlement is a fact about your relationship with your own dealer, not something a profile-scoped analytics key should be able to change.\n\n**Which profiles.** Only ones THIS APP provisioned — the profile must carry `provisioned_by = <your client_id>` and be unarchived, which is exactly what `POST /api/v1/profiles` writes for every dealer. Any other profile — unknown, another app's, or archived — answers `404 not_found`, identically: the response never confirms a profile id exists or which app owns it.\n\n**Turning it ON** starts what a human-entitled profile gets: the ad-platform sync's performance-shaped work resumes, and the standard backfill window is enqueued immediately for every ad-platform connection this profile already holds — you do not need to also call `POST /api/v1/connections/sync`.\n\n**Turning it OFF** returns the profile to connectivity-only mode: campaign/ad structure and conversational configuration (the CTWA ad greeting) keep syncing nightly, but insights/spend, messaging metrics, attribution, conversions and exports stop. No data is deleted.\n\n**Idempotent.** Calling this again with the same `enabled` value is a no-op on the entitlement itself — HTTP 200, `changed: false`, no second audit event — though an `enabled: true` replay still enqueues a normal (cursor-based, not full-window) sync pass, so a call that flipped the entitlement and then failed before backfilling can always be recovered by calling again.\n\nEvery real change writes an audit event naming this app and the direction.",
+        "description": "Explicit, idempotent, audited: the app that provisioned this profile turns Atribu's own pipeline on or off for it (ADR 0021).\n\n**HTTP Basic app credentials only** — the same `client_id:client_secret` pair `POST /api/v1/profiles` uses. Never a session bearer and never an `atb_live_` key: an entitlement is a fact about your relationship with your own dealer, not something a profile-scoped analytics key should be able to change.\n\n**Which profiles.** Only ones THIS APP provisioned — the profile must carry `provisioned_by = <your client_id>` and be unarchived, which is exactly what `POST /api/v1/profiles` writes for every dealer. Any other profile — unknown, another app's, or archived — answers `404 not_found`, identically: the response never confirms a profile id exists or which app owns it.\n\n**Turning it ON** starts what a human-entitled profile gets: the ad-platform sync's performance-shaped work resumes, and the standard backfill window is enqueued immediately for every ad-platform connection this profile already holds — you do not need to also call `POST /api/v1/connections/sync`.\n\n**Turning it OFF** returns the profile to connectivity-only mode: campaign/ad structure and conversational configuration (the CTWA ad greeting) keep syncing nightly, but insights/spend, messaging metrics, attribution, conversions and exports stop. No data is deleted.\n\n**Idempotent.** Calling this again with the same `enabled` value is a no-op on the entitlement itself — HTTP 200, `changed: false`, no second audit event, and no second sync: the backfill fires once, on the real transition, so a duplicate delivery costs nothing. (If a call flipped the entitlement and then failed before the backfill was enqueued, re-arm it with `POST /api/v1/connections/sync`.) Your grant is the one thing that converges on EVERY call, replay included — see `grant`.\n\n**Ordered, if you ask for it.** Idempotency cannot decide between two CONTRADICTORY deliveries, so an at-least-once outbox can land a retried cancellation after the renewal that replaced it. Send `occurred_at` (the subscription event's own timestamp) and Atribu discards any delivery strictly older than the newest one it has seen, answering `200` with `ignored_stale: true` and writing nothing.\n\n**A revoked delegation is never resurrected.** If the workspace owner disconnected your app on this profile, this call still records the entitlement but leaves the grant alone and answers `grant.revoked: true`. Re-consent through `POST /api/v1/profiles`.\n\n**The entitlement sets your grant (#1455).** Dealers never pick scopes: your app provisions a profile with the core `connections` bundle, and Atribu itself widens the profile-level grant to `[\"connections\", \"attribution\"]` when you turn this entitlement ON. Turning it OFF narrows the same grant back to `[\"connections\"]` and revokes every API key minted under the wider one — within ~10 seconds, those keys answer 401. The grant is never revoked, so the connect rail never goes down with the Add-on. Only `attribution` is ever taken away: a grant that never carried it (an older delegation, say `[\"analytics\", \"attribution_write\"]`) is untouched, keys included.\n\n**Both directions need the same follow-up, and neither returns a secret:** mint a fresh key with `grant_type=client_credentials` against the same grant and swap it in. Scopes are frozen into a key at mint time, so after ON an existing key does not gain the new ones, and after OFF it is already dead; the key you mint after OFF carries `connections:read` / `connections:write` and nothing else.\n\n**The Add-on gate.** While this entitlement is OFF, the attribution WRITE surface on this profile answers `409 entitlement_required` for every caller — `POST /api/v1/events`, the Conversion Sync writes, goals, tracking, reports, recompute, recommendation apply and creative analysis. Reads are unaffected, and so is the connect rail: connecting, syncing and disconnecting an ad account or a channel never require the Add-on.\n\nEvery real change writes an audit event naming this app, the direction, and the scope change it made.",
         "tags": [
           "Provisioning"
         ],
@@ -142785,7 +143118,7 @@
             }
           },
           "400": {
-            "description": "Malformed body, an unknown field (the body is strict), or an unknown `feature`",
+            "description": "Malformed body, an unknown field (the body is strict), an unparseable `occurred_at`, or an unknown `feature`",
             "content": {
               "application/json": {
                 "schema": {

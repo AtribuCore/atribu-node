@@ -1,7 +1,33 @@
 import { AtribuConfigError } from "../errors";
 
 export type OauthProvider = "whatsapp" | "instagram" | "calendar";
-export type OauthScope = "whatsapp" | "instagram" | "calendar";
+
+/**
+ * Every scope `/oauth/authorize` accepts — `CONNECT_SCOPES` in
+ * `src/lib/oauth/exchange.ts`, which is the authoritative list and the one the
+ * admin registration enum reads.
+ *
+ * The first five are CONNECTION scopes: they pair with a `provider` and produce
+ * a grant bound to the `data_connections` row the flow creates. The rest are
+ * CONNECTIONLESS — they delegate the Profile itself. A consumer app normally
+ * obtains those through `POST /api/v1/profiles` (`scopes: [...]`) rather than a
+ * browser round trip, and `attribution` (#1455) is set by Atribu when the app
+ * declares the `atribu_attribution` entitlement, never asked for. They are in
+ * the union because `/oauth/authorize` does accept them and a type that refused
+ * them would be wrong about the endpoint it models — the union drifted three
+ * scopes behind for exactly that reason before #1455.
+ */
+export type OauthScope =
+  | "whatsapp"
+  | "instagram"
+  | "email"
+  | "calendar"
+  | "calendar_read"
+  | "analytics"
+  | "analytics_pii"
+  | "attribution_write"
+  | "connections"
+  | "attribution";
 
 export interface BuildAuthorizeUrlInput {
   baseUrl?: string;

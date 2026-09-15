@@ -117,6 +117,7 @@ export type {
   Connection,
   ConnectionChannel,
   ConnectionKind,
+  ConnectionPixel,
   ConnectionSync,
   RevokeResult,
   PendingConnectionResponse,

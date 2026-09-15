@@ -7,8 +7,22 @@ type GetResponse =
   paths["/api/v1/connections/{id}"]["get"]["responses"][200]["content"]["application/json"];
 type RevokeResponse =
   paths["/api/v1/connections/{id}"]["delete"]["responses"][200]["content"]["application/json"];
+type PixelsResponse =
+  paths["/api/v1/connections/{id}/pixels"]["get"]["responses"][200]["content"]["application/json"];
 
 export type Connection = ListResponse["data"][number];
+
+/**
+ * One pixel on a Meta Ads connection's ad account — what {@link
+ * ConnectionsResource.pixels} returns.
+ *
+ * `id` is the value `metaPixelId` takes when you create a Meta CAPI export
+ * destination. Every other field is `null` when Meta did not answer it, which
+ * is NOT the same as `false`: a `null` `is_unavailable` means Meta gave no
+ * verdict, and a `null` `last_fired_at` usually means the pixel has never
+ * fired. Derived from the generated types, not restated.
+ */
+export type ConnectionPixel = PixelsResponse["data"]["pixels"][number];
 
 /**
  * The `sync` sub-object every {@link Connection} carries (#486).
@@ -143,6 +157,42 @@ export class ConnectionsResource {
       signal: opts.signal,
     });
     return res.data;
+  }
+
+  /**
+   * The Meta pixels on a `meta_ads` connection's ad account.
+   *
+   * This is how you discover the `metaPixelId` an export destination needs —
+   * there is no other read that produces one: the dataset endpoint only
+   * reconciles a dataset you have ALREADY configured, and the setup-link mint
+   * is for a signed-in human and refuses API keys.
+   *
+   * ```ts
+   * const [meta] = await client.connections.list({ channel: "meta_ads" });
+   * const pixels = await client.connections.pixels(meta.id);
+   * const live = pixels.filter((p) => p.last_fired_at !== null);
+   * ```
+   *
+   * One live Meta call per request and never cached, so it is a read to make at
+   * the moment of choosing — not one to hold onto.
+   *
+   * Throws `invalid_state` (409) when the id names a connection that is not
+   * `meta_ads`, `not_found` (404) for an id on another profile or no id at all,
+   * and `unauthorized` (401, `reconnectRequired`) when the connection's Meta
+   * token is dead — the same shape every other dead-connector answer has.
+   *
+   * **An empty array means the ad account has no pixels**, never "we could not
+   * ask": a failure throws.
+   *
+   * Requires `exports:read`.
+   */
+  async pixels(id: string, opts: { signal?: AbortSignal } = {}): Promise<ConnectionPixel[]> {
+    const res = await this.http.request<PixelsResponse>({
+      method: "GET",
+      path: `/api/v1/connections/${encodeURIComponent(id)}/pixels`,
+      signal: opts.signal,
+    });
+    return res.data.pixels;
   }
 
   /**

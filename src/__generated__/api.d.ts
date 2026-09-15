@@ -5163,6 +5163,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections/{id}/pixels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Meta pixels on an ad-account connection
+         * @description The pixels (datasets) on a `meta_ads` connection's ad account, so you can pick the `meta_pixel_id` that `POST /api/v1/exports/destinations` requires.
+         *
+         *     **Why this exists.** A delegated key had no way to discover a pixel id: `GET /api/v1/conversion-sync/dataset` only reconciles a dataset that is *already* configured, and `POST /api/v1/conversion-sync/setup-links` mints a console link for a signed-in human and refuses API keys. Without this read the only way to finish a Conversion Sync setup over the API was to ask the account owner to copy an id out of Events Manager.
+         *
+         *     One live Meta Graph call per request, and **never cached** — you are about to write a destination against the answer, so a pixel deleted or disabled since must not still be on offer.
+         *
+         *     `id` is the only field Meta always returns; everything else is `null` when Meta did not answer it. `null` is not `false` — see `is_unavailable`.
+         *
+         *     404 for an id on another profile and for an id that does not exist; the two are deliberately indistinguishable. A connection that exists but is not `meta_ads` answers 409 rather than 404, because you can read that same row through `GET /api/v1/connections/{id}` and pretending it is missing would be a lie.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The ad account's pixels. An account with none answers `200` with an empty list. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": {
+                         *         "pixels": [
+                         *           {
+                         *             "id": "1234567890123456",
+                         *             "name": "Dealer Santiago — Web",
+                         *             "created_at": "2025-04-02T11:20:15-0700",
+                         *             "last_fired_at": "2026-09-14T08:41:02-0700",
+                         *             "is_unavailable": false,
+                         *             "owner_business": {
+                         *               "id": "998877665544332",
+                         *               "name": "Grupo Dealer"
+                         *             }
+                         *           },
+                         *           {
+                         *             "id": "6543210987654321",
+                         *             "name": "Legacy pixel",
+                         *             "created_at": "2023-11-19T04:05:00-0800",
+                         *             "last_fired_at": null,
+                         *             "is_unavailable": null,
+                         *             "owner_business": null
+                         *           }
+                         *         ]
+                         *       },
+                         *       "meta": {
+                         *         "profile_id": "3f1c9d2e-7a64-4a6f-9d58-0b3a2c1e4d55"
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: {
+                                pixels: components["schemas"]["ConnectionPixel"][];
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The connection has no usable Meta token, or Meta rejected it (code 190). Carries `reconnect_required` and the hand-off action to call. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Connection not found or not on this key's profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `invalid_state` — the connection exists but is not a `meta_ads` connection. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `id` is not a UUID. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta answered with an error this API could not classify. */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/trust": {
         parameters: {
             query?: never;
@@ -11799,7 +11971,7 @@ export interface paths {
          *
          *     A hand-off minted by another workspace is 404, the same answer an id that never existed gets.
          *
-         *     Scope: `analytics:read` — the mint is what needs authority, not the question about it.
+         *     Scope: `connections:read` OR `analytics:read`. The mint is what needs authority, not the question about it — but the `connect` kind (#1046) is minted under `connections:write`, so this poll accepts `connections:read` alongside `analytics:read` for the same reason the rest of the connect rail dual-accepts: a credential minted with only the `connections` core scope must be able to read back a hand-off it just started.
          */
         get: {
             parameters: {
@@ -36561,7 +36733,7 @@ export interface paths {
         };
         /**
          * The six counters that summarise a workspace's leaderboard
-         * @description A one-row summary of the SAME window `/top-performers` reads. None of the six is a lifetime total: `new_winners_count` is new *in this window* and `at_risk_count` is ads whose predicted hazard crossed a tier *in this window*, so rendering them beside a lifetime figure compares two different questions.
+         * @description A one-row summary of the SAME window `/top-performers` reads. None of the six is a lifetime total: `top_performer_count` is ads performing like top performers *in this window* and `at_risk_count` is ads whose predicted hazard crossed a tier *in this window*, so rendering them beside a lifetime figure compares two different questions.
          *
          *     `lift_backed_count` is the one to read first — how many ads have an EXPERIMENT behind them rather than a score. It is normally small, and that is the true state.
          *
@@ -41122,20 +41294,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            data: {
-                                compliance: {
-                                    [key: string]: unknown;
-                                } | null;
-                                documents: ({
-                                    id: string;
-                                    document_type: string;
-                                    document_name: string;
-                                    /** @description A one-hour signed URL for a stored file, or the row's `external_url`. Falls back to the external link rather than disappearing if storage cannot mint one — the row is the record that the agreement exists. */
-                                    open_url: string | null;
-                                } & {
-                                    [key: string]: unknown;
-                                })[];
-                            };
+                            data: components["schemas"]["ConversionSyncLegalState"];
                             meta: {
                                 /** @example uuid */
                                 profile_id: string;
@@ -41401,7 +41560,29 @@ export interface paths {
                                 value_based?: boolean;
                                 dominant_country?: string;
                                 stats?: {
-                                    [key: string]: unknown;
+                                    /** @description Buyers that made it into the seed. */
+                                    cashCustomers: number;
+                                    /**
+                                     * Format: decimal
+                                     * @description Sum of positive cash across the deduped input window — `conversions.value_amount_reporting`.
+                                     * @example 1234.56
+                                     */
+                                    totalCashIn: string;
+                                    /**
+                                     * Format: decimal
+                                     * @description Sum of the member values actually seeded, refunds already netted out.
+                                     * @example 1234.56
+                                     */
+                                    totalSeedValue: string;
+                                    /**
+                                     * Format: decimal
+                                     * @description Refunded cash removed from the seed values, as a positive amount.
+                                     * @example 1234.56
+                                     */
+                                    refundsSubtracted: string;
+                                    duplicateRowsDropped: number;
+                                    /** @description Qualified leads available for the identity-only fallback seed. */
+                                    leadCustomers: number;
                                 };
                                 /** @description The proposed lookalike ladder (1% and a 1–5% BAND, not a second overlapping 5%). */
                                 lookalikes?: {
@@ -41849,20 +42030,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
-                                link: {
-                                    id: string;
-                                    /** @description The client-facing `/s/<token>` page. */
-                                    url: string;
-                                    status: string;
-                                    expiresAt: string;
-                                    createdAt: string;
-                                    openedAt: string | null;
-                                    connectedAt: string | null;
-                                    completedAt: string | null;
-                                    fixRequestedAt: string | null;
-                                } & {
-                                    [key: string]: unknown;
-                                };
+                                link: components["schemas"]["ConversionSyncSetupLink"];
                                 /** @description The `pick` hand-off minted BESIDE the link, so an agent that cannot open a browser has one id to poll via `GET /api/v1/handoffs/{id}`. Its clock mirrors the link's (14 days), not the hand-off default. NULL when the mint failed — the link is what the human needs, and losing the agent's poll handle never costs the agency the link. */
                                 handoff_id: string | null;
                             };
@@ -44518,20 +44686,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: {
-                                link: {
-                                    id: string;
-                                    /** @description The client-facing `/s/<token>` page. */
-                                    url: string;
-                                    status: string;
-                                    expiresAt: string;
-                                    createdAt: string;
-                                    openedAt: string | null;
-                                    connectedAt: string | null;
-                                    completedAt: string | null;
-                                    fixRequestedAt: string | null;
-                                } & {
-                                    [key: string]: unknown;
-                                };
+                                link: components["schemas"]["ConversionSyncSetupLink"];
                                 /** @description The `pick` hand-off minted BESIDE the link, so an agent that cannot open a browser has one id to poll via `GET /api/v1/handoffs/{id}`. Its clock mirrors the link's (14 days), not the hand-off default. NULL when the mint failed — the link is what the human needs, and losing the agent's poll handle never costs the agency the link. */
                                 handoff_id: string | null;
                             };
@@ -46214,7 +46369,9 @@ export interface paths {
         };
         /**
          * Budget-scaling guidance for every active ad set
-         * @description A per-ad-set directional call from the traceable-ROAS trend, the validated Cox fatigue signal and an instrumentation-health gate. No new attribution math — the guidance is the shared `deriveScaleGuidance`.
+         * @description A per-ad-set directional call from the traceable-ROAS trend, an early-stage Cox fatigue signal and an instrumentation-health gate. No new attribution math — the guidance is the shared `deriveScaleGuidance`.
+         *
+         *     **The fatigue leg is directional, not validated.** The deployed Cox models carry no held-out cross-validation, so a `fatiguing` direction is a hint to look, not a proven verdict. Weight it accordingly, and do not present it to an end user as validated.
          *
          *     **Budgets are MINOR units.** Read them with `minor_per_major`; a hardcoded `/100` is wrong by two orders of magnitude for every whole-unit currency. When `currency_unavailable` is true the unit is unknown and no symbol should be printed.
          */
@@ -46264,7 +46421,8 @@ export interface paths {
                                         /** @enum {string} */
                                         direction: "room_to_scale" | "softening" | "steady" | "fatiguing" | "insufficient_data";
                                         strength: string;
-                                        is_directional?: boolean;
+                                        /** @description Always `true`. A structural reminder that this is a DIRECTIONAL read of traceable ROAS and fatigue — never a causal or incrementality claim. Consumers must label it as such. */
+                                        is_directional: boolean;
                                         basis?: string[];
                                     } & {
                                         [key: string]: unknown;
@@ -55972,9 +56130,19 @@ export interface paths {
          *
          *     **Turning it OFF** returns the profile to connectivity-only mode: campaign/ad structure and conversational configuration (the CTWA ad greeting) keep syncing nightly, but insights/spend, messaging metrics, attribution, conversions and exports stop. No data is deleted.
          *
-         *     **Idempotent.** Calling this again with the same `enabled` value is a no-op on the entitlement itself — HTTP 200, `changed: false`, no second audit event — though an `enabled: true` replay still enqueues a normal (cursor-based, not full-window) sync pass, so a call that flipped the entitlement and then failed before backfilling can always be recovered by calling again.
+         *     **Idempotent.** Calling this again with the same `enabled` value is a no-op on the entitlement itself — HTTP 200, `changed: false`, no second audit event, and no second sync: the backfill fires once, on the real transition, so a duplicate delivery costs nothing. (If a call flipped the entitlement and then failed before the backfill was enqueued, re-arm it with `POST /api/v1/connections/sync`.) Your grant is the one thing that converges on EVERY call, replay included — see `grant`.
          *
-         *     Every real change writes an audit event naming this app and the direction.
+         *     **Ordered, if you ask for it.** Idempotency cannot decide between two CONTRADICTORY deliveries, so an at-least-once outbox can land a retried cancellation after the renewal that replaced it. Send `occurred_at` (the subscription event's own timestamp) and Atribu discards any delivery strictly older than the newest one it has seen, answering `200` with `ignored_stale: true` and writing nothing.
+         *
+         *     **A revoked delegation is never resurrected.** If the workspace owner disconnected your app on this profile, this call still records the entitlement but leaves the grant alone and answers `grant.revoked: true`. Re-consent through `POST /api/v1/profiles`.
+         *
+         *     **The entitlement sets your grant (#1455).** Dealers never pick scopes: your app provisions a profile with the core `connections` bundle, and Atribu itself widens the profile-level grant to `["connections", "attribution"]` when you turn this entitlement ON. Turning it OFF narrows the same grant back to `["connections"]` and revokes every API key minted under the wider one — within ~10 seconds, those keys answer 401. The grant is never revoked, so the connect rail never goes down with the Add-on. Only `attribution` is ever taken away: a grant that never carried it (an older delegation, say `["analytics", "attribution_write"]`) is untouched, keys included.
+         *
+         *     **Both directions need the same follow-up, and neither returns a secret:** mint a fresh key with `grant_type=client_credentials` against the same grant and swap it in. Scopes are frozen into a key at mint time, so after ON an existing key does not gain the new ones, and after OFF it is already dead; the key you mint after OFF carries `connections:read` / `connections:write` and nothing else.
+         *
+         *     **The Add-on gate.** While this entitlement is OFF, the attribution WRITE surface on this profile answers `409 entitlement_required` for every caller — `POST /api/v1/events`, the Conversion Sync writes, goals, tracking, reports, recompute, recommendation apply and creative analysis. Reads are unaffected, and so is the connect rail: connecting, syncing and disconnecting an ad account or a channel never require the Add-on.
+         *
+         *     Every real change writes an audit event naming this app, the direction, and the scope change it made.
          */
         put: {
             parameters: {
@@ -56008,7 +56176,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Malformed body, an unknown field (the body is strict), or an unknown `feature` */
+                /** @description Malformed body, an unknown field (the body is strict), an unparseable `occurred_at`, or an unknown `feature` */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -58461,10 +58629,9 @@ export interface components {
              */
             locale?: "en" | "es";
             /**
-             * @description The delegation this app receives over the new profile. Defaults to ["analytics"]. Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write) — a connection scope such as `whatsapp` is rejected, because a profile-level grant naming one would authorize nothing while appearing to.
+             * @description The delegation this app receives over the new profile. Defaults to ["connections"] (#1455 — connectivity is what a freshly provisioned profile is for; the `attribution` bundle is set by Atribu when you declare the `atribu_attribution` entitlement, not requested here). Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write, connections, attribution) — a connection scope such as `whatsapp` is rejected, because a profile-level grant naming one would authorize nothing while appearing to.
              * @example [
-             *       "analytics",
-             *       "analytics_pii"
+             *       "connections"
              *     ]
              */
             scopes?: string[];
@@ -58484,7 +58651,7 @@ export interface components {
             /**
              * @description The scopes the grant now carries.
              * @example [
-             *       "analytics"
+             *       "connections"
              *     ]
              */
             scopes: string[];
@@ -58542,9 +58709,9 @@ export interface components {
              */
             external_ref: string;
             /**
-             * @description The delegation this app receives over the profile. Defaults to ["analytics"]. Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write). Upserted on every call, replay included — a re-adopt that widens or narrows this list is a re-consent.
+             * @description The delegation this app receives over the profile. Defaults to ["connections"]. Must be a subset of your app's allowed_scopes, and every entry must be a profile-level scope (analytics, analytics_pii, attribution_write, connections, attribution). Upserted on every call, replay included — a re-adopt that widens or narrows this list is a re-consent.
              * @example [
-             *       "analytics"
+             *       "connections"
              *     ]
              */
             scopes?: string[];
@@ -58564,7 +58731,7 @@ export interface components {
             /**
              * @description The scopes the grant now carries.
              * @example [
-             *       "analytics"
+             *       "connections"
              *     ]
              */
             scopes: string[];
@@ -59031,7 +59198,7 @@ export interface components {
              *     A workspace with nothing scored gets the ZERO row, which is a real answer ("nothing needs attention"). `null` means the aggregate could NOT be computed — do not draw it as calm. It is nullable rather than fatal on purpose: this is the cold-boot read, and a workspace switcher that fails because the creative-scoring pipeline is unavailable is a worse outcome than a switcher with no indicators.
              */
             brief: {
-                new_winners_count: number;
+                top_performer_count: number;
                 at_risk_count: number;
                 /**
                  * Format: decimal
@@ -59557,7 +59724,7 @@ export interface components {
             coverage: components["schemas"]["WorkspaceTestRoadmapCoverage"][];
         };
         WorkspaceTopPerformersBrief: {
-            new_winners_count: number;
+            top_performer_count: number;
             at_risk_count: number;
             /**
              * Format: decimal
@@ -60168,6 +60335,7 @@ export interface components {
             metadata?: unknown;
             created_at: string;
             updated_at: string;
+            /** @description A one-hour signed URL for a stored file, or the row's `external_url`. Falls back to the external link rather than disappearing if storage cannot mint one — the row is the record that the agreement exists. */
             open_url: string | null;
         };
         ConversionSyncAudiencesResponse: {
@@ -60211,9 +60379,24 @@ export interface components {
             skippedNoIdentifiers: number;
             dominantCountry: string;
             currency: string;
-            medianValue: number | null;
-            totalSeedValue: number;
-            refundsSubtracted: number;
+            /**
+             * Format: decimal
+             * @description Median seeded member value, or null when the seed has no valued members.
+             * @example 1234.56
+             */
+            medianValue: string | null;
+            /**
+             * Format: decimal
+             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+             * @example 1234.56
+             */
+            totalSeedValue: string;
+            /**
+             * Format: decimal
+             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+             * @example 1234.56
+             */
+            refundsSubtracted: string;
             cashCustomers: number;
             leadCustomers: number;
             members: {
@@ -60229,47 +60412,58 @@ export interface components {
             remainingCount: number;
         };
         ConversionSyncSetupLinkResponse: {
-            link: {
-                id: string;
-                url: string;
-                createdAt: string;
-                openedAt: string | null;
-                connectedAt: string | null;
-                completedAt: string | null;
-                fixRequestedAt: string | null;
-                /** @enum {string} */
-                status: "pending" | "opened" | "connected" | "provisioning" | "choice_required" | "action_required" | "ready" | "revoked" | "expired";
-                expiresAt: string;
-                agencyName: string;
-                inviterName: string | null;
-                clientName: string;
-                metaUserName: string | null;
-                missingPermissions: string[];
-                stages: {
-                    /** @enum {string} */
-                    key: "connect" | "ad_account" | "business" | "dataset" | "wire";
-                    /** @enum {string} */
-                    status: "pending" | "active" | "done" | "skipped" | "failed";
-                    detail?: string;
-                }[];
-                adAccounts: {
-                    id: string;
-                    name: string;
-                    currency: string | null;
-                }[] | null;
-                resultSummary: {
-                    /** @enum {string} */
-                    business: "existing" | "created" | "skipped";
-                    businessName?: string;
-                    datasetId: string;
-                    pixelCreated: boolean;
-                    adAccountId: string;
-                    adAccountName: string;
-                    currency: string | null;
-                } | null;
-                lastError: string | null;
-            } | null;
+            link: components["schemas"]["ConversionSyncSetupLink"];
         };
+        ConversionSyncSetupLink: {
+            id: string;
+            /** @description The client-facing `/s/<token>` page. SECRET-BEARING: the unguessable link token is part of the URL, so anyone holding this string can open the provisioning flow. Treat it like a credential — do not log it, and do not put it in a URL bar a screen-share can read. */
+            url: string;
+            createdAt: string;
+            openedAt: string | null;
+            connectedAt: string | null;
+            completedAt: string | null;
+            fixRequestedAt: string | null;
+            /** @enum {string} */
+            status: "pending" | "opened" | "connected" | "provisioning" | "choice_required" | "action_required" | "ready" | "revoked" | "expired";
+            expiresAt: string;
+            /** @description The agency workspace's name, or `Atribu` when it has none. PERSONAL DATA in practice: a sole trader's workspace is usually their own name. */
+            agencyName: string;
+            /** @description PERSONAL DATA — the name of the person who created the link. Falls back through the account's `full_name`, then `name`, then the LOCAL PART OF THEIR EMAIL, so a user with no profile metadata publishes half their address here. */
+            inviterName: string | null;
+            /** @description PERSONAL DATA in practice — the client profile's name, frequently a person's or a clinic owner's. */
+            clientName: string;
+            /** @description PERSONAL DATA — the display name of the Meta account holder who authorised the link, as Meta's `/me` reported it. */
+            metaUserName: string | null;
+            /** @description Meta permissions the authorising user did not grant, from `['ads_read', 'ads_management']`. Empty once provisioning succeeds. */
+            missingPermissions: string[];
+            /** @description The provisioning ladder, newest state per stage. Rebuilt on every state change; empty before the client opens the link. */
+            stages: {
+                /** @enum {string} */
+                key: "connect" | "ad_account" | "business" | "dataset" | "wire";
+                /** @enum {string} */
+                status: "pending" | "active" | "done" | "skipped" | "failed";
+                detail?: string;
+            }[];
+            /** @description The client's active Meta ad accounts, offered ONLY while `status` is `choice_required` — `null` in every other state, which is a state signal and not an absence of accounts. `currency` is an ISO-4217 CODE, never an amount. */
+            adAccounts: {
+                id: string;
+                name: string;
+                currency: string | null;
+            }[] | null;
+            /** @description What provisioning actually created, once it has finished. `currency` is an ISO-4217 CODE. Null until then. */
+            resultSummary: {
+                /** @enum {string} */
+                business: "existing" | "created" | "skipped";
+                businessName?: string;
+                datasetId: string;
+                pixelCreated: boolean;
+                adAccountId: string;
+                adAccountName: string;
+                currency: string | null;
+            } | null;
+            /** @description Why the last provisioning attempt failed. USUALLY a stable machine token (`token_missing`, `no_ad_account`, `missing_ads_management`) but NOT guaranteed to be one: two paths put raw upstream text here — a Meta Graph error message and a Postgres error message — so do not switch on it without a default. */
+            lastError: string | null;
+        } | null;
         ConversionSyncTransparencyResponse: {
             currentMode: string;
             eventTimeMs: number;
@@ -60647,20 +60841,7 @@ export interface components {
             queued: number;
         };
         ConversionSyncSetupLinkWriteResponse: {
-            link: {
-                id: string;
-                /** @description The client-facing `/s/<token>` page. */
-                url: string;
-                status: string;
-                expiresAt: string;
-                createdAt: string;
-                openedAt: string | null;
-                connectedAt: string | null;
-                completedAt: string | null;
-                fixRequestedAt: string | null;
-            } & {
-                [key: string]: unknown;
-            };
+            link: components["schemas"]["ConversionSyncSetupLink"];
             /** @description The `pick` hand-off minted BESIDE the link, so an agent that cannot open a browser has one id to poll via `GET /api/v1/handoffs/{id}`. Its clock mirrors the link's (14 days), not the hand-off default. NULL when the mint failed — the link is what the human needs, and losing the agent's poll handle never costs the agency the link. */
             handoff_id: string | null;
         };
@@ -60674,7 +60855,29 @@ export interface components {
             value_based?: boolean;
             dominant_country?: string;
             stats?: {
-                [key: string]: unknown;
+                /** @description Buyers that made it into the seed. */
+                cashCustomers: number;
+                /**
+                 * Format: decimal
+                 * @description Sum of positive cash across the deduped input window — `conversions.value_amount_reporting`.
+                 * @example 1234.56
+                 */
+                totalCashIn: string;
+                /**
+                 * Format: decimal
+                 * @description Sum of the member values actually seeded, refunds already netted out.
+                 * @example 1234.56
+                 */
+                totalSeedValue: string;
+                /**
+                 * Format: decimal
+                 * @description Refunded cash removed from the seed values, as a positive amount.
+                 * @example 1234.56
+                 */
+                refundsSubtracted: string;
+                duplicateRowsDropped: number;
+                /** @description Qualified leads available for the identity-only fallback seed. */
+                leadCustomers: number;
             };
             /** @description The proposed lookalike ladder (1% and a 1–5% BAND, not a second overlapping 5%). */
             lookalikes?: {
@@ -60974,7 +61177,8 @@ export interface components {
                     /** @enum {string} */
                     direction: "room_to_scale" | "softening" | "steady" | "fatiguing" | "insufficient_data";
                     strength: string;
-                    is_directional?: boolean;
+                    /** @description Always `true`. A structural reminder that this is a DIRECTIONAL read of traceable ROAS and fatigue — never a causal or incrementality claim. Consumers must label it as such. */
+                    is_directional: boolean;
                     basis?: string[];
                 } & {
                     [key: string]: unknown;
@@ -62008,6 +62212,14 @@ export interface components {
         ProfileEntitlementRequest: {
             /** @description `true` starts Atribu's pipeline for this profile — recompute, the AI agent, conversation/conversion extraction, automatic events, and the ad-platform sync's performance-shaped work (insights/spend, messaging metrics, attribution, conversions, exports) — and enqueues the standard backfill window for any ad-platform connection this profile already holds. `false` returns the profile to connectivity-only mode: the ad-platform sync keeps refreshing structure and conversational configuration (campaign/ad names, the CTWA greeting) but skips everything performance-shaped. Nothing is ever deleted by turning this off. */
             enabled: boolean;
+            /**
+             * Format: date-time
+             * @description When YOU made this decision (the subscription event's own timestamp), ISO-8601 with an offset. Optional, and omitting it keeps the previous behaviour: the last call to arrive wins.
+             *
+             *     Send it if your delivery is at-least-once and unordered — an outbox retry, a webhook fan-out. Atribu records the newest value it has seen and IGNORES any later delivery carrying a strictly older one, answering `200` with `changed: false` and `ignored_stale: true` and writing nothing at all. That is the only protection against a retried cancellation landing after the renewal that superseded it; idempotency alone cannot order two contradictory calls.
+             * @example 2026-09-15T12:04:11.000Z
+             */
+            occurred_at?: string;
         };
         ProfileEntitlementResult: {
             /** @example uuid */
@@ -62018,8 +62230,38 @@ export interface components {
              */
             feature: "atribu_attribution";
             enabled: boolean;
-            /** @description False when the entitlement was already at this value — a replay. Replays still answer HTTP 200 and, for `enabled: true`, still enqueue a (cheaper, cursor-based) sync pass, so a call that flipped the entitlement but failed before enqueueing the backfill can be recovered by calling again with the same body. */
+            /**
+             * @description False when the entitlement was already at this value — a replay. A replay answers HTTP 200 and enqueues NOTHING: the backfill fires once, on the real transition, because a duplicate delivery from an at-least-once outbox must not cost a second full sync pass. If a call flipped the entitlement and then failed before the backfill was enqueued, recover it with `POST /api/v1/connections/sync` (`force_full: true`) — the same endpoint a "Hard refresh" uses — not by replaying this one.
+             *
+             *     The grant side is the exception and converges on every call: see `grant`.
+             */
             changed: boolean;
+            /** @description What this call did to your OAuth grant on this profile (#1455). Never carries a secret — mint a fresh key yourself with `grant_type=client_credentials`. */
+            grant: {
+                /**
+                 * @description The connect scopes your profile-level grant carries NOW. `enabled: true` sets `["connections", "attribution"]`; `enabled: false` narrows it back to `["connections"]`. The grant itself is never revoked — connections are free.
+                 * @example [
+                 *       "connections",
+                 *       "attribution"
+                 *     ]
+                 */
+                scopes: string[];
+                /**
+                 * @description How many API keys this call revoked. Non-zero only on an `enabled: false` that found the grant actually carrying `attribution`; those keys stop authenticating within ~10 seconds. A repeated `enabled: false` reports 0 and revokes nothing, so a retry cannot kill the core key you minted after the first one — and a grant that never carried `attribution` (an older delegation such as `["analytics", "attribution_write"]`) is left exactly as it is, keys included: turning off an add-on only undoes what turning it on did.
+                 * @example 0
+                 */
+                revoked_keys: number;
+                /**
+                 * @description True when the workspace owner has REVOKED your delegation on this profile from their connected-apps page. The entitlement still flipped — it is a billing fact — but nothing was written to the grant, `scopes` is empty, and no key was touched. Atribu will not silently re-authorize an app a human disconnected. Re-consent by replaying `POST /api/v1/profiles` (or `POST /api/v1/profiles/{profileId}/adopt`) for this dealer, then call this endpoint again.
+                 * @example false
+                 */
+                revoked: boolean;
+            };
+            /**
+             * @description True when this delivery was DISCARDED because its `occurred_at` is strictly older than the decision time already recorded — an out-of-order outbox retry. Nothing was written: no entitlement change, no grant change, no key revocation, no audit event. `enabled` then reports the value Atribu currently holds, not the one you sent. Treat it as success and stop retrying that delivery.
+             * @example false
+             */
+            ignored_stale: boolean;
         };
         OrganicPost: {
             /** @description The platform's own post id — Instagram `ig_media_id` or Facebook `fb_post_id`. This is the value the two detail routes take as `{id}`. */
@@ -63052,6 +63294,26 @@ export interface components {
             eta_seconds: number | null;
             /** @description What the in-flight run is doing right now, e.g. the resource being paged. */
             current_task: string | null;
+        };
+        ConnectionPixel: {
+            /**
+             * @description The Meta pixel / dataset id. This is the value `meta_pixel_id` takes on `POST /api/v1/exports/destinations` — the reason this endpoint exists.
+             * @example 1234567890123456
+             */
+            id: string;
+            /** @description The pixel's name in Events Manager. `null` when Meta returned none. */
+            name: string | null;
+            /** @description When the pixel was created, in Meta's own ISO-8601 spelling (offset, not `Z`). `null` when Meta did not return it. */
+            created_at: string | null;
+            /** @description When this pixel last received an event, in Meta's own ISO-8601 spelling. `null` means Meta returned no value — typically a pixel that has NEVER fired, which is the signal that matters when choosing between several. */
+            last_fired_at: string | null;
+            /** @description `true` when Meta reports the pixel as unavailable (disabled or otherwise unusable). `null` is NOT `false`: it means Meta returned no verdict, so treat it as unknown rather than as healthy. */
+            is_unavailable: boolean | null;
+            /** @description The Business Manager that owns the pixel, when Meta discloses it. `null` when it did not — commonly because Atribu's token holds no `business_management` on that business, which is normal for a shared asset and is not an error. A pixel owned by a business other than the ad account's own is readable here but may still refuse server events. */
+            owner_business: {
+                id: string;
+                name: string | null;
+            } | null;
         };
         RevokedConnection: {
             /** @description How many active API keys the revocation cut. `0` is a normal answer: the authorization was already revoked, or it belongs to a newer key generation than the one calling. The count can also exceed the keys minted under this one authorization — when it was your app's last live authorization on the profile, older key generations that no authorization names are cut with it. */

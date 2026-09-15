@@ -262,6 +262,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The "no credential" error now reads `apiKey or accessToken is required for
   <METHOD> <path>`, since either satisfies it.
 
+## [1.20.0] - 2026-09-15
+
+### Added
+
+- `OauthScope` gains `"connections"` and `"attribution"` (#1478, ADR 0021) —
+  the two CONNECTIONLESS connect scopes `POST /api/v1/profiles` accepts.
+  `connections` is now `DEFAULT_PROVISION_SCOPES` and mints
+  `connections:read` / `connections:write`: the Meta Ads connect rail
+  (handoff, pending, finalize, sync, sync-status, disconnect) runs on it,
+  dual-accepting the old `attribution:write` / `analytics:read` during the
+  swap window. `attribution` mints the whole Add-on bundle — every
+  analytics/analytics_pii/attribution_write scope plus `exports:*`,
+  `events:write`, `campaigns:apply`, `creatives:write`, `connections:*` — and
+  is set by Atribu itself when a profile's `atribu_attribution` entitlement
+  turns on. Requesting it directly at provisioning time is refused (400
+  `validation_error`, #1491 fix 2) precisely because that would let a
+  consumer app grant itself the Add-on.
+- `ProfileEntitlementResult.grant` — `{ scopes, revoked_keys, revoked }`
+  (#1478) — what `PUT /api/v1/profiles/{profileId}/entitlements/{feature}`
+  did to your OAuth grant on this profile. `enabled: true` widens
+  `grant.scopes` to `["connections", "attribution"]`; `enabled: false`
+  narrows it back to `["connections"]` and `revoked_keys` reports how many
+  API keys that cut — non-zero only when the grant actually carried
+  `attribution`. A legacy grant that never held it, or a repeated
+  `enabled: false` replay, revokes nothing (#1491 fix 3: "an entitlement
+  operation may only undo what an entitlement operation did"). `revoked:
+  true` means the workspace owner has disconnected your app entirely — the
+  entitlement still flips as a billing fact, but the grant is left alone and
+  `scopes` comes back empty; re-consent through `POST /api/v1/profiles` (or
+  `/adopt`) before calling again. Never carries a secret — mint a fresh key
+  yourself with `grant_type=client_credentials`.
+- The entitlement PUT body takes an optional `occurred_at` (ISO-8601 with
+  offset) (#1491, item 11), and the response grows `ignored_stale` —
+  ordering for an at-least-once outbox. A delivery whose `occurred_at` is
+  strictly older than the decision Atribu already recorded answers `200`
+  with `changed: false, ignored_stale: true` and writes nothing at all: no
+  entitlement change, no grant convergence, no cascade, no audit row.
+  `enabled` then reports the value Atribu currently holds, not the one you
+  sent — treat it as success and stop retrying that delivery. A call that
+  omits `occurred_at` behaves exactly as before.
+- `client.connections.pixels(id)` / `GET /api/v1/connections/{id}/pixels`
+  (#1489) — the Meta pixels on a `meta_ads` connection's ad account, so a
+  delegated key can discover the `metaPixelId` that
+  `POST /api/v1/exports/destinations` requires without asking the dealer to
+  copy an id out of Events Manager (the two adjacent reads refuse this
+  question by design: the dataset endpoint only reconciles a pixel that is
+  already configured, and the setup-link mint refuses API keys outright).
+  One live, uncached Meta Graph call per request — you're about to write a
+  destination against the answer, so a pixel deleted since must not still be
+  on offer. `null` fields mean Meta gave no verdict, not `false`; an empty
+  array means the ad account genuinely has no pixels, never "we could not
+  ask" — a failure throws instead. `invalid_state` (409) for a connection
+  that is not `meta_ads`, `not_found` (404) for another profile's id,
+  `unauthorized` (401, `reconnectRequired`) for a dead Meta token. Requires
+  `exports:read`.
+
+### Changed
+
+- `GET /handoffs/{id}` scope prose corrected (#1487): it accepts
+  `connections:read` OR `analytics:read`, not `analytics:read` alone. A
+  `{connections}`-only key — ADR 0021's new core grant, which carries no
+  analytics scope at all — could mint a Meta Ads connect hand-off and then
+  403 reading it back, the one read in the connect rail that had not picked
+  up the rail's own dual-accept pattern. Doc/scope-only;
+  `client.handoffs.get()`'s signature is unchanged.
+- Regenerated types now carry several response shapes precisely instead of
+  falling back to a loose or `unknown` shape, after a fix to the API
+  contract guard that could not see through a `$ref` slot (#1477, closing
+  #1451/#1452/#1453):
+  - `ConversionSyncAudienceProposal.stats` — six typed fields; the three
+    cash figures (`totalCashIn`, `totalSeedValue`, `refundsSubtracted`) are
+    exact-decimal `string`s (ADR 0018), not `number`.
+  - `ConversionSyncAudienceSeedPreview`'s `totalSeedValue` /
+    `refundsSubtracted` / `medianValue` are likewise decimal strings now,
+    not `number`.
+  - The ads scaling guidance's `is_directional` is a required `boolean`,
+    always `true` — a structural reminder that a
+    `room_to_scale` / `fatiguing` / etc. verdict is a directional read, never
+    a causal claim — and is now actually present on the wire (the old
+    `isDirectional` spelling never shipped on any consumer and is gone).
+  - Both Conversion Sync setup-link write responses' `link` gains nine
+    previously-undeclared fields (including `url`, `lastError`, and the PII
+    fields `inviterName` / `metaUserName` / `clientName` / `agencyName`) and
+    loses its `{ [key: string]: unknown }` index-signature escape hatch.
+  - `PUT /conversion-sync/legal`'s `documents[]` gains ten previously-
+    `unknown` fields (`created_at`, `external_url`, …) and likewise loses
+    its index signature.
+
+  None of these operations is `exports`-scoped on any live key today, so
+  this ships as a types-only correction with no runtime behavior change for
+  current consumers — but a caller reading these fields through an `as` cast
+  or an index-signature fallback should re-check after regenerating.
+
 ## [1.19.0] - 2026-09-14
 
 > 1.18.0 was bumped in this monorepo but never mirrored/published to npm
