@@ -3,7 +3,7 @@
   "info": {
     "title": "Atribu API",
     "version": "1.0.0",
-    "description": "Marketing attribution API. Get campaign ROAS, visitor analytics, customer journeys, and revenue attribution data.\n\n## Authentication\n\nAll requests require a Bearer token in the `Authorization` header:\n```\nAuthorization: Bearer atb_live_your_key_here\n```\n\nGet your API key from **Settings > API Keys** in the Atribu dashboard.\n\nTwo more credentials ride the same header, both identifying a PERSON rather than a tenant, and both requiring `?profile_id=<uuid>` on profile-scoped routes:\n\n- an **MCP user token** (`atb_user_…`) — a public integration path, and the credential an AI agent holds after the MCP OAuth flow at `https://mcp.atribu.app` (or after `POST /api/v1/me/mcp-tokens`). One token covers both the MCP server and this API. See the `userToken` security scheme.\n- a **Supabase session access token** — Atribu's own dashboard, 120 requests/minute per user. See the `bearerAuth` security scheme.\n\n## Scopes\n\nAPI keys have granular scopes:\n- `analytics:read` — Read aggregated analytics: overview, timeseries, breakdowns, quality, touches, and channel/referrer/page/keyword/country/device/browser/OS dimensions.\n- `campaigns:read` — Read campaign, ad set and ad performance: ROAS, trends, archetypes, creative patterns, DM ads, forecast outlook and top performers.\n- `conversions:read` — Read conversion counts and revenue, including cash-only revenue and conversion timeseries.\n- `commerce:read` — Read the merchant's product catalogue (products, variants, stock and prices) and look an order up by number, email or phone. Returns no customer identity.\n- `customers:read` — Read the customer list and per-customer journey detail — personally identifiable information.\n- `visitors:read` — Read the visitor list — personally identifiable information.\n- `realtime:read` — Read the live visitor count.\n- `exports:read` — Read the conversion-export/signal-sync surface: Meta CAPI wiring diagnostics, dataset quality, Custom Audiences, export deliveries, and the compliance state behind Platform-Safe Mode.\n- `exports:write` — Configure the conversion-export pipeline: create, edit and disable export destinations (Meta dataset/pixel, Google Ads conversion action) and the signal rules that map a conversion definition to a platform event, and send a Meta test event.\n- `events:write` — Ingest server-side outcome events (e.g. a closed sale) via POST /api/v1/events.\n- `goals:write` — Create, list and edit conversion goal definitions.\n- `attribution:write` — Trigger an attribution recompute for a profile.\n- `tracking:write` — Configure a site's tracking installation: issue and revoke tracking keys, change the tracker's session/enrichment settings (which enqueues a full attribution replay), and start an install verification.\n- `reports:write` — Create, schedule, generate and send attribution reports (report schedules, deliveries and send).\n- `workspaces:write` — Create a workspace (POST /api/v1/workspaces). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `profiles:write` — Create a profile inside a workspace the caller already belongs to (POST /api/v1/profiles). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `campaigns:apply` — Apply or dismiss a campaign recommendation. Not granted by default — a workspace admin must opt a key into it, or the app must hold the `attribution` connect scope.\n- `creatives:write` — Queue an on-demand AI analysis of one ad's creative (`POST /api/v1/ads/{id}/creative-analysis`). Each accepted call queues a model call against the workspace's daily creative-analysis allowance, so it is capped per profile and per key per day and is not granted by default — a workspace admin must opt a key into it, or the app must hold the `attribution` connect scope.\n- `connections:read` — Read the state of a profile's connections: the connection list and detail, and the progress of a running sync.\n- `connections:write` — Run the connect rail: mint a connect hand-off URL, list the candidate accounts behind a parked provider token, finalize the selection, trigger a sync, and disconnect a connection.\n- `calendar` — Create, update and delete events on Atribu booking calendars.\n- `calendar.manage` — Create, list and share (ACL) Atribu booking calendars.\n- `calendar.read` — Read-only access to Atribu booking calendars and their events.\n- `whatsapp` — Send and manage WhatsApp messages, templates, flows, broadcasts, calling and phone-number registration.\n- `whatsapp:read` — Read WhatsApp conversations, messages, templates and broadcasts. A read-only subset of `whatsapp`, which also allows sending and managing them.\n- `instagram` — Send and manage Instagram DMs, comment replies, triggers and media.\n- `email` — Read and send connected email (Gmail/Outlook): drafts, threads, labels and search.\n- `conversations:read` — Read the unified inbox: conversation list and message threads across WhatsApp, Instagram and email, plus organic/ad match suggestions, contact-extraction review proposals and the Instagram DM↔payment reconciliation worklist.\n- `conversations:write` — Reply on a conversation, save an email draft, apply Gmail labels, link/unlink a conversation to a customer, and approve/reject a contact-extraction review proposal.\n\nSee the API changelog (docs/api-changelog.md) for scope-catalogue changes — scopes are frozen into a key at mint time, so a key minted before a new scope was added to a grant does not carry it; re-mint via `client_credentials`.\n\n## Rate Limits\n\nDefault: 60 requests/minute. Check `X-RateLimit-Remaining` header.\nHeavy endpoints (customers, visitors, journey) cost 3x.\n\nA few endpoints also carry their own sustained bucket, because one call is far more work than a read. That bucket is separate from the per-minute allowance, so it can neither consume it nor be consumed by it:\n\n| Endpoint | Own bucket |\n|---|---|\n| `POST /api/v1/quality/utm/refresh` | 6 scans/hour per key (each is an 8-12s live scan) |\n| `POST /api/v1/profiles` | 200 provisioning calls/hour per app credential |\n\n## Date Range\n\nMost endpoints require `date_from` and `date_to` in YYYY-MM-DD format. Maximum range: 366 days.",
+    "description": "Marketing attribution API. Get campaign ROAS, visitor analytics, customer journeys, and revenue attribution data.\n\n## Authentication\n\nAll requests require a Bearer token in the `Authorization` header:\n```\nAuthorization: Bearer atb_live_your_key_here\n```\n\nGet your API key from **Settings > API Keys** in the Atribu dashboard.\n\nTwo more credentials ride the same header, both identifying a PERSON rather than a tenant, and both requiring `?profile_id=<uuid>` on profile-scoped routes:\n\n- an **MCP user token** (`atb_user_…`) — a public integration path, and the credential an AI agent holds after the MCP OAuth flow at `https://mcp.atribu.app` (or after `POST /api/v1/me/mcp-tokens`). One token covers both the MCP server and this API. See the `userToken` security scheme.\n- a **Supabase session access token** — Atribu's own dashboard, 120 requests/minute per user. See the `bearerAuth` security scheme.\n\n## Scopes\n\nAPI keys have granular scopes:\n- `analytics:read` — Read aggregated analytics: overview, timeseries, breakdowns, quality, touches, and channel/referrer/page/keyword/country/device/browser/OS dimensions.\n- `campaigns:read` — Read campaign, ad set and ad performance: ROAS, trends, archetypes, creative patterns, DM ads and top performers.\n- `conversions:read` — Read conversion counts and revenue, including cash-only revenue and conversion timeseries.\n- `commerce:read` — Read the merchant's product catalogue (products, variants, stock and prices) and look an order up by number, email or phone. Returns no customer identity.\n- `customers:read` — Read the customer list and per-customer journey detail — personally identifiable information.\n- `visitors:read` — Read the visitor list — personally identifiable information.\n- `realtime:read` — Read the live visitor count.\n- `exports:read` — Read the conversion-export/signal-sync surface: Meta CAPI wiring diagnostics, dataset quality, Custom Audiences, export deliveries, and the compliance state behind Platform-Safe Mode.\n- `exports:write` — Configure the conversion-export pipeline: create, edit and disable export destinations (Meta dataset/pixel, Google Ads conversion action) and the signal rules that map a conversion definition to a platform event, and send a Meta test event.\n- `events:write` — Ingest server-side outcome events (e.g. a closed sale) via POST /api/v1/events.\n- `goals:write` — Create, list and edit conversion goal definitions.\n- `attribution:write` — Trigger an attribution recompute for a profile.\n- `tracking:write` — Configure a site's tracking installation: issue and revoke tracking keys, change the tracker's session/enrichment settings (which enqueues a full attribution replay), and start an install verification.\n- `reports:write` — Create, schedule, generate and send attribution reports (report schedules, deliveries and send).\n- `workspaces:write` — Create a workspace (POST /api/v1/workspaces). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `profiles:write` — Create a profile inside a workspace the caller already belongs to (POST /api/v1/profiles). Not granted by any OAuth connect scope; an MCP user token holds it through the `mcp:write` grant.\n- `campaigns:apply` — Apply or dismiss a campaign recommendation. Not granted by default — a workspace admin must opt a key into it, or the app must hold the `attribution` connect scope.\n- `creatives:write` — Queue an on-demand AI analysis of one ad's creative (`POST /api/v1/ads/{id}/creative-analysis`). Each accepted call queues a model call against the workspace's daily creative-analysis allowance, so it is capped per profile and per key per day and is not granted by default — a workspace admin must opt a key into it, or the app must hold the `attribution` connect scope.\n- `connections:read` — Read the state of a profile's connections: the connection list and detail, and the progress of a running sync.\n- `connections:write` — Run the connect rail: mint a connect hand-off URL, list the candidate accounts behind a parked provider token, finalize the selection, trigger a sync, and disconnect a connection.\n- `calendar` — Create, update and delete events on Atribu booking calendars.\n- `calendar.manage` — Create, list and share (ACL) Atribu booking calendars.\n- `calendar.read` — Read-only access to Atribu booking calendars and their events.\n- `whatsapp` — Send and manage WhatsApp messages, templates, flows, broadcasts, calling and phone-number registration.\n- `whatsapp:read` — Read WhatsApp conversations, messages, templates and broadcasts. A read-only subset of `whatsapp`, which also allows sending and managing them.\n- `instagram` — Send and manage Instagram DMs, comment replies, triggers and media.\n- `email` — Read and send connected email (Gmail/Outlook): drafts, threads, labels and search.\n- `conversations:read` — Read the unified inbox: conversation list and message threads across WhatsApp, Instagram and email, plus organic/ad match suggestions, contact-extraction review proposals and the Instagram DM↔payment reconciliation worklist.\n- `conversations:write` — Reply on a conversation, save an email draft, apply Gmail labels, link/unlink a conversation to a customer, and approve/reject a contact-extraction review proposal.\n\nSee the API changelog (docs/api-changelog.md) for scope-catalogue changes — scopes are frozen into a key at mint time, so a key minted before a new scope was added to a grant does not carry it; re-mint via `client_credentials`.\n\n## Rate Limits\n\nDefault: 60 requests/minute. Check `X-RateLimit-Remaining` header.\nHeavy endpoints (customers, visitors, journey) cost 3x.\n\nA few endpoints also carry their own sustained bucket, because one call is far more work than a read. That bucket is separate from the per-minute allowance, so it can neither consume it nor be consumed by it:\n\n| Endpoint | Own bucket |\n|---|---|\n| `POST /api/v1/quality/utm/refresh` | 6 scans/hour per key (each is an 8-12s live scan) |\n| `POST /api/v1/profiles` | 200 provisioning calls/hour per app credential |\n\n## Date Range\n\nMost endpoints require `date_from` and `date_to` in YYYY-MM-DD format. Maximum range: 366 days.",
     "contact": {
       "name": "Atribu Support",
       "url": "https://www.atribu.app"
@@ -4009,7 +4009,6 @@
                   "enum": [
                     "strength",
                     "weakness",
-                    "forecast",
                     "fatigue"
                   ]
                 },
@@ -7617,7 +7616,15 @@
           },
           "has_subscription_revenue": {
             "type": "boolean",
-            "description": "#1354 — TRUE when this profile has EVER processed a payment its source provider tagged as subscription-derived: a Shopify order whose sourceName is `subscription_contract`, a Stripe charge linked to an auto-charging subscription invoice, or a MercadoPago payment whose `operation_type` is `recurring_payment`. A coarse, all-time capability flag — not a per-window recount of which repeat customers are currently subscribed — for deciding whether a caption should say 'active subscriptions' or stay generic ('repeat customers')."
+            "description": "#1354 — TRUE when this profile has EVER processed a payment its source provider tagged as subscription-derived: a Shopify order whose sourceName is `subscription_contract`, a Stripe charge linked to an auto-charging subscription invoice, or a MercadoPago payment whose `operation_type` is `recurring_payment`. A coarse, all-time capability flag — not a per-window recount of which repeat customers are currently subscribed — for deciding whether a caption should say 'active subscriptions' or stay generic ('repeat customers').\n\nWhen `analytics` is `unavailable` this is its fail-closed default (`false`), not a measurement."
+          },
+          "analytics": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "description": "#1550 — whether Atribu's analytics store could be read while assembling this document.\n\n`unavailable` means the request succeeded and every field above is trustworthy EXCEPT `has_subscription_revenue`, which is the only one read from analytics. The profile's own settings and its plan come from Atribu's messaging core, which is why this call keeps answering through such an outage instead of failing over a caption."
           }
         },
         "required": [
@@ -7635,7 +7642,8 @@
           "permissions",
           "plan",
           "is_demo",
-          "has_subscription_revenue"
+          "has_subscription_revenue",
+          "analytics"
         ]
       },
       "WorkspaceProfile": {
@@ -7766,6 +7774,38 @@
                 "type": "integer",
                 "example": 0,
                 "description": "Rows dropped from the two sums because no exchange rate existed for their (currency, date) pair. Amounts are never converted at an assumed rate of 1, so an unconvertible row is excluded instead. A non-zero value means the totals are incomplete and should be presented as such."
+              },
+              "assessed_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "example": 136,
+                "description": "Ads in this window whose wear-out question was ANSWERED — a fatigue tier exists, or the ad platform itself reports the ad paused/degraded. `at_risk_count` excludes ads with no tier by design, so it reads low both when nothing is wearing out and when nothing was assessed. When `assessed_count` is 0, present the at-risk figure as NOT ASSESSED rather than as a zero: the zero is a fact about the model, not about the ads. `null` means this particular read does not carry the counter (the workspace-summary `brief` object does not) — it never means zero."
+              },
+              "unassessed_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "example": 181,
+                "description": "The exact complement of `assessed_count` over the same window: no fatigue tier and no observed paused/degraded state. Together the two partition the window."
+              },
+              "ads_with_any_sale": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "example": 15,
+                "description": "Ads with at least one CASH conversion (`revenue_type='cash'`) attributed to them in this window. Not a count of every conversion type."
+              },
+              "ads_meeting_evidence_floor": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "example": 5,
+                "description": "Ads with at least THREE cash conversions — the minimum evidence Atribu requires before it will recommend an action on an ad. Zero here explains an empty recommendations list."
               }
             },
             "required": [
@@ -7776,7 +7816,11 @@
               "open_recs_count",
               "open_recs_value_dollars",
               "reporting_currency",
-              "fx_missing_rows"
+              "fx_missing_rows",
+              "assessed_count",
+              "unassessed_count",
+              "ads_with_any_sale",
+              "ads_meeting_evidence_floor"
             ],
             "description": "The `28d` attention counters for this workspace — the same six `/workspaces/{workspaceId}/top-performers/brief` returns, from the multi-workspace twin of that RPC.\n\nA workspace with nothing scored gets the ZERO row, which is a real answer (\"nothing needs attention\"). `null` means the aggregate could NOT be computed — do not draw it as calm. It is nullable rather than fatal on purpose: this is the cold-boot read, and a workspace switcher that fails because the creative-scoring pipeline is unavailable is a worse outcome than a switcher with no indicators."
           }
@@ -9263,6 +9307,38 @@
             "type": "integer",
             "example": 0,
             "description": "Rows dropped from the two sums because no exchange rate existed for their (currency, date) pair. Amounts are never converted at an assumed rate of 1, so an unconvertible row is excluded instead. A non-zero value means the totals are incomplete and should be presented as such."
+          },
+          "assessed_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 136,
+            "description": "Ads in this window whose wear-out question was ANSWERED — a fatigue tier exists, or the ad platform itself reports the ad paused/degraded. `at_risk_count` excludes ads with no tier by design, so it reads low both when nothing is wearing out and when nothing was assessed. When `assessed_count` is 0, present the at-risk figure as NOT ASSESSED rather than as a zero: the zero is a fact about the model, not about the ads. `null` means this particular read does not carry the counter (the workspace-summary `brief` object does not) — it never means zero."
+          },
+          "unassessed_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 181,
+            "description": "The exact complement of `assessed_count` over the same window: no fatigue tier and no observed paused/degraded state. Together the two partition the window."
+          },
+          "ads_with_any_sale": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 15,
+            "description": "Ads with at least one CASH conversion (`revenue_type='cash'`) attributed to them in this window. Not a count of every conversion type."
+          },
+          "ads_meeting_evidence_floor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 5,
+            "description": "Ads with at least THREE cash conversions — the minimum evidence Atribu requires before it will recommend an action on an ad. Zero here explains an empty recommendations list."
           }
         },
         "required": [
@@ -9273,7 +9349,11 @@
           "open_recs_count",
           "open_recs_value_dollars",
           "reporting_currency",
-          "fx_missing_rows"
+          "fx_missing_rows",
+          "assessed_count",
+          "unassessed_count",
+          "ads_with_any_sale",
+          "ads_meeting_evidence_floor"
         ]
       },
       "WorkspaceTabCount": {
@@ -9430,6 +9510,9 @@
           "id": {
             "type": "string"
           },
+          "workspace_id": {
+            "type": "string"
+          },
           "profile_id": {
             "type": "string"
           },
@@ -9497,6 +9580,13 @@
               "external_action_url"
             ]
           },
+          "ad_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name of the target ad. NULL when the recommendation targets no ad. Render this, never `target.ad_id` — an ad id is not something a person can recognise."
+          },
           "expected_impact_dollars": {
             "type": "string",
             "format": "decimal",
@@ -9517,10 +9607,7 @@
             "type": "string"
           },
           "expires_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "applied_at": {
             "type": [
@@ -9576,6 +9663,7 @@
         },
         "required": [
           "id",
+          "workspace_id",
           "profile_id",
           "kind",
           "risk_tier",
@@ -9583,6 +9671,7 @@
           "rationale",
           "suggested_modifications",
           "target",
+          "ad_name",
           "expected_impact_dollars",
           "confidence",
           "rec_rank_score",
@@ -16509,6 +16598,14 @@
           "next": {
             "$ref": "#/components/schemas/ReadinessNext"
           },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "unavailable"
+            ],
+            "description": "`measured` — every fact behind this step was read. `unavailable` — Atribu's analytics store could not be reached and this step's answer depended on it, so `status` is reported as `degraded` and says nothing about how the profile is configured.\n\nTreat an `unavailable` step as \"not known right now\": do not tell anyone to configure something on the strength of it, and do not count it against them. Retry the call. Steps whose evidence is entirely core-side — the connection steps, the legal step, the plan, the entitlement — stay `measured` throughout such an outage."
+          },
           "docs_url": {
             "type": "string",
             "example": "https://www.atribu.app/docs/getting-started/connect-ads",
@@ -16520,6 +16617,7 @@
           "status",
           "why",
           "next",
+          "evidence",
           "docs_url"
         ]
       },
@@ -16582,12 +16680,21 @@
           "wizard_finished": {
             "type": "boolean",
             "description": "`onboarding_completed` on the profile — REPORTED, NOT TRUSTED. It means one thing: a person pressed Finish in the Atribu console's setup wizard. Every wizard step is skippable, so it is not evidence that any step above is done, and nothing in `summary` is derived from it. Use it only to tell 'has been through onboarding and is still missing things' from 'nobody has started'."
+          },
+          "analytics": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "description": "Whether the analytics store this checklist measures most of its steps from could be read.\n\n`unavailable` means the request still succeeded — every core-side step is measured and trustworthy — but each step carrying `evidence: \"unavailable\"` is reporting a default rather than a measurement. `summary.done` is then a FLOOR, never a verdict. Nothing about the profile changed; retry the same call."
           }
         },
         "required": [
           "steps",
           "summary",
-          "wizard_finished"
+          "wizard_finished",
+          "analytics"
         ]
       },
       "AttributionSettings": {
@@ -21924,7 +22031,11 @@
               "boolean",
               "null"
             ],
-            "description": "Has any ad spend at all ever been recorded for this profile on this connection's platform?\n\nAn ad account can be connected, healthy and syncing and still deliver no spend — it was authorized and never used. Such a connection contributes nothing to any spend total, so a surface that names it (a timezone disclosure, a 'where your spend comes from' list) would be describing an account the numbers do not come from.\n\n**Grain is the PLATFORM, not the individual ad account.** `spend` is indexed on `(profile_id, platform, …)` and not on the account id, so the probe behind this field asks whether the profile has spend on this connection's provider. Two connections of the SAME provider on one profile therefore report the same value even if only one of them delivered it — the over-disclosing direction, chosen deliberately.\n\nNull for every kind that cannot report spend (`messaging`, `crm`, `commerce`, `payments`, `integration`) — null is *not applicable*, never *no*."
+            "description": "Has any ad spend at all ever been recorded for this profile on this connection's platform?\n\nAn ad account can be connected, healthy and syncing and still deliver no spend — it was authorized and never used. Such a connection contributes nothing to any spend total, so a surface that names it (a timezone disclosure, a 'where your spend comes from' list) would be describing an account the numbers do not come from.\n\n**Grain is the PLATFORM, not the individual ad account.** `spend` is indexed on `(profile_id, platform, …)` and not on the account id, so the probe behind this field asks whether the profile has spend on this connection's provider. Two connections of the SAME provider on one profile therefore report the same value even if only one of them delivered it — the over-disclosing direction, chosen deliberately.\n\nNull for every kind that cannot report spend (`messaging`, `crm`, `commerce`, `payments`, `integration`) — null is *not applicable*, never *no*. Since #1550 it is ALSO null when `spend_unavailable` is true, which is *unknown*; read that field to tell the two apart."
+          },
+          "spend_unavailable": {
+            "type": "boolean",
+            "description": "The spend probe behind `delivers_spend` could not run, so that field is null because the answer is UNKNOWN — not because it does not apply.\n\n`spend` is the only table this endpoint reads outside Atribu's messaging core, and it feeds exactly one field. Everything else on this response — the channel, the status, the identity, the sync counters — is unaffected, and is as trustworthy on a request with this flag set as on any other. **A client sweeping channel health must not degrade a connection because of it**; the correct reaction is to re-read `delivers_spend` later and to keep whatever it last knew in the meantime.\n\nAlways `false` for a kind that cannot report spend at all, and `false` on every row of a healthy response."
           },
           "sync": {
             "$ref": "#/components/schemas/ConnectionSync"
@@ -21944,6 +22055,7 @@
           "currency",
           "ad_account_timezone",
           "delivers_spend",
+          "spend_unavailable",
           "sync"
         ]
       },
@@ -23448,6 +23560,10 @@
               "null"
             ]
           },
+          "enrichment_unavailable": {
+            "type": "boolean",
+            "description": "#1550 — Atribu's analytics store could not be read for this page, so the three fields it feeds hold their absent-evidence value rather than a measurement: `ad_name` and `campaign_name` are null, and `linked_customer_is_payer` was decided on the contact's own email/phone alone, without consulting cash conversions.\n\nEverything else on the row — the conversation, its counts, its last message, its contact and every `referral_*` field — comes from Atribu's messaging core and is unaffected. `false` on every row of a healthy response."
+          },
           "human_handoff_at": {
             "type": [
               "string",
@@ -23529,6 +23645,7 @@
           "referral_ads_context",
           "ad_name",
           "campaign_name",
+          "enrichment_unavailable",
           "human_handoff_at",
           "ig_username",
           "profile_pic_url",
@@ -29411,12 +29528,20 @@
               "external_action_url"
             ]
           },
+          "ad_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name of the target ad. NULL when the recommendation targets no ad. Render this, never `target.ad_id` — an ad id is not something a person can recognise.",
+            "example": "Anuncio 2 — BOFU"
+          },
           "expected_impact_dollars": {
             "type": "string",
             "format": "decimal",
             "pattern": "^-?\\d+(\\.\\d+)?$",
             "example": "1234.56",
-            "description": "Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `\"9.00\" > \"10.00\"`, and that failure is silent."
+            "description": "Arithmetic on the ad's OWN observed unit economics over the next 7 days, under the stated assumption that the extra budget performs like the window did. Phrase it with \"if\" — it is not a forecast."
           },
           "confidence": {
             "type": "number"
@@ -29454,6 +29579,36 @@
           },
           "created_at": {
             "type": "string"
+          },
+          "realized_impact_dollars": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "What the apply actually produced. NULL until measured — which is not zero, and a surface that shows only `expected_impact_dollars` is reporting a hope as a result."
+          },
+          "calibration_error": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "`realized - expected`, in the same units. NULL until measured."
+          },
+          "calibration_eval_window_end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "data_quality_tier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What evidence the recommendation rests on — `cash` / `outcomes` / `engagement` / `meta_only` / `none`. The same ladder `truth_grade` walks for a leaderboard row."
           }
         },
         "required": [
@@ -29466,6 +29621,7 @@
           "rationale",
           "suggested_modifications",
           "target",
+          "ad_name",
           "expected_impact_dollars",
           "confidence",
           "rec_rank_score",
@@ -29475,7 +29631,11 @@
           "applied_at",
           "verified_at",
           "dismissed_at",
-          "created_at"
+          "created_at",
+          "realized_impact_dollars",
+          "calibration_error",
+          "calibration_eval_window_end",
+          "data_quality_tier"
         ]
       },
       "RecommendationKind": {
@@ -29582,6 +29742,10 @@
               "string",
               "null"
             ]
+          },
+          "attribution_deferred": {
+            "type": "boolean",
+            "description": "#1550 — the join was ACCEPTED and recorded in Atribu's messaging core, but the outcome event that carries it into attribution could not be written yet because Atribu's analytics store did not answer. The work is parked durably and replayed automatically, on the same key the outcome row uses, so nothing is duplicated and nothing is lost.\n\n`conversation_started` is then `false` and `outcome_event_id` is `null` whatever the replay eventually produces: this response says what Atribu knew at the time. **Do not retry on it** — a retry re-parks the same row and buys nothing. Every other field is fully resolved: the join tiers read the messaging core, which is the project that answered this request.\n\n`false` on every response from a healthy Atribu."
           }
         },
         "required": [
@@ -29595,7 +29759,8 @@
           "ambiguous",
           "ambiguous_tier",
           "conversation_started",
-          "outcome_event_id"
+          "outcome_event_id",
+          "attribution_deferred"
         ]
       },
       "WaJoinMethod": {
@@ -68480,7 +68645,6 @@
                                   "enum": [
                                     "strength",
                                     "weakness",
-                                    "forecast",
                                     "fatigue"
                                   ]
                                 },
@@ -68520,36 +68684,6 @@
                                 "sample_n"
                               ]
                             }
-                          },
-                          "forecast_outcomes_7d": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "forecast_outcomes_7d_low": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "forecast_outcomes_7d_high": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "forecast_confidence": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "enum": [
-                              "low",
-                              "medium",
-                              "high",
-                              null
-                            ]
                           },
                           "hazard_30d_pause": {
                             "type": [
@@ -69068,42 +69202,6 @@
                               "creative_signature"
                             ]
                           },
-                          "forecast": {
-                            "type": "object",
-                            "properties": {
-                              "forecast_impressions_7d": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "forecast_impressions_7d_low": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "forecast_impressions_7d_high": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "forecast_cost_per_outcome_7d": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ],
-                                "description": "Projected cost per outcome over the next 7 days. A cost-per-unit RATIO (ADR 0018 §3) like `cost_per_conversation`, deliberately NOT monetary: it reconciles against no ledger, and splitting a metric from its own forecast across two wire types is how one quantity ends up with two shapes."
-                              }
-                            },
-                            "required": [
-                              "forecast_impressions_7d",
-                              "forecast_impressions_7d_low",
-                              "forecast_impressions_7d_high",
-                              "forecast_cost_per_outcome_7d"
-                            ]
-                          },
                           "internals": {
                             "type": "object",
                             "properties": {
@@ -69158,10 +69256,6 @@
                           "first_reply_rate",
                           "avg_engagement_score",
                           "reason_codes",
-                          "forecast_outcomes_7d",
-                          "forecast_outcomes_7d_low",
-                          "forecast_outcomes_7d_high",
-                          "forecast_confidence",
                           "hazard_30d_pause",
                           "hazard_30d_degradation",
                           "fatigue_state",
@@ -69170,8 +69264,7 @@
                           "identity",
                           "metrics",
                           "score",
-                          "creative",
-                          "forecast"
+                          "creative"
                         ]
                       }
                     },
@@ -70222,463 +70315,6 @@
                         "top_n",
                         "min_spend",
                         "ads"
-                      ]
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/Meta"
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "meta"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "x-atribu-scopes": [
-          "campaigns:read"
-        ],
-        "x-atribu-auth": [
-          "api_key"
-        ],
-        "x-atribu-idempotency": "none",
-        "x-atribu-scope-grain": "profile"
-      }
-    },
-    "/api/v1/forecast-outlook": {
-      "get": {
-        "summary": "Workspace portfolio forecast outlook (Phase 4)",
-        "description": "Portfolio-grain forecast for the next 7 days. Returns one document with: projected total impressions + attributed outcomes (with 80% prediction-interval bands from split-conformal calibration — calibrated coverage bands, not Gaussian σ), projected average cost-per-outcome, the counts of `n_emerging_top_performers` (climbing ads with strong forecasts) and `n_at_risk_top_performers` (currently top-tier ads in high/critical fatigue), per-tier fatigue histograms, and `projected_budget_at_risk` (total spend across high+critical fatigue ads). Use as the first 'what's the week ahead' lookup.",
-        "tags": [
-          "Analytics"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "userToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "7d",
-                "14d",
-                "28d",
-                "lifetime"
-              ],
-              "description": "Default '28d'"
-            },
-            "required": false,
-            "description": "Default '28d'",
-            "name": "score_window",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Portfolio outlook (single document)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "additionalProperties": {}
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/Meta"
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "meta"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "x-atribu-scopes": [
-          "campaigns:read"
-        ],
-        "x-atribu-auth": [
-          "api_key"
-        ],
-        "x-atribu-idempotency": "none",
-        "x-atribu-scope-grain": "profile"
-      }
-    },
-    "/api/v1/ads/forecast": {
-      "get": {
-        "summary": "Per-ad forecast + fatigue + 14d trajectory (Phase 4 / F-3)",
-        "description": "Returns one creative_feature_store row for the (workspace, profile, ad_external_id) tuple plus the last 14 days of daily delivery and any lifecycle events. The `cfs` object carries the Phase-4 forecast cols (forecast_outcomes_7d/_low/_high, forecast_confidence) and the fatigue cols (hazard_30d_pause, hazard_30d_degradation, expected_lifespan_days, fatigue_state, fatigue_risk_tier). All Phase-4 cols are NULL when the prediction-pass cron hasn't scored the ad (cold-start, paused, ML_FORECAST_AND_FATIGUE_ENABLED off). Query-param convention (audit B-7).",
-        "tags": [
-          "Campaigns"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "userToken": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "description": "The ad's external id (Meta ad id / Google ads id)"
-            },
-            "required": true,
-            "description": "The ad's external id (Meta ad id / Google ads id)",
-            "name": "ad_external_id",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "enum": [
-                "7d",
-                "14d",
-                "28d",
-                "lifetime"
-              ],
-              "description": "Default '28d'"
-            },
-            "required": false,
-            "description": "Default '28d'",
-            "name": "score_window",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ad forecast detail",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "ad_external_id": {
-                          "type": "string"
-                        },
-                        "score_window": {
-                          "type": "string"
-                        },
-                        "cfs": {
-                          "type": [
-                            "object",
-                            "null"
-                          ],
-                          "additionalProperties": {}
-                        },
-                        "trajectory_last_14d": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "day": {
-                                "type": "string"
-                              },
-                              "spend": {
-                                "type": "string",
-                                "format": "decimal",
-                                "pattern": "^-?\\d+(\\.\\d+)?$",
-                                "example": "1234.56",
-                                "description": "Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `\"9.00\" > \"10.00\"`, and that failure is silent."
-                              },
-                              "impressions": {
-                                "type": "number"
-                              },
-                              "clicks": {
-                                "type": "number"
-                              }
-                            },
-                            "required": [
-                              "day",
-                              "spend",
-                              "impressions",
-                              "clicks"
-                            ]
-                          }
-                        },
-                        "lifecycle_history": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "event_date": {
-                                "type": "string"
-                              },
-                              "event_type": {
-                                "type": "string"
-                              },
-                              "lifecycle_seq": {
-                                "type": "number"
-                              }
-                            },
-                            "required": [
-                              "event_date",
-                              "event_type",
-                              "lifecycle_seq"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "ad_external_id",
-                        "score_window",
-                        "cfs",
-                        "trajectory_last_14d",
-                        "lifecycle_history"
-                      ]
-                    },
-                    "meta": {
-                      "$ref": "#/components/schemas/Meta"
-                    }
-                  },
-                  "required": [
-                    "data",
-                    "meta"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "x-atribu-scopes": [
-          "campaigns:read"
-        ],
-        "x-atribu-auth": [
-          "api_key"
-        ],
-        "x-atribu-idempotency": "none",
-        "x-atribu-scope-grain": "profile"
-      }
-    },
-    "/api/v1/ads/forecast/scenarios": {
-      "post": {
-        "summary": "Per-ad what-if forecast scenarios (Phase 4 / F-3)",
-        "description": "Feeds modified spend / frequency overrides back through the active outcomes-head forecaster and returns the projected 7-day outcomes count per scenario, with 80% conformal PI bands. IMPORTANT: spend-scaling scenarios are a naive linear extrapolation, not a saturation model — the per-dollar outcome rate is held fixed, so outcomes scale in direct proportion to spend (marginal = average return). Such scenarios carry `projection_basis: 'linear_spend_extrapolation'` + `assumes_constant_returns: true`, and the top-level `basis_note` spells this out; do not present them as a guarantee that more budget yields proportional sales. The `out_of_range` flag goes true when a scenario's spend is > 2x or < 0.5x the ad's current trailing-7d spend — extrapolating beyond the training distribution; even less reliable. Up to 5 scenarios per call. Returns base=null + per-scenario `gated_reason` when the ad is cold-start / paused / has no active forecaster model.",
-        "tags": [
-          "Campaigns"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          },
-          {
-            "userToken": []
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "ad_external_id": {
-                    "type": "string"
-                  },
-                  "score_window": {
-                    "type": "string",
-                    "enum": [
-                      "7d",
-                      "14d",
-                      "28d",
-                      "lifetime"
-                    ]
-                  },
-                  "scenarios": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "spend_7d_override": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "decimal",
-                              "pattern": "^-?\\d+(\\.\\d+)?$",
-                              "example": "1234.56"
-                            },
-                            {
-                              "type": "number"
-                            }
-                          ]
-                        },
-                        "frequency_override": {
-                          "type": "number",
-                          "minimum": 0
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ]
-                    },
-                    "minItems": 1,
-                    "maxItems": 5
-                  }
-                },
-                "required": [
-                  "ad_external_id",
-                  "scenarios"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Per-scenario projection",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "ad_external_id": {
-                          "type": "string"
-                        },
-                        "score_window": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        },
-                        "cohort_variant": {
-                          "type": "string"
-                        },
-                        "base_trailing_7d_spend": {
-                          "type": "string",
-                          "format": "decimal",
-                          "pattern": "^-?\\d+(\\.\\d+)?$",
-                          "example": "1234.56",
-                          "description": "Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `\"9.00\" > \"10.00\"`, and that failure is silent."
-                        },
-                        "assumes_constant_returns": {
-                          "type": "boolean"
-                        },
-                        "basis_note": {
-                          "type": "string"
-                        },
-                        "base": {
-                          "type": [
-                            "object",
-                            "null"
-                          ],
-                          "properties": {
-                            "point": {
-                              "type": "number"
-                            },
-                            "low": {
-                              "type": "number"
-                            },
-                            "high": {
-                              "type": "number"
-                            },
-                            "confidence": {
-                              "type": "string",
-                              "enum": [
-                                "low",
-                                "medium",
-                                "high"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "point",
-                            "low",
-                            "high",
-                            "confidence"
-                          ]
-                        },
-                        "scenarios": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "name": {
-                                "type": "string"
-                              },
-                              "point": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "low": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "high": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "confidence": {
-                                "type": "string",
-                                "enum": [
-                                  "low",
-                                  "medium",
-                                  "high"
-                                ]
-                              },
-                              "delta_from_base": {
-                                "type": "number"
-                              },
-                              "out_of_range": {
-                                "type": "boolean"
-                              },
-                              "projection_basis": {
-                                "type": "string",
-                                "enum": [
-                                  "model_response",
-                                  "linear_spend_extrapolation"
-                                ]
-                              },
-                              "assumes_constant_returns": {
-                                "type": "boolean"
-                              },
-                              "gated_reason": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "name",
-                              "point",
-                              "low",
-                              "high",
-                              "confidence",
-                              "delta_from_base",
-                              "out_of_range"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "ad_external_id",
-                        "score_window",
-                        "base",
-                        "scenarios"
                       ]
                     },
                     "meta": {
@@ -97355,7 +96991,7 @@
     "/api/v1/workspaces/{workspaceId}/top-performers": {
       "get": {
         "summary": "The workspace's top-performing ads, across every profile",
-        "description": "The cross-profile creative leaderboard. Ads are scored against *comparable* creative — a cohort is channel × format × objective × audience warmth × geo × placement, and that cohort is populated ACROSS the workspace, which is why this read exists at this grain and cannot be assembled from per-profile calls.\n\n**Three distinct measures per ad. Present them separately; never merge them.** `composite_score` (0–100) is a transparent rule blend of within-cohort percentiles. `top_performer_likelihood` (0–1) is a PROBABILITY — a likelihood, not a guarantee, and never ROAS; it is the calibrated ML-ranker output when `score_source='model'` (with `model_version` set) and a monotone function of `composite_score` otherwise. `attributed_revenue`/`roas` is real cash Atribu attributed, present when `truth_grade='attributed'`. `meta_reported_conversions` is a FOURTH thing again — Meta's own last-click count, never folded into `truth_grade` and never added to Atribu's outcomes.\n\n`primary_outcome_kind` is the cohort-appropriate HEADLINE: `cash` → revenue/ROAS, `pipeline` → attributed leads + `attributed_pipeline_value` (a projection, never in ROAS), `messaging` → conversations started, `meta` → Meta's own number (labelled as such), `none` → the composite score alone. Filter on it with `outcome_kinds` rather than sorting a lead-gen workspace by a ROAS that is null on every row.\n\n`maturity_stage` (cold→early→mature→calibrated) says how settled a score is; `reason_codes` say which funnel layer is strong or weak, with a sample-confidence band and the `sample_n` that band was derived from. Scores refresh on a daily cadence.\n\n**The five nested groups** carry the rest of the feature-store row: `identity` (external ids, creative copy, the delivery days and the attribution model the `attributed_*` legs were credited under), `metrics` (`delivery` / `video` / `messaging` / `outcomes` — sub-grouped because an all-null `video` means 'not a video ad' while an all-null `forecast` means 'not scored yet', and flattening loses that), `score` (the within-cohort `pct_*` percentiles and the empirical-Bayes `smoothed_*` estimates the blend consumes), `creative` (what the ad is made of, with `has_vision_analysis` as the honesty flag over the rest) and `forecast` (the impressions family; the outcomes family stays top-level).\n\nFour things are deliberately NOT published: the ML ranker's per-feature contributions, the raw score-explanation blob, the ten empirical-Bayes effective sample sizes (an input to the smoothing, not a statement about the ad — the smoothed estimate is here and is what can be acted on), and the cohort classifier's `*_source`/`*_confidence` provenance, which is about our pipeline rather than about the advertiser's ad.\n\n**Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).\n\nA workspace owner, admin or analyst sees every profile in the workspace; anyone else sees only the profiles they hold a membership on. That narrowing happens in the database, not in the response shape, so a guest gets a 200 over a smaller set — never someone else's rows.",
+        "description": "The cross-profile creative leaderboard. Ads are scored against *comparable* creative — a cohort is channel × format × objective × audience warmth × geo × placement, and that cohort is populated ACROSS the workspace, which is why this read exists at this grain and cannot be assembled from per-profile calls.\n\n**Three distinct measures per ad. Present them separately; never merge them.** `composite_score` (0–100) is a transparent rule blend of within-cohort percentiles. `top_performer_likelihood` (0–1) is a PROBABILITY — a likelihood, not a guarantee, and never ROAS; it is the calibrated ML-ranker output when `score_source='model'` (with `model_version` set) and a monotone function of `composite_score` otherwise. `attributed_revenue`/`roas` is real cash Atribu attributed, present when `truth_grade='attributed'`. `meta_reported_conversions` is a FOURTH thing again — Meta's own last-click count, never folded into `truth_grade` and never added to Atribu's outcomes.\n\n`primary_outcome_kind` is the cohort-appropriate HEADLINE: `cash` → revenue/ROAS, `pipeline` → attributed leads + `attributed_pipeline_value` (a projection, never in ROAS), `messaging` → conversations started, `meta` → Meta's own number (labelled as such), `none` → the composite score alone. Filter on it with `outcome_kinds` rather than sorting a lead-gen workspace by a ROAS that is null on every row.\n\n`maturity_stage` (cold→early→mature→calibrated) says how settled a score is; `reason_codes` say which funnel layer is strong or weak, with a sample-confidence band and the `sample_n` that band was derived from. Scores refresh on a daily cadence.\n\n**The four nested groups** carry the rest of the feature-store row: `identity` (external ids, creative copy, the delivery days and the attribution model the `attributed_*` legs were credited under), `metrics` (`delivery` / `video` / `messaging` / `outcomes` — sub-grouped because an all-null `video` means 'not a video ad' while an all-null `messaging` means 'no conversation funnel', and flattening loses that), `score` (the within-cohort `pct_*` percentiles and the empirical-Bayes `smoothed_*` estimates the blend consumes) and `creative` (what the ad is made of, with `has_vision_analysis` as the honesty flag over the rest).\n\nFour things are deliberately NOT published: the ML ranker's per-feature contributions, the raw score-explanation blob, the ten empirical-Bayes effective sample sizes (an input to the smoothing, not a statement about the ad — the smoothed estimate is here and is what can be acted on), and the cohort classifier's `*_source`/`*_confidence` provenance, which is about our pipeline rather than about the advertiser's ad.\n\n**Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).\n\nA workspace owner, admin or analyst sees every profile in the workspace; anyone else sees only the profiles they hold a membership on. That narrowing happens in the database, not in the response shape, so a guest gets a 200 over a smaller set — never someone else's rows.",
         "tags": [
           "Campaigns"
         ],
@@ -97768,7 +97404,6 @@
                                   "enum": [
                                     "strength",
                                     "weakness",
-                                    "forecast",
                                     "fatigue"
                                   ]
                                 },
@@ -97808,36 +97443,6 @@
                                 "sample_n"
                               ]
                             }
-                          },
-                          "forecast_outcomes_7d": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "forecast_outcomes_7d_low": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "forecast_outcomes_7d_high": {
-                            "type": [
-                              "number",
-                              "null"
-                            ]
-                          },
-                          "forecast_confidence": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "enum": [
-                              "low",
-                              "medium",
-                              "high",
-                              null
-                            ]
                           },
                           "hazard_30d_pause": {
                             "type": [
@@ -98356,42 +97961,6 @@
                               "creative_signature"
                             ]
                           },
-                          "forecast": {
-                            "type": "object",
-                            "properties": {
-                              "forecast_impressions_7d": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "forecast_impressions_7d_low": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "forecast_impressions_7d_high": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ]
-                              },
-                              "forecast_cost_per_outcome_7d": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ],
-                                "description": "Projected cost per outcome over the next 7 days. A cost-per-unit RATIO (ADR 0018 §3) like `cost_per_conversation`, deliberately NOT monetary: it reconciles against no ledger, and splitting a metric from its own forecast across two wire types is how one quantity ends up with two shapes."
-                              }
-                            },
-                            "required": [
-                              "forecast_impressions_7d",
-                              "forecast_impressions_7d_low",
-                              "forecast_impressions_7d_high",
-                              "forecast_cost_per_outcome_7d"
-                            ]
-                          },
                           "internals": {
                             "type": "object",
                             "properties": {
@@ -98463,10 +98032,6 @@
                           "first_reply_rate",
                           "avg_engagement_score",
                           "reason_codes",
-                          "forecast_outcomes_7d",
-                          "forecast_outcomes_7d_low",
-                          "forecast_outcomes_7d_high",
-                          "forecast_confidence",
                           "hazard_30d_pause",
                           "hazard_30d_degradation",
                           "fatigue_state",
@@ -98476,7 +98041,6 @@
                           "metrics",
                           "score",
                           "creative",
-                          "forecast",
                           "profile_id",
                           "profile_name",
                           "currency"

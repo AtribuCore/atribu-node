@@ -19381,7 +19381,7 @@ export interface paths {
                                 reason_codes: {
                                     layer: string;
                                     /** @enum {string} */
-                                    polarity: "strength" | "weakness" | "forecast" | "fatigue";
+                                    polarity: "strength" | "weakness" | "fatigue";
                                     percentile: number | null;
                                     /** @enum {string} */
                                     sample_confidence: "low" | "medium" | "high";
@@ -19390,11 +19390,6 @@ export interface paths {
                                     code?: string;
                                     metric_value?: number | null;
                                 }[];
-                                forecast_outcomes_7d: number | null;
-                                forecast_outcomes_7d_low: number | null;
-                                forecast_outcomes_7d_high: number | null;
-                                /** @enum {string|null} */
-                                forecast_confidence: "low" | "medium" | "high" | null;
                                 hazard_30d_pause: number | null;
                                 hazard_30d_degradation: number | null;
                                 /** @enum {string|null} */
@@ -19503,13 +19498,6 @@ export interface paths {
                                     has_vision_analysis: boolean;
                                     /** @description Stable hash of the creative's structural features. Equal signatures mean the same creative — how a duplicate is spotted across profiles. */
                                     creative_signature: string | null;
-                                };
-                                forecast: {
-                                    forecast_impressions_7d: number | null;
-                                    forecast_impressions_7d_low: number | null;
-                                    forecast_impressions_7d_high: number | null;
-                                    /** @description Projected cost per outcome over the next 7 days. A cost-per-unit RATIO (ADR 0018 §3) like `cost_per_conversation`, deliberately NOT monetary: it reconciles against no ledger, and splitting a metric from its own forecast across two wire types is how one quantity ends up with two shapes. */
-                                    forecast_cost_per_outcome_7d: number | null;
                                 };
                                 /** @description UNSTABLE — NOT PART OF THE PUBLIC CONTRACT. Present only when `include=internals` is requested by a session credential (Atribu's own console); absent otherwise, and the parameter is ignored for any other credential. The shape belongs to the scoring engine and may change or disappear in any release without a version bump. Do not build against it. */
                                 internals?: {
@@ -19914,210 +19902,6 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/forecast-outlook": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Workspace portfolio forecast outlook (Phase 4)
-         * @description Portfolio-grain forecast for the next 7 days. Returns one document with: projected total impressions + attributed outcomes (with 80% prediction-interval bands from split-conformal calibration — calibrated coverage bands, not Gaussian σ), projected average cost-per-outcome, the counts of `n_emerging_top_performers` (climbing ads with strong forecasts) and `n_at_risk_top_performers` (currently top-tier ads in high/critical fatigue), per-tier fatigue histograms, and `projected_budget_at_risk` (total spend across high+critical fatigue ads). Use as the first 'what's the week ahead' lookup.
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Default '28d' */
-                    score_window?: "7d" | "14d" | "28d" | "lifetime";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Portfolio outlook (single document) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: {
-                                [key: string]: unknown;
-                            };
-                            meta: components["schemas"]["Meta"];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ads/forecast": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Per-ad forecast + fatigue + 14d trajectory (Phase 4 / F-3)
-         * @description Returns one creative_feature_store row for the (workspace, profile, ad_external_id) tuple plus the last 14 days of daily delivery and any lifecycle events. The `cfs` object carries the Phase-4 forecast cols (forecast_outcomes_7d/_low/_high, forecast_confidence) and the fatigue cols (hazard_30d_pause, hazard_30d_degradation, expected_lifespan_days, fatigue_state, fatigue_risk_tier). All Phase-4 cols are NULL when the prediction-pass cron hasn't scored the ad (cold-start, paused, ML_FORECAST_AND_FATIGUE_ENABLED off). Query-param convention (audit B-7).
-         */
-        get: {
-            parameters: {
-                query: {
-                    /** @description The ad's external id (Meta ad id / Google ads id) */
-                    ad_external_id: string;
-                    /** @description Default '28d' */
-                    score_window?: "7d" | "14d" | "28d" | "lifetime";
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Ad forecast detail */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: {
-                                ad_external_id: string;
-                                score_window: string;
-                                cfs: {
-                                    [key: string]: unknown;
-                                } | null;
-                                trajectory_last_14d: {
-                                    day: string;
-                                    /**
-                                     * Format: decimal
-                                     * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
-                                     * @example 1234.56
-                                     */
-                                    spend: string;
-                                    impressions: number;
-                                    clicks: number;
-                                }[];
-                                lifecycle_history: {
-                                    event_date: string;
-                                    event_type: string;
-                                    lifecycle_seq: number;
-                                }[];
-                            };
-                            meta: components["schemas"]["Meta"];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ads/forecast/scenarios": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Per-ad what-if forecast scenarios (Phase 4 / F-3)
-         * @description Feeds modified spend / frequency overrides back through the active outcomes-head forecaster and returns the projected 7-day outcomes count per scenario, with 80% conformal PI bands. IMPORTANT: spend-scaling scenarios are a naive linear extrapolation, not a saturation model — the per-dollar outcome rate is held fixed, so outcomes scale in direct proportion to spend (marginal = average return). Such scenarios carry `projection_basis: 'linear_spend_extrapolation'` + `assumes_constant_returns: true`, and the top-level `basis_note` spells this out; do not present them as a guarantee that more budget yields proportional sales. The `out_of_range` flag goes true when a scenario's spend is > 2x or < 0.5x the ad's current trailing-7d spend — extrapolating beyond the training distribution; even less reliable. Up to 5 scenarios per call. Returns base=null + per-scenario `gated_reason` when the ad is cold-start / paused / has no active forecaster model.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        ad_external_id: string;
-                        /** @enum {string} */
-                        score_window?: "7d" | "14d" | "28d" | "lifetime";
-                        scenarios: {
-                            name: string;
-                            spend_7d_override?: string | number;
-                            frequency_override?: number;
-                        }[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Per-scenario projection */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: {
-                                ad_external_id: string;
-                                score_window: string | null;
-                                cohort_variant?: string;
-                                /**
-                                 * Format: decimal
-                                 * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
-                                 * @example 1234.56
-                                 */
-                                base_trailing_7d_spend?: string;
-                                assumes_constant_returns?: boolean;
-                                basis_note?: string;
-                                base: {
-                                    point: number;
-                                    low: number;
-                                    high: number;
-                                    /** @enum {string} */
-                                    confidence: "low" | "medium" | "high";
-                                } | null;
-                                scenarios: {
-                                    name: string;
-                                    point: number | null;
-                                    low: number | null;
-                                    high: number | null;
-                                    /** @enum {string} */
-                                    confidence: "low" | "medium" | "high";
-                                    delta_from_base: number;
-                                    out_of_range: boolean;
-                                    /** @enum {string} */
-                                    projection_basis?: "model_response" | "linear_spend_extrapolation";
-                                    assumes_constant_returns?: boolean;
-                                    gated_reason?: string;
-                                }[];
-                            };
-                            meta: components["schemas"]["Meta"];
-                        };
-                    };
-                };
-            };
-        };
         delete?: never;
         options?: never;
         head?: never;
@@ -34740,7 +34524,7 @@ export interface paths {
          *
          *     `maturity_stage` (cold→early→mature→calibrated) says how settled a score is; `reason_codes` say which funnel layer is strong or weak, with a sample-confidence band and the `sample_n` that band was derived from. Scores refresh on a daily cadence.
          *
-         *     **The five nested groups** carry the rest of the feature-store row: `identity` (external ids, creative copy, the delivery days and the attribution model the `attributed_*` legs were credited under), `metrics` (`delivery` / `video` / `messaging` / `outcomes` — sub-grouped because an all-null `video` means 'not a video ad' while an all-null `forecast` means 'not scored yet', and flattening loses that), `score` (the within-cohort `pct_*` percentiles and the empirical-Bayes `smoothed_*` estimates the blend consumes), `creative` (what the ad is made of, with `has_vision_analysis` as the honesty flag over the rest) and `forecast` (the impressions family; the outcomes family stays top-level).
+         *     **The four nested groups** carry the rest of the feature-store row: `identity` (external ids, creative copy, the delivery days and the attribution model the `attributed_*` legs were credited under), `metrics` (`delivery` / `video` / `messaging` / `outcomes` — sub-grouped because an all-null `video` means 'not a video ad' while an all-null `messaging` means 'no conversation funnel', and flattening loses that), `score` (the within-cohort `pct_*` percentiles and the empirical-Bayes `smoothed_*` estimates the blend consumes) and `creative` (what the ad is made of, with `has_vision_analysis` as the honesty flag over the rest).
          *
          *     Four things are deliberately NOT published: the ML ranker's per-feature contributions, the raw score-explanation blob, the ten empirical-Bayes effective sample sizes (an input to the smoothing, not a statement about the ad — the smoothed estimate is here and is what can be acted on), and the cohort classifier's `*_source`/`*_confidence` provenance, which is about our pipeline rather than about the advertiser's ad.
          *
@@ -34859,7 +34643,7 @@ export interface paths {
                                 reason_codes: {
                                     layer: string;
                                     /** @enum {string} */
-                                    polarity: "strength" | "weakness" | "forecast" | "fatigue";
+                                    polarity: "strength" | "weakness" | "fatigue";
                                     percentile: number | null;
                                     /** @enum {string} */
                                     sample_confidence: "low" | "medium" | "high";
@@ -34868,11 +34652,6 @@ export interface paths {
                                     code?: string;
                                     metric_value?: number | null;
                                 }[];
-                                forecast_outcomes_7d: number | null;
-                                forecast_outcomes_7d_low: number | null;
-                                forecast_outcomes_7d_high: number | null;
-                                /** @enum {string|null} */
-                                forecast_confidence: "low" | "medium" | "high" | null;
                                 hazard_30d_pause: number | null;
                                 hazard_30d_degradation: number | null;
                                 /** @enum {string|null} */
@@ -34981,13 +34760,6 @@ export interface paths {
                                     has_vision_analysis: boolean;
                                     /** @description Stable hash of the creative's structural features. Equal signatures mean the same creative — how a duplicate is spotted across profiles. */
                                     creative_signature: string | null;
-                                };
-                                forecast: {
-                                    forecast_impressions_7d: number | null;
-                                    forecast_impressions_7d_low: number | null;
-                                    forecast_impressions_7d_high: number | null;
-                                    /** @description Projected cost per outcome over the next 7 days. A cost-per-unit RATIO (ADR 0018 §3) like `cost_per_conversation`, deliberately NOT monetary: it reconciles against no ledger, and splitting a metric from its own forecast across two wire types is how one quantity ends up with two shapes. */
-                                    forecast_cost_per_outcome_7d: number | null;
                                 };
                                 /** @description UNSTABLE — NOT PART OF THE PUBLIC CONTRACT. Present only when `include=internals` is requested by a session credential (Atribu's own console); absent otherwise, and the parameter is ignored for any other credential. The shape belongs to the scoring engine and may change or disappear in any release without a version bump. Do not build against it. */
                                 internals?: {
@@ -57970,7 +57742,7 @@ export interface components {
             reason_codes: {
                 layer: string;
                 /** @enum {string} */
-                polarity: "strength" | "weakness" | "forecast" | "fatigue";
+                polarity: "strength" | "weakness" | "fatigue";
                 percentile: number | null;
                 /** @enum {string} */
                 sample_confidence: "low" | "medium" | "high";
@@ -59186,8 +58958,19 @@ export interface components {
             plan: components["schemas"]["ProfilePlan"] & (Record<string, never> | null);
             /** @description #1069 — this profile was seeded by `POST /api/v1/profiles/demo`. The attribution engine runs on its rows for real, so every profile-scoped read here returns real numbers computed by the real pipeline. What the flag changes is everything OUTSIDE the profile: it is excluded from workspace-grain aggregates (pacing, Top Performers cohorts, the agency Reports hub, alert digests, the ML passes), it does not consume an `active_profiles` plan seat, and its conversion exports are RECORDED — the `conversion_exports` row carries the exact payload Meta would have received, with `status: "skipped"` and `skip_reason: "demo_profile_recorded"` — never sent. */
             is_demo: boolean;
-            /** @description #1354 — TRUE when this profile has EVER processed a payment its source provider tagged as subscription-derived: a Shopify order whose sourceName is `subscription_contract`, a Stripe charge linked to an auto-charging subscription invoice, or a MercadoPago payment whose `operation_type` is `recurring_payment`. A coarse, all-time capability flag — not a per-window recount of which repeat customers are currently subscribed — for deciding whether a caption should say 'active subscriptions' or stay generic ('repeat customers'). */
+            /**
+             * @description #1354 — TRUE when this profile has EVER processed a payment its source provider tagged as subscription-derived: a Shopify order whose sourceName is `subscription_contract`, a Stripe charge linked to an auto-charging subscription invoice, or a MercadoPago payment whose `operation_type` is `recurring_payment`. A coarse, all-time capability flag — not a per-window recount of which repeat customers are currently subscribed — for deciding whether a caption should say 'active subscriptions' or stay generic ('repeat customers').
+             *
+             *     When `analytics` is `unavailable` this is its fail-closed default (`false`), not a measurement.
+             */
             has_subscription_revenue: boolean;
+            /**
+             * @description #1550 — whether Atribu's analytics store could be read while assembling this document.
+             *
+             *     `unavailable` means the request succeeded and every field above is trustworthy EXCEPT `has_subscription_revenue`, which is the only one read from analytics. The profile's own settings and its plan come from Atribu's messaging core, which is why this call keeps answering through such an outage instead of failing over a caption.
+             * @enum {string}
+             */
+            analytics: "available" | "unavailable";
         };
         WorkspaceProfile: {
             /** @example uuid */
@@ -59260,6 +59043,26 @@ export interface components {
                  * @example 0
                  */
                 fx_missing_rows: number;
+                /**
+                 * @description Ads in this window whose wear-out question was ANSWERED — a fatigue tier exists, or the ad platform itself reports the ad paused/degraded. `at_risk_count` excludes ads with no tier by design, so it reads low both when nothing is wearing out and when nothing was assessed. When `assessed_count` is 0, present the at-risk figure as NOT ASSESSED rather than as a zero: the zero is a fact about the model, not about the ads. `null` means this particular read does not carry the counter (the workspace-summary `brief` object does not) — it never means zero.
+                 * @example 136
+                 */
+                assessed_count: number | null;
+                /**
+                 * @description The exact complement of `assessed_count` over the same window: no fatigue tier and no observed paused/degraded state. Together the two partition the window.
+                 * @example 181
+                 */
+                unassessed_count: number | null;
+                /**
+                 * @description Ads with at least one CASH conversion (`revenue_type='cash'`) attributed to them in this window. Not a count of every conversion type.
+                 * @example 15
+                 */
+                ads_with_any_sale: number | null;
+                /**
+                 * @description Ads with at least THREE cash conversions — the minimum evidence Atribu requires before it will recommend an action on an ad. Zero here explains an empty recommendations list.
+                 * @example 5
+                 */
+                ads_meeting_evidence_floor: number | null;
             } | null;
         };
         WorkspaceSubscription: {
@@ -59786,6 +59589,26 @@ export interface components {
              * @example 0
              */
             fx_missing_rows: number;
+            /**
+             * @description Ads in this window whose wear-out question was ANSWERED — a fatigue tier exists, or the ad platform itself reports the ad paused/degraded. `at_risk_count` excludes ads with no tier by design, so it reads low both when nothing is wearing out and when nothing was assessed. When `assessed_count` is 0, present the at-risk figure as NOT ASSESSED rather than as a zero: the zero is a fact about the model, not about the ads. `null` means this particular read does not carry the counter (the workspace-summary `brief` object does not) — it never means zero.
+             * @example 136
+             */
+            assessed_count: number | null;
+            /**
+             * @description The exact complement of `assessed_count` over the same window: no fatigue tier and no observed paused/degraded state. Together the two partition the window.
+             * @example 181
+             */
+            unassessed_count: number | null;
+            /**
+             * @description Ads with at least one CASH conversion (`revenue_type='cash'`) attributed to them in this window. Not a count of every conversion type.
+             * @example 15
+             */
+            ads_with_any_sale: number | null;
+            /**
+             * @description Ads with at least THREE cash conversions — the minimum evidence Atribu requires before it will recommend an action on an ad. Zero here explains an empty recommendations list.
+             * @example 5
+             */
+            ads_meeting_evidence_floor: number | null;
         };
         WorkspaceTabCount: {
             /** @example leaderboard */
@@ -59848,6 +59671,7 @@ export interface components {
         };
         WorkspaceRecommendation: {
             id: string;
+            workspace_id: string;
             profile_id: string;
             kind: string;
             risk_tier: string;
@@ -59867,6 +59691,8 @@ export interface components {
                 adset_id: string | null;
                 external_action_url: string | null;
             };
+            /** @description Display name of the target ad. NULL when the recommendation targets no ad. Render this, never `target.ad_id` — an ad id is not something a person can recognise. */
+            ad_name: string | null;
             /**
              * Format: decimal
              * @description A FORECAST made when the recommendation was written.
@@ -59877,7 +59703,7 @@ export interface components {
             rec_rank_score: number;
             score_window: string;
             snapshot_date: string;
-            expires_at: string | null;
+            expires_at: string;
             applied_at: string | null;
             verified_at: string | null;
             dismissed_at: string | null;
@@ -61748,6 +61574,13 @@ export interface components {
             why: string;
             next: components["schemas"]["ReadinessNext"];
             /**
+             * @description `measured` — every fact behind this step was read. `unavailable` — Atribu's analytics store could not be reached and this step's answer depended on it, so `status` is reported as `degraded` and says nothing about how the profile is configured.
+             *
+             *     Treat an `unavailable` step as "not known right now": do not tell anyone to configure something on the strength of it, and do not count it against them. Retry the call. Steps whose evidence is entirely core-side — the connection steps, the legal step, the plan, the entitlement — stay `measured` throughout such an outage.
+             * @enum {string}
+             */
+            evidence: "measured" | "unavailable";
+            /**
              * @description The documentation page that explains this step.
              * @example https://www.atribu.app/docs/getting-started/connect-ads
              */
@@ -61776,6 +61609,13 @@ export interface components {
             summary: components["schemas"]["ReadinessSummary"];
             /** @description `onboarding_completed` on the profile — REPORTED, NOT TRUSTED. It means one thing: a person pressed Finish in the Atribu console's setup wizard. Every wizard step is skippable, so it is not evidence that any step above is done, and nothing in `summary` is derived from it. Use it only to tell 'has been through onboarding and is still missing things' from 'nobody has started'. */
             wizard_finished: boolean;
+            /**
+             * @description Whether the analytics store this checklist measures most of its steps from could be read.
+             *
+             *     `unavailable` means the request still succeeded — every core-side step is measured and trustworthy — but each step carrying `evidence: "unavailable"` is reporting a default rather than a measurement. `summary.done` is then a FLOOR, never a verdict. Nothing about the profile changed; retry the same call.
+             * @enum {string}
+             */
+            analytics: "available" | "unavailable";
         };
         AttributionSettings: {
             /**
@@ -63304,9 +63144,17 @@ export interface components {
              *
              *     **Grain is the PLATFORM, not the individual ad account.** `spend` is indexed on `(profile_id, platform, …)` and not on the account id, so the probe behind this field asks whether the profile has spend on this connection's provider. Two connections of the SAME provider on one profile therefore report the same value even if only one of them delivered it — the over-disclosing direction, chosen deliberately.
              *
-             *     Null for every kind that cannot report spend (`messaging`, `crm`, `commerce`, `payments`, `integration`) — null is *not applicable*, never *no*.
+             *     Null for every kind that cannot report spend (`messaging`, `crm`, `commerce`, `payments`, `integration`) — null is *not applicable*, never *no*. Since #1550 it is ALSO null when `spend_unavailable` is true, which is *unknown*; read that field to tell the two apart.
              */
             delivers_spend: boolean | null;
+            /**
+             * @description The spend probe behind `delivers_spend` could not run, so that field is null because the answer is UNKNOWN — not because it does not apply.
+             *
+             *     `spend` is the only table this endpoint reads outside Atribu's messaging core, and it feeds exactly one field. Everything else on this response — the channel, the status, the identity, the sync counters — is unaffected, and is as trustworthy on a request with this flag set as on any other. **A client sweeping channel health must not degrade a connection because of it**; the correct reaction is to re-read `delivers_spend` later and to keep whatever it last knew in the meantime.
+             *
+             *     Always `false` for a kind that cannot report spend at all, and `false` on every row of a healthy response.
+             */
+            spend_unavailable: boolean;
             sync: components["schemas"]["ConnectionSync"];
         };
         /** @description State of the last (or in-flight) sync run for this connection. Always present on both kinds; every field reflects what the connector last recorded. */
@@ -63770,6 +63618,12 @@ export interface components {
             referral_ads_context: components["schemas"]["ConversationAdsContext"];
             ad_name: string | null;
             campaign_name: string | null;
+            /**
+             * @description #1550 — Atribu's analytics store could not be read for this page, so the three fields it feeds hold their absent-evidence value rather than a measurement: `ad_name` and `campaign_name` are null, and `linked_customer_is_payer` was decided on the contact's own email/phone alone, without consulting cash conversions.
+             *
+             *     Everything else on the row — the conversation, its counts, its last message, its contact and every `referral_*` field — comes from Atribu's messaging core and is unaffected. `false` on every row of a healthy response.
+             */
+            enrichment_unavailable: boolean;
             human_handoff_at: string | null;
             ig_username: string | null;
             profile_pic_url: string | null;
@@ -65659,8 +65513,13 @@ export interface components {
                 external_action_url: string | null;
             };
             /**
+             * @description Display name of the target ad. NULL when the recommendation targets no ad. Render this, never `target.ad_id` — an ad id is not something a person can recognise.
+             * @example Anuncio 2 — BOFU
+             */
+            ad_name: string | null;
+            /**
              * Format: decimal
-             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+             * @description Arithmetic on the ad's OWN observed unit economics over the next 7 days, under the stated assumption that the extra budget performs like the window did. Phrase it with "if" — it is not a forecast.
              * @example 1234.56
              */
             expected_impact_dollars: string;
@@ -65674,6 +65533,17 @@ export interface components {
             verified_at: string | null;
             dismissed_at: string | null;
             created_at: string;
+            /**
+             * Format: decimal
+             * @description What the apply actually produced. NULL until measured — which is not zero, and a surface that shows only `expected_impact_dollars` is reporting a hope as a result.
+             * @example 1234.56
+             */
+            realized_impact_dollars: string | null;
+            /** @description `realized - expected`, in the same units. NULL until measured. */
+            calibration_error: number | null;
+            calibration_eval_window_end: string | null;
+            /** @description What evidence the recommendation rests on — `cash` / `outcomes` / `engagement` / `meta_only` / `none`. The same ladder `truth_grade` walks for a leaderboard row. */
+            data_quality_tier: string | null;
         };
         /** @enum {string} */
         RecommendationKind: "scale_winner" | "pause_underperformer" | "budget_reallocate_winners" | "creative_refresh_pre_fatigue";
@@ -65704,6 +65574,14 @@ export interface components {
             /** @description Whether this call wrote (or changed) the outcome event. */
             conversation_started: boolean;
             outcome_event_id: string | null;
+            /**
+             * @description #1550 — the join was ACCEPTED and recorded in Atribu's messaging core, but the outcome event that carries it into attribution could not be written yet because Atribu's analytics store did not answer. The work is parked durably and replayed automatically, on the same key the outcome row uses, so nothing is duplicated and nothing is lost.
+             *
+             *     `conversation_started` is then `false` and `outcome_event_id` is `null` whatever the replay eventually produces: this response says what Atribu knew at the time. **Do not retry on it** — a retry re-parks the same row and buys nothing. Every other field is fully resolved: the join tiers read the messaging core, which is the project that answered this request.
+             *
+             *     `false` on every response from a healthy Atribu.
+             */
+            attribution_deferred: boolean;
         };
         /** @enum {string} */
         WaJoinMethod: "ctwa_referral" | "text_token" | "text_correlation" | "phone_identity_submitted" | "phone_identity_early" | "none";

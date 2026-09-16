@@ -103,6 +103,32 @@ Scope is your **API key** + the **route** + the key value, so two consumers can
 use the same key string without colliding. Only a 2xx is stored: a send that
 genuinely failed can be retried under the same key.
 
+### When Atribu answers "unknown" instead of failing (v1.22.0+)
+
+Atribu's analytics store is moving into its own database. A handful of fields
+are read from it while everything around them comes from the messaging core, and
+when it is briefly unreachable those endpoints answer **2xx with the field
+marked** rather than failing — so an outage in the analytics half can never take
+down a read whose core half is healthy.
+
+| method | marker | what is unknown while it is set |
+|---|---|---|
+| `connections.list` / `connections.get` | `spend_unavailable` | `delivers_spend` is `null` — *unknown*, not *not applicable* |
+| `conversations.list` | `enrichment_unavailable` | `ad_name`, `campaign_name` are `null`; `linked_customer_is_payer` used email/phone only |
+| `profile.get` | `analytics: "unavailable"` | `has_subscription_revenue` is its default, `false` |
+| `profile.readiness` | `analytics: "unavailable"` + per-step `evidence` | every step with `evidence: "unavailable"` reports `degraded` and says nothing about your configuration |
+
+**If you sweep channel health, do not degrade a channel on `spend_unavailable`.**
+The connection's `status`, `status_reason`, identity and `sync` counters are
+untouched by such an outage and are exactly as trustworthy as on any other
+request. Re-read the affected field later and keep what you last knew.
+
+`profile.readiness` deserves one more note: a step it could not measure is
+reported as **`degraded`**, never `missing`. `missing` would tell someone to
+install a tracker they may already have installed; `degraded` with
+`evidence: "unavailable"` says the check could not run, and its `next` is to
+retry the same call. `summary.done` is a floor on such a response, not a verdict.
+
 ### Acting as a signed-in user — `accessToken` (v1.19.0+)
 
 An API key **is** a tenant: it is minted against exactly one Profile, so it

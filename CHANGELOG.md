@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-09-16
+
+### Added
+
+- **Four additive fields that say when a decorative answer is UNKNOWN rather
+  than absent** (#1550). Atribu's analytics store is moving into its own
+  database; when it is briefly unreachable, the endpoints below now answer 2xx
+  with the affected field marked, instead of failing. Nothing was removed and no
+  field changed type — a consumer that ignores them keeps working.
+  - `connections.list` / `connections.get` → **`spend_unavailable`**. When
+    `true`, `delivers_spend` is `null` because the answer is *unknown*, not
+    because it does not apply. Everything else on the connection — its channel,
+    its status, its identity, its sync counters — is unaffected and as
+    trustworthy as ever. **If you sweep channel health, do not degrade a channel
+    on this flag**; re-read `delivers_spend` later and keep what you last knew.
+  - `conversations.list` → **`enrichment_unavailable`**. When `true`, `ad_name`
+    and `campaign_name` are `null` and `linked_customer_is_payer` was decided on
+    the contact's own email/phone alone. The conversation, its counts, its last
+    message and every `referral_*` field are untouched.
+  - `profile.get` (and the read-back from a profile update) → **`analytics`**
+    (`"available"` | `"unavailable"`). When `"unavailable"`, only
+    `has_subscription_revenue` is a default rather than a measurement.
+  - `profile.readiness` → **`analytics`** at the top level and **`evidence`**
+    (`"measured"` | `"unavailable"`) on every step. A step whose evidence is
+    unavailable reports `status: "degraded"` — never `missing`, which would tell
+    you to configure something you may already have configured — and its `next`
+    is to retry the same call. `summary.done` is then a floor, not a verdict.
+    Steps measured from Atribu's messaging core stay `"measured"` throughout.
+  - `POST /api/v1/partner/wa-joins` (no SDK method — HTTP only) →
+    **`attribution_deferred`**. When `true`, the join was accepted and recorded;
+    only the outcome event it feeds is owed, and it is replayed automatically on
+    the same key. `conversation_started` is `false` and `outcome_event_id` is
+    `null` whatever the replay produces. **Do not retry on it.**
+
+### Changed
+
+- **`delivers_spend` reports `null` instead of `true` when its probe fails.**
+  Previously a failed probe resolved to `true` because a boolean was the only
+  vocabulary available and `false` would have suppressed a true disclosure.
+  `null` preserves that direction — Atribu's own timezone disclosure treats a
+  null as unweighted and therefore names every ad account — while finally being
+  honest that nothing was measured. Pair it with `spend_unavailable` to tell
+  *unknown* from *not applicable*.
+
 ## [1.21.0] - 2026-09-15
 
 ### Changed
