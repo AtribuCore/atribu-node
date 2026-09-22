@@ -11,6 +11,7 @@ import type {
   WhatsAppMessageDeliveryEvent,
   InstagramMessageReceivedEvent,
   InstagramMessageDeliveryEvent,
+  EmailMessageReceivedEvent,
 } from "../webhooks/types";
 import type { MessageTypingResponse } from "../resources/messages";
 
@@ -187,6 +188,97 @@ export const eventFixtures = {
       overrides,
     );
   },
+
+  /**
+   * An ordinary inbound email — a person writing back. Every classification
+   * field is at its "this is a real reply" value (`auto_submitted: null`,
+   * `precedence: null`, `delivery_failure: null`), which is the baseline your
+   * consumer code must treat as answerable.
+   */
+  emailMessageReceived(
+    overrides?: DeepPartial<EmailMessageReceivedEvent>,
+  ): EmailMessageReceivedEvent {
+    return deepMerge<EmailMessageReceivedEvent>(
+      {
+        id: "evt_email_received_01",
+        type: "message.received",
+        occurred_at: "2026-05-15T10:00:00Z",
+        app_id: SAMPLE_APP_ID,
+        provider: "email",
+        connection_id: SAMPLE_CONNECTION_ID,
+        data: {
+          email_provider: "gmail",
+          message_id: "18f2a1c9d4e5b6a7",
+          thread_id: "18f2a1c9d4e5b6a7",
+          rfc822_message_id: "<CAF=abc123@mail.gmail.com>",
+          in_reply_to: "<atribu-send-1@mail.gmail.com>",
+          references: ["<atribu-send-1@mail.gmail.com>"],
+          from: { email: "alice@example.com", name: "Alice" },
+          to: [{ email: "ventas@dealer.cl", name: null }],
+          cc: [],
+          subject: "Re: Tu cotización",
+          text_body: "Sí, me interesa. ¿Cuándo puedo verlo?",
+          html_body: null,
+          attachments: [],
+          label_ids: ["INBOX"],
+          list_unsubscribe: false,
+          auto_submitted: null,
+          precedence: null,
+          delivery_failure: null,
+          raw: {},
+        },
+      },
+      overrides,
+    );
+  },
+
+  /**
+   * A HARD BOUNCE — the same event type, carrying a delivery-status report
+   * instead of a reply. `delivery_failure.original_rfc822_message_id` is the
+   * `rfc822_message_id` a previous `messages.send` answered with, which is how
+   * the bounce attaches to the exact message that failed. Use it to exercise
+   * the branch that must NOT read a bounce as a customer reply.
+   */
+  emailDeliveryFailure(
+    overrides?: DeepPartial<EmailMessageReceivedEvent>,
+  ): EmailMessageReceivedEvent {
+    return deepMerge<EmailMessageReceivedEvent>(
+      {
+        id: "evt_email_bounce_01",
+        type: "message.received",
+        occurred_at: "2026-05-15T10:00:05Z",
+        app_id: SAMPLE_APP_ID,
+        provider: "email",
+        connection_id: SAMPLE_CONNECTION_ID,
+        data: {
+          email_provider: "gmail",
+          message_id: "18f2a1c9d4e5b6b8",
+          thread_id: "18f2a1c9d4e5b6b8",
+          rfc822_message_id: "<bounce-1@mx.google.com>",
+          in_reply_to: "<atribu-send-1@mail.gmail.com>",
+          references: [],
+          from: { email: "mailer-daemon@googlemail.com", name: "Mail Delivery Subsystem" },
+          to: [{ email: "ventas@dealer.cl", name: null }],
+          cc: [],
+          subject: "Delivery Status Notification (Failure)",
+          text_body: "Address not found",
+          html_body: null,
+          attachments: [],
+          label_ids: ["INBOX"],
+          list_unsubscribe: false,
+          auto_submitted: "auto-replied",
+          precedence: null,
+          delivery_failure: {
+            failed_recipient: "nadie@example.com",
+            status: "5.1.1",
+            original_rfc822_message_id: "<atribu-send-1@mail.gmail.com>",
+          },
+          raw: {},
+        },
+      },
+      overrides,
+    );
+  },
 };
 
 /** Canned API response envelopes (matches what the server returns on 200). */
@@ -199,6 +291,40 @@ export const responseFixtures = {
         to: "+15551234567",
         provider_message_id: overrides?.provider_message_id ?? "wamid.HBgM",
         sent_at: overrides?.sent_at ?? new Date().toISOString(),
+      },
+    };
+  },
+
+  /**
+   * An EMAIL send (#1653) — a separate fixture rather than an override on
+   * `messageSent`, because `thread_id` and `rfc822_message_id` exist only on
+   * this channel and a whatsapp response must not appear to carry them.
+   *
+   * The defaults model a send that STARTED a thread: `thread_id` is the new
+   * thread, and `rfc822_message_id` is what an inbound bounce's
+   * `delivery_failure.original_rfc822_message_id` will match.
+   * `provider_message_id` is `""` on Outlook — pass `{ channel: "outlook" }`-
+   * style overrides by naming the fields directly.
+   */
+  emailSent(overrides?: {
+    provider_message_id?: string;
+    sent_at?: string;
+    thread_id?: string | null;
+    rfc822_message_id?: string | null;
+  }) {
+    return {
+      data: {
+        connection_id: SAMPLE_CONNECTION_ID,
+        channel: "email" as const,
+        to: "alice@example.com",
+        provider_message_id: overrides?.provider_message_id ?? "18f2a1c9d4e5b6a7",
+        sent_at: overrides?.sent_at ?? new Date().toISOString(),
+        thread_id:
+          overrides?.thread_id === undefined ? "18f2a1c9d4e5b6a7" : overrides.thread_id,
+        rfc822_message_id:
+          overrides?.rfc822_message_id === undefined
+            ? "<atribu-send-1@mail.gmail.com>"
+            : overrides.rfc822_message_id,
       },
     };
   },

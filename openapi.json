@@ -26558,6 +26558,166 @@
           "mapping_id"
         ]
       },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "`outcome_events.id`. Pass this back as `payment_id` in every write on this surface."
+          },
+          "source": {
+            "type": "string",
+            "description": "`outcome_events.external_source` (`mercadopago`, `stripe`, `fintoc`, …).",
+            "example": "mercadopago"
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "example": "2026-09-01T10:00:00.000Z"
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "The payment's own value, in `currency`. Null when no amount was recorded."
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "CLP"
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`raw_data.payment_type_id` (MercadoPago) or Stripe's `payment_method_details.type`, or null."
+          },
+          "operation_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "MercadoPago's `raw_data.operation_type`, or null for every other source."
+          },
+          "payer_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`raw_data.description`, or null."
+          },
+          "customer": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "`first_name` + `last_name`, either alone, or null when neither is known."
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "email"
+            ]
+          },
+          "customer_assigned_manually": {
+            "type": "boolean",
+            "description": "Whether a merchant assignment (`PUT .../payer`) exists for this payment."
+          },
+          "is_first_payment": {
+            "type": "boolean"
+          },
+          "is_installment": {
+            "type": "boolean",
+            "description": "A later installment of an earlier sale (`PUT .../installment`). Excluded from purchase COUNTS; still counted as cash."
+          },
+          "counts_as_revenue": {
+            "type": "boolean",
+            "description": "A conversion exists for this payment AND it is not suppressed."
+          },
+          "refunded_amount": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "Positive sum of every reversal (provider + manual) keyed on this sale. `0` when unrefunded, never null."
+          },
+          "manual_refund": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "amount": {
+                "type": "string",
+                "format": "decimal",
+                "pattern": "^-?\\d+(\\.\\d+)?$",
+                "example": "1234.56",
+                "description": "Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `\"9.00\" > \"10.00\"`, and that failure is silent."
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "refunded_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "amount",
+              "note",
+              "refunded_at"
+            ],
+            "description": "The merchant's own out-of-provider refund, or null when none is recorded."
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "external_id",
+          "occurred_at",
+          "amount",
+          "currency",
+          "payment_method",
+          "operation_type",
+          "payer_note",
+          "customer",
+          "customer_assigned_manually",
+          "is_first_payment",
+          "is_installment",
+          "counts_as_revenue",
+          "refunded_amount",
+          "manual_refund"
+        ]
+      },
       "OverviewResponse": {
         "type": "object",
         "properties": {
@@ -66407,6 +66567,1452 @@
         "x-atribu-scope-grain": "profile"
       }
     },
+    "/api/v1/payments": {
+      "get": {
+        "summary": "List payments, with the merchant actions applied to each",
+        "description": "Keyset page of a profile's `payment_received` rows, newest first, each carrying who paid, whether it is an installment, and any refund recorded against it — the provider's own reversals AND a merchant's manual one.\n\n`from`/`to` are full ISO-8601 instants (not calendar days) — `from` is inclusive, `to` is exclusive.\n\n`status=unidentified` returns only payments with no customer known at all (neither a merchant assignment nor a resolved provider payer) — the queue a merchant works through with `PUT .../payer`.\n\nScope: `customers:read` — the same PII tier `GET /api/v1/customers/{id}/payments` carries, because a payment row names its customer just as directly.",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "ISO-8601 instant, inclusive lower bound.",
+              "example": "2026-09-01T00:00:00.000Z"
+            },
+            "required": true,
+            "description": "ISO-8601 instant, inclusive lower bound.",
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "ISO-8601 instant, exclusive upper bound.",
+              "example": "2026-10-01T00:00:00.000Z"
+            },
+            "required": true,
+            "description": "ISO-8601 instant, exclusive upper bound.",
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "unidentified"
+              ],
+              "description": "`all` (default) or `unidentified` (no customer known on the payment at all)."
+            },
+            "required": false,
+            "description": "`all` (default) or `unidentified` (no customer known on the payment at all).",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The opaque `pagination.cursor` from the previous page."
+            },
+            "required": false,
+            "description": "The opaque `pagination.cursor` from the previous page.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Page size, default 50, max 100."
+            },
+            "required": false,
+            "description": "Page size, default 50, max 100.",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page of payments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Payment"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "has_next": {
+                          "type": "boolean"
+                        },
+                        "cursor": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "has_next"
+                      ]
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "profile_id": {
+                          "type": "string",
+                          "example": "uuid"
+                        }
+                      },
+                      "required": [
+                        "profile_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "pagination",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing the `customers:read` scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`from`/`to` missing, unparseable or out of order (`range_invalid`), or a bad `status`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-atribu-scopes": [
+          "customers:read"
+        ],
+        "x-atribu-auth": [
+          "api_key",
+          "session",
+          "user_token"
+        ],
+        "x-atribu-idempotency": "none",
+        "x-atribu-scope-grain": "profile"
+      }
+    },
+    "/api/v1/payments/{payment_id}/payer": {
+      "put": {
+        "summary": "Assign who paid a payment",
+        "description": "Records who paid — a bank transfer or another payment the provider itself cannot attribute to a customer. Two body forms, never both: `{customer_id}` for an existing customer of this profile, or `{email?, phone?, first_name?, last_name?}` to resolve-or-create one (an email or a phone is required).\n\nThe assignment is durable: it wins over the provider's own payer on every future re-sync of this payment (and its reversals), not only on the rows that exist today.\n\nScope: `attribution:write` — it re-points which customer a payment, and its conversion, is credited to.",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+              "example": "aaaaaaaa-1111-4222-8333-444444444444"
+            },
+            "required": true,
+            "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+            "name": "payment_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "customer_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "An existing customer of this profile. Mutually exclusive with the fields below."
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The payment, with the assignment applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Payment"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "profile_id": {
+                          "type": "string",
+                          "example": "uuid"
+                        }
+                      },
+                      "required": [
+                        "profile_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing the `attribution:write` scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such payment on this key's profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body mixes both forms, the resolve-or-create form has neither an email nor a phone (`validation_error`), or the named customer is not an active customer of this profile (`customer_not_in_profile`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The assignment was recorded but has not propagated to where attribution reads it yet (`payment_assignment_incomplete`). Retry the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-atribu-scopes": [
+          "attribution:write"
+        ],
+        "x-atribu-auth": [
+          "api_key",
+          "session",
+          "user_token"
+        ],
+        "x-atribu-idempotency": "none",
+        "x-atribu-scope-grain": "profile"
+      }
+    },
+    "/api/v1/payments/{payment_id}/installment": {
+      "put": {
+        "summary": "Mark (or unmark) a payment as a later installment",
+        "description": "Marks a payment as a later installment of an earlier sale, so it stops counting as a NEW purchase — it still counts as cash. Idempotent: setting the same value twice is a no-op.\n\nScope: `attribution:write`.",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+              "example": "aaaaaaaa-1111-4222-8333-444444444444"
+            },
+            "required": true,
+            "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+            "name": "payment_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "is_installment": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "is_installment"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The payment, with the installment flag applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Payment"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "profile_id": {
+                          "type": "string",
+                          "example": "uuid"
+                        }
+                      },
+                      "required": [
+                        "profile_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing the `attribution:write` scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such payment on this key's profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body is not JSON, or `is_installment` is missing or the wrong type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-atribu-scopes": [
+          "attribution:write"
+        ],
+        "x-atribu-auth": [
+          "api_key",
+          "session",
+          "user_token"
+        ],
+        "x-atribu-idempotency": "none",
+        "x-atribu-scope-grain": "profile"
+      }
+    },
+    "/api/v1/payments/{payment_id}/refund": {
+      "post": {
+        "summary": "Record a refund made outside the provider",
+        "description": "Records a full or partial refund the merchant made OUTSIDE the payment provider — the provider never learns about it, so nothing else will ever record it. At most one manual refund per payment; to change the amount, `DELETE` it first and record a new one.\n\n`amount` must be greater than zero and no more than the payment's value minus what the provider has already reversed for it.\n\nScope: `attribution:write`.",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+              "example": "aaaaaaaa-1111-4222-8333-444444444444"
+            },
+            "required": true,
+            "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+            "name": "payment_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "decimal",
+                        "pattern": "^-?\\d+(\\.\\d+)?$",
+                        "example": "1234.56"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  "refunded_at": {
+                    "type": "string",
+                    "description": "ISO-8601 instant. Defaults to now."
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The payment, with the refund applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Payment"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "profile_id": {
+                          "type": "string",
+                          "example": "uuid"
+                        }
+                      },
+                      "required": [
+                        "profile_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing the `attribution:write` scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such payment on this key's profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The amount is invalid (`amount_invalid`) or a manual refund already exists for this payment (`manual_refund_exists`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-atribu-scopes": [
+          "attribution:write"
+        ],
+        "x-atribu-auth": [
+          "api_key",
+          "session",
+          "user_token"
+        ],
+        "x-atribu-idempotency": "none",
+        "x-atribu-scope-grain": "profile"
+      },
+      "delete": {
+        "summary": "Undo a manually recorded refund",
+        "description": "Removes the manual refund recorded on this payment — its touchpoints, its conversion, and the reversal row itself — and enqueues a recompute. Idempotent: answers 200 with the current payment whether or not there was a manual refund to undo.\n\nScope: `attribution:write`.",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+              "example": "aaaaaaaa-1111-4222-8333-444444444444"
+            },
+            "required": true,
+            "description": "The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`.",
+            "name": "payment_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The payment, with the manual refund removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Payment"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "profile_id": {
+                          "type": "string",
+                          "example": "uuid"
+                        }
+                      },
+                      "required": [
+                        "profile_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing the `attribution:write` scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such payment on this key's profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "not_found"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-atribu-scopes": [
+          "attribution:write"
+        ],
+        "x-atribu-auth": [
+          "api_key",
+          "session",
+          "user_token"
+        ],
+        "x-atribu-idempotency": "none",
+        "x-atribu-scope-grain": "profile"
+      }
+    },
     "/api/v1/overview": {
       "get": {
         "summary": "Get dashboard overview",
@@ -72408,7 +74014,7 @@
     "/api/v1/messages": {
       "post": {
         "summary": "Send a channel-agnostic message",
-        "description": "Sends a WhatsApp or Instagram message via a connected `data_connection`. Requires the `whatsapp` or `instagram` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).\n\n**WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.\n\n**Instagram image/video** accept `image_url` / `video_url` directly (Meta fetches the URL). Quick replies are IG-only.\n\n**WhatsApp Flows** (`content.type='flow'`) send a Meta-hosted multi-screen form behind a CTA button. Manage flows via `/api/v1/whatsapp/flows`; the customer's answers arrive on the `message.received` webhook as `raw.interactive.nfm_reply.response_json`.\n\n**Email is capped per mailbox per UTC day** (#341). Atribu holds each connected mailbox well under its provider's own daily send limit — crossing that limit suspends the mailbox itself for up to 24 hours — so a send beyond the cap answers **429** and outbound resumes automatically at the next UTC midnight. Defaults are 300/day for a personal-domain mailbox (gmail.com, outlook.com, …) and 1,500/day for a Google Workspace / Microsoft 365 one; the effective cap is per connection and can be raised. Inbound sync is never paused.",
+        "description": "Sends a WhatsApp or Instagram message via a connected `data_connection`. Requires the `whatsapp` or `instagram` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).\n\n**WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.\n\n**Instagram image/video** accept `image_url` / `video_url` directly (Meta fetches the URL). Quick replies are IG-only.\n\n**WhatsApp Flows** (`content.type='flow'`) send a Meta-hosted multi-screen form behind a CTA button. Manage flows via `/api/v1/whatsapp/flows`; the customer's answers arrive on the `message.received` webhook as `raw.interactive.nfm_reply.response_json`.\n\n**Email can START a thread, not only reply to one** (#1653). Send `to` + `content.subject` with no `thread_id` (and no `reply_to_message_id`) and the mailbox opens a NEW thread; the response names it in `data.thread_id` and gives the sent message's `Message-ID` in `data.rfc822_message_id`. A reply returns the thread it replied into. Both fields carry the same values on Gmail and on Outlook, and `thread_id` is the same identifier the inbound `message.received` event uses — so the thread you just started is the thread the customer's reply arrives on.\n\n**Bulk email carries an unsubscribe target.** `content.list_unsubscribe: { url, one_click }` writes `List-Unsubscribe: <url>` onto the outgoing message and, with `one_click: true`, `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058) — which requires an `https://` URL. Omit it on a 1:1 reply.\n\n**Email is capped per mailbox per UTC day** (#341). Atribu holds each connected mailbox well under its provider's own daily send limit — crossing that limit suspends the mailbox itself for up to 24 hours — so a send beyond the cap answers **429** and outbound resumes automatically at the next UTC midnight. Defaults are 300/day for a personal-domain mailbox (gmail.com, outlook.com, …) and 1,500/day for a Google Workspace / Microsoft 365 one; the effective cap is per connection and can be raised. Inbound sync is never paused.",
         "tags": [
           "Messaging"
         ],
@@ -72916,6 +74522,23 @@
                             },
                             "description": "CC recipient emails."
                           },
+                          "list_unsubscribe": {
+                            "type": "object",
+                            "properties": {
+                              "url": {
+                                "type": "string",
+                                "description": "Where the recipient unsubscribes. An `https://` URL or a `mailto:` address. One-click (below) requires `https://` — RFC 8058 defines no mailto one-click."
+                              },
+                              "one_click": {
+                                "type": "boolean",
+                                "description": "Omit or false → the header alone. True → also `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058), which lets Gmail/Outlook show a native unsubscribe control and POST to your URL without the recipient leaving the mail client. Requires an `https://` `url`; a `mailto:` with `one_click: true` is a 422."
+                              }
+                            },
+                            "required": [
+                              "url"
+                            ],
+                            "description": "Writes `List-Unsubscribe: <url>` onto the outgoing message (and `List-Unsubscribe-Post` when `one_click`). Put it on mail you originated in bulk; it is what keeps a mailbox provider from reading a campaign as spam. Omit it on a 1:1 reply."
+                          },
                           "attachments": {
                             "type": "array",
                             "items": {
@@ -72949,7 +74572,7 @@
                         "required": [
                           "type"
                         ],
-                        "description": "Email only (Gmail/Outlook). Provide text and/or html; carry the thread anchors from the inbound event to reply in-thread. Optional `attachments` (max 10, 3MB total) as public URLs or inline base64."
+                        "description": "Email only (Gmail/Outlook). Provide text and/or html. Carry the thread anchors from the inbound event to reply in-thread; omit `thread_id` (and `reply_to_message_id`) to START a new thread — the response then names the thread that was created. Optional `attachments` (max 10, 3MB total) as public URLs or inline base64."
                       }
                     ]
                   },
@@ -72999,6 +74622,20 @@
                         },
                         "sent_at": {
                           "type": "string"
+                        },
+                        "thread_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Email only. The provider thread the message is now in — Gmail `threadId` / Outlook `conversationId`, the SAME value the inbound `message.received` event carries as `thread_id`. For a send that carried no `thread_id` this is the NEW thread; for a reply it is the thread replied into. Round-trip it to keep following up in-thread. Absent on whatsapp/instagram; `null` when the provider named no thread."
+                        },
+                        "rfc822_message_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Email only. The RFC822 `Message-ID` header of the message that was sent, as the provider stored it (both Gmail and Outlook assign this themselves). Match it against an inbound `delivery_failure.original_rfc822_message_id` to tie a bounce to the exact send. `null` when Atribu could not read it back — never a value that did not go on the wire."
                         }
                       },
                       "required": [

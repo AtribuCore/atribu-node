@@ -18195,6 +18195,698 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List payments, with the merchant actions applied to each
+         * @description Keyset page of a profile's `payment_received` rows, newest first, each carrying who paid, whether it is an installment, and any refund recorded against it — the provider's own reversals AND a merchant's manual one.
+         *
+         *     `from`/`to` are full ISO-8601 instants (not calendar days) — `from` is inclusive, `to` is exclusive.
+         *
+         *     `status=unidentified` returns only payments with no customer known at all (neither a merchant assignment nor a resolved provider payer) — the queue a merchant works through with `PUT .../payer`.
+         *
+         *     Scope: `customers:read` — the same PII tier `GET /api/v1/customers/{id}/payments` carries, because a payment row names its customer just as directly.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description ISO-8601 instant, inclusive lower bound. */
+                    from: string;
+                    /** @description ISO-8601 instant, exclusive upper bound. */
+                    to: string;
+                    /** @description `all` (default) or `unidentified` (no customer known on the payment at all). */
+                    status?: "all" | "unidentified";
+                    /** @description The opaque `pagination.cursor` from the previous page. */
+                    cursor?: string;
+                    /** @description Page size, default 50, max 100. */
+                    limit?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The page of payments */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Payment"][];
+                            pagination: {
+                                has_next: boolean;
+                                cursor?: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `customers:read` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `from`/`to` missing, unparseable or out of order (`range_invalid`), or a bad `status`. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/{payment_id}/payer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign who paid a payment
+         * @description Records who paid — a bank transfer or another payment the provider itself cannot attribute to a customer. Two body forms, never both: `{customer_id}` for an existing customer of this profile, or `{email?, phone?, first_name?, last_name?}` to resolve-or-create one (an email or a phone is required).
+         *
+         *     The assignment is durable: it wins over the provider's own payer on every future re-sync of this payment (and its reversals), not only on the rows that exist today.
+         *
+         *     Scope: `attribution:write` — it re-points which customer a payment, and its conversion, is credited to.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`. */
+                    payment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description An existing customer of this profile. Mutually exclusive with the fields below.
+                         */
+                        customer_id?: string;
+                        /** Format: email */
+                        email?: string;
+                        phone?: string;
+                        first_name?: string;
+                        last_name?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The payment, with the assignment applied */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Payment"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `attribution:write` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such payment on this key's profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The body mixes both forms, the resolve-or-create form has neither an email nor a phone (`validation_error`), or the named customer is not an active customer of this profile (`customer_not_in_profile`). */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The assignment was recorded but has not propagated to where attribution reads it yet (`payment_assignment_incomplete`). Retry the request. */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/{payment_id}/installment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark (or unmark) a payment as a later installment
+         * @description Marks a payment as a later installment of an earlier sale, so it stops counting as a NEW purchase — it still counts as cash. Idempotent: setting the same value twice is a no-op.
+         *
+         *     Scope: `attribution:write`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`. */
+                    payment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        is_installment: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description The payment, with the installment flag applied */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Payment"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `attribution:write` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such payment on this key's profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The body is not JSON, or `is_installment` is missing or the wrong type. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/{payment_id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a refund made outside the provider
+         * @description Records a full or partial refund the merchant made OUTSIDE the payment provider — the provider never learns about it, so nothing else will ever record it. At most one manual refund per payment; to change the amount, `DELETE` it first and record a new one.
+         *
+         *     `amount` must be greater than zero and no more than the payment's value minus what the provider has already reversed for it.
+         *
+         *     Scope: `attribution:write`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`. */
+                    payment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        amount: string | number;
+                        /** @description ISO-8601 instant. Defaults to now. */
+                        refunded_at?: string;
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The payment, with the refund applied */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Payment"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `attribution:write` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such payment on this key's profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The amount is invalid (`amount_invalid`) or a manual refund already exists for this payment (`manual_refund_exists`). */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Undo a manually recorded refund
+         * @description Removes the manual refund recorded on this payment — its touchpoints, its conversion, and the reversal row itself — and enqueues a recompute. Idempotent: answers 200 with the current payment whether or not there was a manual refund to undo.
+         *
+         *     Scope: `attribution:write`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The payment's `outcome_events.id` — the same id `GET /api/v1/payments` publishes as `data[].id`. */
+                    payment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The payment, with the manual refund removed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["Payment"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `attribution:write` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such payment on this key's profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/overview": {
         parameters: {
             query?: never;
@@ -21014,6 +21706,10 @@ export interface paths {
          *
          *     **WhatsApp Flows** (`content.type='flow'`) send a Meta-hosted multi-screen form behind a CTA button. Manage flows via `/api/v1/whatsapp/flows`; the customer's answers arrive on the `message.received` webhook as `raw.interactive.nfm_reply.response_json`.
          *
+         *     **Email can START a thread, not only reply to one** (#1653). Send `to` + `content.subject` with no `thread_id` (and no `reply_to_message_id`) and the mailbox opens a NEW thread; the response names it in `data.thread_id` and gives the sent message's `Message-ID` in `data.rfc822_message_id`. A reply returns the thread it replied into. Both fields carry the same values on Gmail and on Outlook, and `thread_id` is the same identifier the inbound `message.received` event uses — so the thread you just started is the thread the customer's reply arrives on.
+         *
+         *     **Bulk email carries an unsubscribe target.** `content.list_unsubscribe: { url, one_click }` writes `List-Unsubscribe: <url>` onto the outgoing message and, with `one_click: true`, `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058) — which requires an `https://` URL. Omit it on a 1:1 reply.
+         *
          *     **Email is capped per mailbox per UTC day** (#341). Atribu holds each connected mailbox well under its provider's own daily send limit — crossing that limit suspends the mailbox itself for up to 24 hours — so a send beyond the cap answers **429** and outbound resumes automatically at the next UTC midnight. Defaults are 300/day for a personal-domain mailbox (gmail.com, outlook.com, …) and 1,500/day for a Google Workspace / Microsoft 365 one; the effective cap is per connection and can be raised. Inbound sync is never paused.
          */
         post: {
@@ -21204,6 +21900,13 @@ export interface paths {
                             reply_to_message_id?: string;
                             /** @description CC recipient emails. */
                             cc?: string[];
+                            /** @description Writes `List-Unsubscribe: <url>` onto the outgoing message (and `List-Unsubscribe-Post` when `one_click`). Put it on mail you originated in bulk; it is what keeps a mailbox provider from reading a campaign as spam. Omit it on a 1:1 reply. */
+                            list_unsubscribe?: {
+                                /** @description Where the recipient unsubscribes. An `https://` URL or a `mailto:` address. One-click (below) requires `https://` — RFC 8058 defines no mailto one-click. */
+                                url: string;
+                                /** @description Omit or false → the header alone. True → also `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058), which lets Gmail/Outlook show a native unsubscribe control and POST to your URL without the recipient leaving the mail client. Requires an `https://` `url`; a `mailto:` with `one_click: true` is a 422. */
+                                one_click?: boolean;
+                            };
                             /** @description File attachments (max 10, 3MB total per message). Each is a public URL fetched at send time or inline base64. */
                             attachments?: {
                                 /** @description Attachment filename shown to the recipient. */
@@ -21237,6 +21940,10 @@ export interface paths {
                                 to: string;
                                 provider_message_id: string;
                                 sent_at: string;
+                                /** @description Email only. The provider thread the message is now in — Gmail `threadId` / Outlook `conversationId`, the SAME value the inbound `message.received` event carries as `thread_id`. For a send that carried no `thread_id` this is the NEW thread; for a reply it is the thread replied into. Round-trip it to keep following up in-thread. Absent on whatsapp/instagram; `null` when the provider named no thread. */
+                                thread_id?: string | null;
+                                /** @description Email only. The RFC822 `Message-ID` header of the message that was sent, as the provider stored it (both Gmail and Outlook assign this themselves). Match it against an inbound `delivery_failure.original_rfc822_message_id` to tie a bounce to the exact send. `null` when Atribu could not read it back — never a value that did not go on the wire. */
+                                rfc822_message_id?: string | null;
                             };
                             meta: components["schemas"]["Meta"];
                         };
@@ -64402,6 +65109,66 @@ export interface components {
         WhatsAppUpsertedLabelMapping: {
             /** Format: uuid */
             mapping_id: string;
+        };
+        Payment: {
+            /**
+             * Format: uuid
+             * @description `outcome_events.id`. Pass this back as `payment_id` in every write on this surface.
+             */
+            id: string;
+            /**
+             * @description `outcome_events.external_source` (`mercadopago`, `stripe`, `fintoc`, …).
+             * @example mercadopago
+             */
+            source: string;
+            external_id: string;
+            /** @example 2026-09-01T10:00:00.000Z */
+            occurred_at: string;
+            /**
+             * Format: decimal
+             * @description The payment's own value, in `currency`. Null when no amount was recorded.
+             * @example 1234.56
+             */
+            amount: string | null;
+            /** @example CLP */
+            currency: string | null;
+            /** @description `raw_data.payment_type_id` (MercadoPago) or Stripe's `payment_method_details.type`, or null. */
+            payment_method: string | null;
+            /** @description MercadoPago's `raw_data.operation_type`, or null for every other source. */
+            operation_type: string | null;
+            /** @description `raw_data.description`, or null. */
+            payer_note: string | null;
+            customer: {
+                /** Format: uuid */
+                id: string;
+                /** @description `first_name` + `last_name`, either alone, or null when neither is known. */
+                name: string | null;
+                email: string | null;
+            } | null;
+            /** @description Whether a merchant assignment (`PUT .../payer`) exists for this payment. */
+            customer_assigned_manually: boolean;
+            is_first_payment: boolean;
+            /** @description A later installment of an earlier sale (`PUT .../installment`). Excluded from purchase COUNTS; still counted as cash. */
+            is_installment: boolean;
+            /** @description A conversion exists for this payment AND it is not suppressed. */
+            counts_as_revenue: boolean;
+            /**
+             * Format: decimal
+             * @description Positive sum of every reversal (provider + manual) keyed on this sale. `0` when unrefunded, never null.
+             * @example 1234.56
+             */
+            refunded_amount: string;
+            /** @description The merchant's own out-of-provider refund, or null when none is recorded. */
+            manual_refund: {
+                /**
+                 * Format: decimal
+                 * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                 * @example 1234.56
+                 */
+                amount: string;
+                note: string | null;
+                refunded_at: string;
+            } | null;
         };
         OverviewResponse: {
             data: components["schemas"]["OverviewTotals"] | components["schemas"]["OverviewDays"];

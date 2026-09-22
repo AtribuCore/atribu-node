@@ -26,6 +26,13 @@ export {
   type InstagramFbLoginMessageData,
   type InstagramFbLoginPostbackData,
   type InstagramIgLoginChangeData,
+  // Email (#1653). These were reachable only structurally, through the
+  // `AtribuWebhookEvent` union — a consumer branching on a bounce had no name
+  // to import for the shape it was reading.
+  type EmailMessageReceivedEvent,
+  type EmailEventAddress,
+  type EmailEventAttachment,
+  type EmailEventDeliveryFailure,
   type CalendarEventChangedEvent,
   type CalendarEventChangedData,
   type CalendarChangeDateTime,

@@ -462,6 +462,16 @@ export type {
   WebpayIngestResult,
   WebpayIngestAccepted,
   WebpayIngestIgnored,
+  // #1654/#1656 payments program (D7/D8) — merchant payment actions. Left
+  // unexported by #1656 (API-only slice); the console needs these to talk to
+  // `client.payments` at all, so the UI slice (#1654 D8) adds them here.
+  PaymentsListOptions,
+  PaymentsListResponse,
+  PaymentSetPayerInput,
+  PaymentSetInstallmentInput,
+  PaymentRecordRefundInput,
+  PaymentResponse,
+  PaymentWriteOptions,
 } from "./resources/payments";
 export { PaymentsImportResource, PaymentsImportsResource } from "./resources/payments-import";
 export type {

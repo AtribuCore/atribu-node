@@ -24,6 +24,8 @@ import type {
   InstagramIgLoginChangeData,
   InstagramCommentReceivedEvent,
   CalendarEventChangedEvent,
+  EmailMessageReceivedEvent,
+  EmailEventDeliveryFailure,
 } from "../src/webhooks/types";
 import type {
   AtribuApiError,
@@ -34,6 +36,7 @@ import type {
 import type { RetryHint } from "../src/retry";
 import type {
   MessageSendInput,
+  MessageSendResponse,
   MessageContent,
   MessageTypingInput,
   MessageMarkReadInput,
@@ -148,6 +151,52 @@ describe("type narrowing — message content union", () => {
       "whatsapp" | "instagram" | "email"
     >();
     expectTypeOf<MessageSendInput["connection_id"]>().toEqualTypeOf<string>();
+  });
+
+  // #1653. Derived from the OpenAPI codegen, so these assertions fail if the
+  // spec is regenerated without the fields — which is the drift that would
+  // leave a consumer unable to see the thread it just started.
+  it("the email content variant takes the threading anchors and list_unsubscribe", () => {
+    type EmailContent = Extract<MessageContent, { type: "email" }>;
+    // Every threading anchor is optional: a send that carries none of them
+    // starts a new thread, which is the whole point of the ticket.
+    expectTypeOf<EmailContent["thread_id"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<EmailContent["subject"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<EmailContent["list_unsubscribe"]>().toEqualTypeOf<
+      { url: string; one_click?: boolean } | undefined
+    >();
+  });
+
+  it("the send response carries the email thread and Message-ID", () => {
+    expectTypeOf<MessageSendResponse["thread_id"]>().toEqualTypeOf<string | null | undefined>();
+    expectTypeOf<MessageSendResponse["rfc822_message_id"]>().toEqualTypeOf<
+      string | null | undefined
+    >();
+    expectTypeOf<MessageSendResponse["provider_message_id"]>().toEqualTypeOf<string>();
+  });
+});
+
+describe("type narrowing — inbound email event (#1653)", () => {
+  it("narrows on provider and exposes the classification fields", () => {
+    type EmailReceived = Extract<
+      AtribuWebhookEvent,
+      { type: "message.received"; provider: "email" }
+    >;
+    expectTypeOf<EmailReceived>().toEqualTypeOf<EmailMessageReceivedEvent>();
+    expectTypeOf<EmailReceived["data"]["thread_id"]>().toEqualTypeOf<string>();
+    expectTypeOf<EmailReceived["data"]["auto_submitted"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<EmailReceived["data"]["precedence"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<EmailReceived["data"]["delivery_failure"]>().toEqualTypeOf<
+      EmailEventDeliveryFailure | null
+    >();
+  });
+
+  it("a delivery failure names the recipient, the status and the message that bounced", () => {
+    expectTypeOf<EmailEventDeliveryFailure["failed_recipient"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<EmailEventDeliveryFailure["status"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<
+      EmailEventDeliveryFailure["original_rfc822_message_id"]
+    >().toEqualTypeOf<string | null>();
   });
 });
 

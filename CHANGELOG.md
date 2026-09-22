@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-09-22
+
+### Added
+
+- **The email surface can now START a thread, and says which one it started**
+  (#1653). Three additive, optional items. Nothing was removed, no field
+  changed type, and a consumer that ignores all three keeps working byte for
+  byte.
+  - `messages.send` with `channel: "email"` answers with **`thread_id`** (Gmail
+    `threadId` / Outlook `conversationId`) and **`rfc822_message_id`** (the
+    `Message-ID` header of the message that went out). Send `to` + a `subject`
+    with no `thread_id` and the mailbox opens a NEW thread; the response names
+    it. A reply returns the thread it replied into. `thread_id` is the same
+    identifier the inbound `message.received` event carries, so the thread you
+    started is the thread the customer's reply arrives on.
+  - `messages.send`'s email content takes **`list_unsubscribe: { url, one_click }`**,
+    which writes `List-Unsubscribe: <url>` onto the outgoing message and, with
+    `one_click: true`, `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+    (RFC 8058). One-click requires an `https://` url — a `mailto:` with
+    `one_click: true` answers `422`, because every mailbox provider would
+    otherwise ignore the pair silently and you would never learn the header did
+    nothing. Put it on mail you originated in bulk; omit it on a 1:1 reply.
+  - `EmailMessageReceivedEvent.data` gains **`delivery_failure`** — `null` for
+    an ordinary message, or
+    `{ failed_recipient, status, original_rfc822_message_id }` parsed out of an
+    RFC 3464 delivery-status report. `original_rfc822_message_id` equals the
+    `rfc822_message_id` your send returned, so a hard bounce (`status` `5.x.x`)
+    can be charged against the exact message that bounced instead of guessed at
+    from the postmaster's address. `auto_submitted` and `precedence`, which
+    have shipped since 1.16.0, are documented alongside it: check all three
+    before treating an inbound message as a human reply.
+- `EmailMessageReceivedEvent`, `EmailEventAddress`, `EmailEventAttachment` and
+  the new `EmailEventDeliveryFailure` are now **exported by name** from
+  `@atribu/node/webhooks`. They were only ever reachable structurally, through
+  the `AtribuWebhookEvent` union, so code branching on a bounce had no name to
+  import for the shape it was reading.
+- `@atribu/node/test` gains `eventFixtures.emailMessageReceived()`,
+  `eventFixtures.emailDeliveryFailure()` and `responseFixtures.emailSent()`.
+
 ## [1.22.0] - 2026-09-16
 
 ### Added

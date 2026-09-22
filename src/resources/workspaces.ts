@@ -517,11 +517,11 @@ export class WorkspacesResource {
    * `window` is a rolling lookback (`7d` | `14d` | `28d` | `lifetime`), not a
    * date range: scores exist only for those four.
    *
-   * Each row also carries five nested groups — `identity` (external ids,
+   * Each row also carries four nested groups — `identity` (external ids,
    * creative copy, the delivery days and the attribution model the
    * `attributed_*` legs were credited under), `metrics` (`delivery` / `video` /
    * `messaging` / `outcomes`), `score` (within-cohort `pct_*` percentiles and
-   * empirical-Bayes `smoothed_*` estimates), `creative` and `forecast`. Read
+   * empirical-Bayes `smoothed_*` estimates), and `creative`. Read
    * `metrics.delivery.days_active` before dividing by the window: a `28d` row on
    * an ad that ran six days is not a 28-day average.
    *

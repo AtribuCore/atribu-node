@@ -477,11 +477,48 @@ export interface EmailEventAttachment {
 }
 
 /**
+ * A delivery-status notification parsed out of an inbound bounce — the
+ * machine-readable half of a `multipart/report; report-type=delivery-status`
+ * message (RFC 3464), not a guess from the sender's address.
+ *
+ * Present on `EmailMessageReceivedEvent.data.delivery_failure`; that field is
+ * `null` for every ordinary message, which is the check for "is this a bounce".
+ */
+export interface EmailEventDeliveryFailure {
+  /**
+   * The address that failed, from the report's `Final-Recipient` (falling back
+   * to `Original-Recipient`), with the `rfc822;` address-type prefix stripped.
+   * `null` when the report named none.
+   */
+  failed_recipient: string | null;
+  /**
+   * The report's `Status` field verbatim — an RFC 3463 enhanced status code,
+   * `class.subject.detail`. `5.x.x` is permanent (a hard bounce: stop sending
+   * to this address), `4.x.x` is transient (the MTA is still retrying).
+   * `null` when the report carried no status.
+   */
+  status: string | null;
+  /**
+   * The `Message-ID` of YOUR message that bounced — read from the report's
+   * returned headers, its `Original-Message-ID` field, or the bounce's own
+   * `In-Reply-To`, in that order. This equals the `rfc822_message_id` the send
+   * response gave you, which is how a bounce ties to a send without guessing
+   * from the subject or the sender. `null` when none of the three was present.
+   */
+  original_rfc822_message_id: string | null;
+}
+
+/**
  * An inbound email landed in a connected Gmail/Outlook mailbox. `thread_id` is
  * the provider thread (Gmail threadId / Outlook conversationId) — the
- * conversation key. To reply in-thread, round-trip `message_id` (Outlook
- * `reply_to_message_id`) or the RFC822 anchors (`rfc822_message_id` /
- * `references`) on `messages.send`.
+ * conversation key, and the same value `messages.send` answers with. To reply
+ * in-thread, round-trip `message_id` (Outlook `reply_to_message_id`) or the
+ * RFC822 anchors (`rfc822_message_id` / `references`) on `messages.send`.
+ *
+ * Not every inbound message is a person writing back. `auto_submitted` /
+ * `precedence` mark an automatic one (a vacation responder, a list blast) and
+ * `delivery_failure` marks a bounce — check those three before treating a
+ * message as a reply worth answering.
  */
 export interface EmailMessageReceivedEvent extends BaseEvent {
   type: "message.received";
@@ -509,11 +546,21 @@ export interface EmailMessageReceivedEvent extends BaseEvent {
     list_unsubscribe: boolean;
     /**
      * Raw `Auto-Submitted` header value, lowercased (e.g.
-     * `"auto-generated"`). `null` when the header is absent.
+     * `"auto-generated"`, `"auto-replied"`). `null` when the header is absent.
+     * Anything other than `"no"` means a machine sent this, so it is not a
+     * reply to answer and it must not restart a follow-up sequence.
      */
     auto_submitted: string | null;
-    /** Raw `Precedence` header value, lowercased (e.g. `"bulk"`). `null` when the header is absent. */
+    /** Raw `Precedence` header value, lowercased (e.g. `"bulk"`, `"list"`, `"junk"`). `null` when the header is absent. */
     precedence: string | null;
+    /**
+     * The parsed delivery-status report when this message IS a bounce, `null`
+     * for every ordinary message. `original_rfc822_message_id` matches the
+     * `rfc822_message_id` your send returned, so a hard bounce
+     * (`status` `5.x.x`) can be charged against the exact message that
+     * bounced rather than inferred from the postmaster's address.
+     */
+    delivery_failure: EmailEventDeliveryFailure | null;
     /** Full provider message envelope. */
     raw: Record<string, unknown>;
   };
