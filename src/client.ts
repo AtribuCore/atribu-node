@@ -14,6 +14,7 @@ import { HandoffsResource } from "./resources/handoffs";
 import { LegalResource } from "./resources/legal";
 import { WebhookSubscriptionsResource } from "./resources/webhook-subscriptions";
 import { WebhookDeliveriesResource } from "./resources/webhook-deliveries";
+import { OutcomesRecordedResource } from "./resources/outcomes-recorded";
 import { WhatsAppNamespace } from "./resources/whatsapp";
 import { InstagramNamespace } from "./resources/instagram";
 import { EventsResource } from "./resources/events";
@@ -38,6 +39,7 @@ import { ChannelRulesResource } from "./resources/channel-rules";
 // `shopify` webhook event kinds in ./webhooks.
 import { CommerceNamespace } from "./resources/commerce";
 import { FiltersResource } from "./resources/filters";
+import { AppointmentsResource } from "./resources/appointments";
 import { RecommendationsResource } from "./resources/recommendations";
 import { ExportsResource } from "./resources/exports";
 import { TrackingResource } from "./resources/tracking";
@@ -89,6 +91,7 @@ interface ResourceBundle {
   channelRules: ChannelRulesResource;
   commerce: CommerceNamespace;
   filters: FiltersResource;
+  appointments: AppointmentsResource;
   recommendations: RecommendationsResource;
   exports: ExportsResource;
   tracking: TrackingResource;
@@ -101,6 +104,7 @@ interface ResourceBundle {
   webhooks: {
     subscriptions: WebhookSubscriptionsResource;
     deliveries: WebhookDeliveriesResource;
+    outcomesRecorded: OutcomesRecordedResource;
   };
   whatsapp: WhatsAppNamespace;
   instagram: InstagramNamespace;
@@ -134,6 +138,7 @@ function buildResources(http: HttpClientLike): ResourceBundle {
     channelRules: new ChannelRulesResource(http),
     commerce: new CommerceNamespace(http),
     filters: new FiltersResource(http),
+    appointments: new AppointmentsResource(http),
     recommendations: new RecommendationsResource(http),
     exports: new ExportsResource(http),
     tracking: new TrackingResource(http),
@@ -144,6 +149,7 @@ function buildResources(http: HttpClientLike): ResourceBundle {
     webhooks: {
       subscriptions: new WebhookSubscriptionsResource(http),
       deliveries: new WebhookDeliveriesResource(http),
+      outcomesRecorded: new OutcomesRecordedResource(http),
     },
     whatsapp: new WhatsAppNamespace(http),
     instagram: new InstagramNamespace(http),
@@ -177,6 +183,7 @@ export class AtribuClient {
   readonly channelRules: ChannelRulesResource;
   readonly commerce: CommerceNamespace;
   readonly filters: FiltersResource;
+  readonly appointments: AppointmentsResource;
   readonly recommendations: RecommendationsResource;
   readonly exports: ExportsResource;
   readonly tracking: TrackingResource;
@@ -220,6 +227,7 @@ export class AtribuClient {
     this.channelRules = r.channelRules;
     this.commerce = r.commerce;
     this.filters = r.filters;
+    this.appointments = r.appointments;
     this.recommendations = r.recommendations;
     this.exports = r.exports;
     this.tracking = r.tracking;
@@ -308,6 +316,7 @@ export class AtribuClient {
       // `undefined` on any client built with `withRetry`, and only there.
       commerce: r.commerce,
       filters: r.filters,
+      appointments: r.appointments,
       recommendations: r.recommendations,
       exports: r.exports,
       tracking: r.tracking,

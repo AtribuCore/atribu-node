@@ -148,7 +148,7 @@ describe("type narrowing — message content union", () => {
 
   it("MessageSendInput.channel constrains the whole input shape", () => {
     expectTypeOf<MessageSendInput["channel"]>().toEqualTypeOf<
-      "whatsapp" | "instagram" | "email"
+      "whatsapp" | "instagram" | "email" | "messenger"
     >();
     expectTypeOf<MessageSendInput["connection_id"]>().toEqualTypeOf<string>();
   });
@@ -194,6 +194,10 @@ describe("type narrowing — inbound email event (#1653)", () => {
   it("a delivery failure names the recipient, the status and the message that bounced", () => {
     expectTypeOf<EmailEventDeliveryFailure["failed_recipient"]>().toEqualTypeOf<string | null>();
     expectTypeOf<EmailEventDeliveryFailure["status"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<EmailEventDeliveryFailure["action"]>().toEqualTypeOf<
+      "failed" | "delayed" | "delivered" | "relayed" | "expanded" | null
+    >();
+    expectTypeOf<EmailEventDeliveryFailure["diagnostic_code"]>().toEqualTypeOf<string | null>();
     expectTypeOf<
       EmailEventDeliveryFailure["original_rfc822_message_id"]
     >().toEqualTypeOf<string | null>();

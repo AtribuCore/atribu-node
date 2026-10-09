@@ -1710,79 +1710,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/profile/knowledge-base/documents": {
+    "/api/v1/dashboard/chat": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List a profile's knowledge-base documents
-         * @description The profile's AI-searchable reference library — FAQs, policies, product info — that assistants can draw on. Returns metadata only (no `content`); read one document's full text with `GET .../documents/{documentId}`. Ordered by `updated_at` descending.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The profile's knowledge-base documents */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        /**
-                         * @example {
-                         *       "data": {
-                         *         "items": [
-                         *           {
-                         *             "id": "8f14e45f-ceea-467e-adde-3f4694a483fb",
-                         *             "title": "Return policy",
-                         *             "source_url": null,
-                         *             "source_type": "text",
-                         *             "tags": [
-                         *               "returns",
-                         *               "policy"
-                         *             ],
-                         *             "token_count": 214,
-                         *             "processing_status": "ready",
-                         *             "processing_error": null,
-                         *             "last_processed_at": "2026-09-01T14:02:14Z",
-                         *             "active": true,
-                         *             "created_at": "2026-09-01T14:02:09Z",
-                         *             "updated_at": "2026-09-01T14:02:14Z"
-                         *           }
-                         *         ]
-                         *       },
-                         *       "meta": {
-                         *         "profile_id": "8f14e45f-ceea-467e-adde-3f4694a483fb"
-                         *       }
-                         *     }
-                         */
-                        "application/json": {
-                            data: {
-                                items: components["schemas"]["KnowledgeBaseDocumentListItem"][];
-                            };
-                            meta: {
-                                /** @example uuid */
-                                profile_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
+        get?: never;
         put?: never;
         /**
-         * Add a document to the knowledge base
-         * @description Upserts the document and returns immediately with `202 queued` — chunking, an LLM contextualise pass (skipped for very short documents) and embedding all happen asynchronously after the response. Poll `GET .../documents/{documentId}` and watch `processing_status` to know when the document became searchable (`ready`) or why it did not (`failed` + `processing_error`).
+         * Ask Atribu about this profile's dashboard (streaming)
+         * @description One conversational turn with Ask Atribu, streamed back as it is generated. The model has tools over the profile's own numbers — ROAS, spend, cash revenue, CAC/MER, campaigns and ads, funnel, outcome counts, LTV, attribution-model sensitivity, tracking and sync health — and they default to the dashboard view the body names (`date_from`/`date_to`, the comparison period, `model`, `filters`). The model can still ask for any other period itself.
          *
-         *     `content` is raw text (markdown, plain text, or HTML) up to 500,000 characters — this endpoint does not accept a file upload; extract text client-side first.
+         *     On a healthcare profile the person-level tools are withheld: the answer is aggregates only.
+         *
+         *     **This SPENDS the workspace's AI allowance**, one `chat` unit per turn, charged before the model runs. A person's credential only — an API key is refused with 403, because a read scope must not cause AI spend.
+         *
+         *     **The response is `text/event-stream`, not JSON**: a Vercel AI SDK UI-message stream. Use that SDK's client (`useChat` / `readUIMessageStream`). No conversation is stored.
          */
         post: {
             parameters: {
@@ -1791,30 +1736,128 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
-                        title: string;
-                        content: string;
-                        source_url?: string;
-                        /** @enum {string} */
-                        source_type?: "markdown" | "pdf" | "html" | "text" | "faq";
-                        tags?: string[];
+                        /** @description The FULL conversation so far, in the AI SDK's `UIMessage` shape. */
+                        messages: unknown[];
+                        /**
+                         * @description The viewed period's start (YYYY-MM-DD).
+                         * @example 2026-09-01
+                         */
+                        date_from: string;
+                        /**
+                         * @description The viewed period's end (YYYY-MM-DD).
+                         * @example 2026-09-30
+                         */
+                        date_to: string;
+                        /** @description Comparison period start. Omit both `prev_*` for the same-length period just before. */
+                        prev_date_from?: string | null;
+                        /** @description Comparison period end. */
+                        prev_date_to?: string | null;
+                        /**
+                         * @description Attribution model. Defaults to `last_touch`.
+                         * @example last_touch
+                         */
+                        model?: string | null;
+                        /** @description Dashboard filters, the same entries `filter[dim]=op:value` carries on the GET reads. */
+                        filters?: {
+                            dimension: string;
+                            operator: string;
+                            value: string;
+                        }[] | null;
+                        /**
+                         * @description Display currency for formatted amounts.
+                         * @example USD
+                         */
+                        currency?: string | null;
+                        /**
+                         * @description `lead_gen` or `ecommerce` — shapes which outcomes the model leads with.
+                         * @example lead_gen
+                         */
+                        profile_mode?: string | null;
+                        /**
+                         * @description Answer language.
+                         * @example es
+                         */
+                        language?: string | null;
                     };
                 };
             };
             responses: {
-                /** @description The document was upserted and queued for processing */
-                202: {
+                /** @description A Vercel AI SDK UI-message stream. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description `messages` empty, or a date range / model / filter that does not parse. */
+                400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            data: components["schemas"]["KnowledgeBaseDocumentQueuedResult"];
-                            meta: {
-                                /** @example uuid */
-                                profile_id: string;
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description An API key, or a credential without `campaigns:read`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Refused by one of two independent bounds, distinguishable by `Retry-After`: the workspace's DAILY AI allowance is spent (retry at the next UTC midnight), or too many requests arrived in a short window (retry in seconds to minutes). Both answer `code: "rate_limit_exceeded"`. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Either this deployment has no AI provider configured, or an operator has switched this capability off at the runtime kill switch. `Retry-After: 60` on the second; the capability returns on its own. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
                             };
                         };
                     };
@@ -1827,156 +1870,105 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/profile/knowledge-base/documents/{documentId}": {
+    "/api/v1/workspaces/{workspaceId}/top-performers/export": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get one knowledge-base document
-         * @description The full stored document, including its raw `content`.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    documentId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The document */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["KnowledgeBaseDocumentDetail"];
-                            meta: {
-                                /** @example uuid */
-                                profile_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description No document with that id belongs to this key's profile. */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example not_found */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
+        get?: never;
         put?: never;
-        post?: never;
         /**
-         * Remove a knowledge-base document
-         * @description Soft delete — sets `active: false` and excludes the document from search. The rows are not hard-deleted; that path exists only in the admin panel for cleanup.
+         * Export top ads as a bundle for a coding agent
+         * @description Builds the «Export to Claude Code» bundle for the selected ads (up to 50) or one creative pattern: `README.md` (instructions to the agent), `ads.json` or `pattern.json`, `brief.md`, thumbnails and transcripts when available. Missing assets become notes, never a failed bundle (`X-Atribu-Export-Notes` counts them).
+         *
+         *     With `?format=prompt` the answer is JSON instead: a paste-able prompt, the notes and the filename the zip would have had.
+         *
+         *     Workspace-scoped, so an API key cannot call it (403). A profile or pattern the caller cannot see is a 403 naming it.
          */
-        delete: {
+        post: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description `prompt` = JSON paste-able prompt instead of the zip. */
+                    format?: "zip" | "prompt";
+                };
                 header?: never;
                 path: {
-                    documentId: string;
+                    workspaceId: string;
                 };
                 cookie?: never;
             };
-            requestBody?: never;
-            responses: {
-                /** @description The document was deactivated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["KnowledgeBaseDocumentDeleteResult"];
-                            meta: {
-                                /** @example uuid */
-                                profile_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description No document with that id belongs to this key's profile. */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example not_found */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /**
-         * Edit a knowledge-base document
-         * @description Every field is optional; only the ones sent are changed. Sending `content` different from the stored value re-triggers chunking + embedding, the same async pipeline `POST` starts — `content_hash` is how the route tells an unchanged resend from a real edit, so a byte-identical `content` is a no-op even if sent.
-         */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    documentId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
-                        title?: string;
-                        content?: string;
-                        tags?: string[];
-                        active?: boolean;
+                        /**
+                         * @description The recent score window included next to `lifetime`. Default `28d`.
+                         * @enum {string}
+                         */
+                        window?: "7d" | "14d" | "28d" | "lifetime";
+                        selection: {
+                            /** @enum {string} */
+                            kind: "ads";
+                            ads: {
+                                /** Format: uuid */
+                                profile_id: string;
+                                ad_external_id: string;
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            kind: "pattern";
+                            pattern_key: string;
+                            /** Format: uuid */
+                            source_profile_id?: string;
+                        };
+                        /**
+                         * Format: uuid
+                         * @description The client the agent should adapt the winners for (annotation only).
+                         */
+                        target_profile_id?: string | null;
                     };
                 };
             };
             responses: {
-                /** @description The update was applied (or reprocessing was queued) */
+                /** @description The zip (default) or, with `?format=prompt`, the prompt as JSON. */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
+                        "application/zip": string;
                         "application/json": {
-                            data: components["schemas"]["KnowledgeBaseDocumentUpdateResult"];
+                            data: {
+                                paste_prompt: string;
+                                notes: string[];
+                                filename: string;
+                            };
                             meta: {
-                                /** @example uuid */
-                                profile_id: string;
+                                workspace_id: string;
                             };
                         };
                     };
                 };
-                /** @description No document with that id belongs to this key's profile. */
-                404: {
+                /** @description An API key, or a profile / pattern the caller cannot see. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The selection did not validate. */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1994,6 +1986,10 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/ads/level-counts": {
@@ -2092,7 +2088,7 @@ export interface paths {
                     /** @description End of the window, inclusive, `YYYY-MM-DD`. */
                     date_to: string;
                     /** @description Attribution model. Defaults to `last_touch`. */
-                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct";
+                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
                     /** @description Which ranking this is the remainder of. Defaults to `campaign`. */
                     level?: "campaign" | "ad_set" | "ad";
                 };
@@ -2159,7 +2155,7 @@ export interface paths {
          * Daily delivery series for many entities at once
          * @description The bulk form: one request covers every entity at `level`, which is what a ranking table with a sparkline per row needs. Restrict it with `ids` when only some are on screen.
          *
-         *     Delivery only — spend and clicks — and that is deliberate. Attributed revenue is NOT published per day here: a model's credit is assigned over a window, so summing daily credit into a period total is not the same number as asking for the period, and a series that invited it would be a trap. Ask `GET /api/v1/campaigns?level=` for attributed totals.
+         *     Delivery only — spend, clicks and Meta's own reported messaging conversations started — and that is deliberate. Attributed revenue is NOT published per day here: a model's credit is assigned over a window, so summing daily credit into a period total is not the same number as asking for the period, and a series that invited it would be a trap. Ask `GET /api/v1/campaigns?level=` for attributed totals.
          *
          *     Rows are keyed by `platform_id` (the provider's own id), the same value `GET /api/v1/campaigns?level=` returns and a deep link carries. A day on which an entity had no delivery is absent rather than zero-filled.
          */
@@ -2238,7 +2234,7 @@ export interface paths {
          * Daily delivery series for one entity
          * @description The single-entity form of `GET /api/v1/ads/trend`. `{id}` is the entity's EXTERNAL (platform) id, the same convention `GET /api/v1/ads/{id}/creative-analysis` follows.
          *
-         *     Delivery only — spend and clicks — and that is deliberate. Attributed revenue is NOT published per day here: a model's credit is assigned over a window, so summing daily credit into a period total is not the same number as asking for the period, and a series that invited it would be a trap. Ask `GET /api/v1/campaigns?level=` for attributed totals.
+         *     Delivery only — spend, clicks and Meta's own reported messaging conversations started — and that is deliberate. Attributed revenue is NOT published per day here: a model's credit is assigned over a window, so summing daily credit into a period total is not the same number as asking for the period, and a series that invited it would be a trap. Ask `GET /api/v1/campaigns?level=` for attributed totals.
          *
          *     Rows are keyed by `platform_id` (the provider's own id), the same value `GET /api/v1/campaigns?level=` returns and a deep link carries. A day on which an entity had no delivery is absent rather than zero-filled.
          */
@@ -2330,7 +2326,7 @@ export interface paths {
                     /** @description End of the window, inclusive, `YYYY-MM-DD`. */
                     date_to: string;
                     /** @description Attribution model. Defaults to `last_touch`. */
-                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct";
+                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
                     /** @description Disambiguates an external id that exists at more than one level. */
                     level?: "campaign" | "ad_set" | "ad";
                 };
@@ -3021,11 +3017,11 @@ export interface paths {
         put?: never;
         /**
          * Create a conversion-export destination
-         * @description Point this profile's conversions at a Meta dataset/pixel or a Google Ads conversion action.
+         * @description Point this profile's conversions at a Meta dataset/pixel, a Google Ads conversion action or a TikTok pixel (Events API).
          *
          *     **This is half of what makes an export possible.** `POST /api/v1/exports` enqueues correctly with no destination configured and ships nothing, because the pipeline has nowhere to send to. The other half is at least one enabled rule (`POST /api/v1/exports/rules`) — there is no default mapping.
          *
-         *     The `connection_id` must name a connection on this profile whose provider matches the kind, and the kind's own identifier is required (`meta_pixel_id` for `meta_capi`, `google_conversion_action` for `google_ads`).
+         *     The `connection_id` must name a connection on this profile whose provider matches the kind, and the kind's own identifier is required (`meta_pixel_id` for `meta_capi`, `google_conversion_action` for `google_ads`, `tiktok_pixel_code` for `tiktok_events_api`).
          */
         post: {
             parameters: {
@@ -3097,6 +3093,23 @@ export interface paths {
                 };
                 /** @description No such connection on this profile */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `destination_conflict` — another destination of this profile already holds this kind + connection + pixel / conversion action (a disabled one included). `conflicting_destination_id` names it. Nothing was written. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3731,10 +3744,10 @@ export interface paths {
                          * @description Which platform. Required on create; IMMUTABLE — a PATCH that changes it is rejected.
                          * @enum {string}
                          */
-                        destination?: "meta_capi" | "google_ads";
+                        destination?: "meta_capi" | "google_ads" | "tiktok_events_api";
                         /**
                          * Format: uuid
-                         * @description The `data_connections` row this destination ships through. Must belong to this profile and its provider must match the kind (`meta_capi` ⇒ `meta_ads`).
+                         * @description The `data_connections` row this destination ships through. Must belong to this profile and its provider must match the kind (`meta_capi` ⇒ `meta_ads`, `google_ads` ⇒ `google_ads`, `tiktok_events_api` ⇒ `tiktok_ads`).
                          */
                         connection_id?: string;
                         /** @description Default true on create. */
@@ -3749,6 +3762,11 @@ export interface paths {
                          * @example customers/123/conversionActions/456
                          */
                         google_conversion_action?: string | null;
+                        /**
+                         * @description TikTok pixel code — letters and digits, 8-64 characters. REQUIRED for `tiktok_events_api`. Set `destination_config.test_event_code` to route this destination's events to TikTok Events Manager's test-events tool.
+                         * @example CABCDEFGHIJ1234567890
+                         */
+                        tiktok_pixel_code?: string | null;
                         /** @description Free-form destination settings (`signal_quality`, `relay_automatic_events`, …). DEEP-MERGED over the stored object on a PATCH, so keys written by the dataset wizard (`data_source`) and by Platform-Safe provisioning are never blanked by a partial update. */
                         destination_config?: {
                             [key: string]: unknown;
@@ -3814,6 +3832,23 @@ export interface paths {
                 };
                 /** @description No such destination for this profile */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `destination_conflict` — another destination of this profile already holds this kind + connection + pixel / conversion action (a disabled one included). `conflicting_destination_id` names it. Nothing was written. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -3903,6 +3938,7 @@ export interface paths {
                                 /** @example uuid */
                                 profile_id: string;
                             };
+                            capabilities: components["schemas"]["Capabilities"];
                         };
                     };
                 };
@@ -4387,12 +4423,31 @@ export interface paths {
                         destinations?: {
                             [key: string]: unknown;
                         };
+                        /**
+                         * @description Per-destination event-name overrides, keyed by destination kind (`meta_capi`, `google_ads`, `tiktok_events_api`): each a non-empty string. `meta_capi` names the event on the website/pixel lane only. `meta_capi_messaging` names it on the click-to-WhatsApp (`business_messaging`) lane, where Meta accepts only Purchase, LeadSubmitted, InitiateCheckout, AddToCart, ViewContent, OrderCreated, OrderShipped, OrderDelivered, OrderCanceled, OrderReturned, CartAbandoned, QualifiedLead, RatingProvided or ReviewProvided; `null` keeps the rule's events off that lane. Absent, that lane uses Atribu's default map by source event type (e.g. lead_created → LeadSubmitted, appointment_booked → QualifiedLead, payment_received → Purchase) and skips a type with no messaging equivalent.
+                         * @example {
+                         *       "meta_capi": "Lead",
+                         *       "meta_capi_messaging": "QualifiedLead"
+                         *     }
+                         */
                         platform_event_name_overrides?: {
                             [key: string]: unknown;
                         };
                         meta_custom_event_type?: string | null;
                         /** @enum {string} */
-                        value_mode?: "event_value" | "fixed_value" | "none";
+                        value_mode?: "event_value" | "fixed_value" | "none" | "cash" | "net";
+                        /** @description Defaults to `false` on create. See `ExportRule.new_customer_event_enabled`. */
+                        new_customer_event_enabled?: boolean;
+                        /**
+                         * @description Defaults to `all` on create. See `ExportRule.platform_eligibility_mode`.
+                         * @enum {string}
+                         */
+                        platform_eligibility_mode?: "all" | "attributed_to_platform" | "any_touch_from_platform";
+                        /**
+                         * @description Defaults to `last_touch` on create. See `ExportRule.platform_eligibility_model`.
+                         * @enum {string}
+                         */
+                        platform_eligibility_model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
                         /**
                          * @description Defaults to `skip` on create: a renewal is not a `Purchase`, and Meta cannot unsend one. Set `purchase` only when the business genuinely wants renewals counted as purchases at the platform.
                          * @enum {string}
@@ -4532,7 +4587,7 @@ export interface paths {
          *
          *     Returns Meta's response verbatim. `quality_warning` is non-null when this profile's match-quality policy would block a real event carrying only what a test carries (IP + user agent); the test still sends.
          *
-         *     Capped at 5 sends per profile per minute. Blocked with `409 invalid_state` when the profile's privacy or HIPAA legal gate refuses the payload.
+         *     Capped at 5 sends per profile per minute. Blocked with `409 invalid_state` when the profile's privacy rules or legal gate refuse the payload — nothing reached Meta, and `error.reason` names the gate's reason (e.g. `dpa_not_accepted` for a Platform-Safe profile whose DPA is not accepted, `baa_not_approved` for HIPAA). A `502 provider_error` with `error.reason: meta_rejected` means the event DID reach Meta and Meta refused it.
          */
         post: {
             parameters: {
@@ -4613,7 +4668,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description The privacy or legal gate blocked the test event */
+                /** @description The privacy or legal gate blocked the test event before it was sent (`error.reason` = the gate's blocking reason) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -4664,7 +4719,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Meta rejected the request */
+                /** @description Meta rejected the test event (`error.reason` = `meta_rejected`) */
                 502: {
                     headers: {
                         [name: string]: unknown;
@@ -4850,7 +4905,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description This provider is already connected to a DIFFERENT account. Start a new connect flow to change it. */
+                /** @description `invalid_state`: this provider is already connected to a DIFFERENT account. Start a new connect flow to change it. `account_connected_elsewhere` (#1800): the chosen account is already connected to another profile of this workspace; nothing is written and the parked token stays, so a different account can be chosen. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -4915,7 +4970,7 @@ export interface paths {
             parameters: {
                 query?: {
                     /** @description Filter by channel; omit for all. */
-                    channel?: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc";
+                    channel?: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc" | "tiktok_ads" | "messenger";
                 };
                 header?: never;
                 path?: never;
@@ -9916,7 +9971,7 @@ export interface paths {
                     /** @description Events per page (default 50, max 100). */
                     limit?: string;
                     /** @description Which attribution model the credit overlay is computed under. Defaults to `last_touch`. An unknown value is 400 — never a silent fallback, which would answer with numbers under a model nobody asked for. */
-                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct";
+                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
                 };
                 header?: never;
                 path: {
@@ -10158,6 +10213,422 @@ export interface paths {
                         "application/json": {
                             error: {
                                 /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one person's journey by your own customer key
+         * @description Every touch and every outcome of one person — across devices, repeat conversions and merged profiles — named by the customer id YOU send on every event (`user_traits.external_id`), so you never store Atribu's `customer_profile_id`. Oldest first, keyset-paginated like the other journey pages; `meta.person` carries the whole-history counts and the newest 50 conversions.
+         *
+         *     **The scope decides the shape.** `conversions:read` opens the read. A key without `customers:read` — every key of a healthcare-family profile — gets `JourneyEventProjected` rows and a `meta.person` without name or identifiers; a key with it gets the full `JourneyEvent` rows and the named `meta.person`.
+         *
+         *     **Naming.** Exactly one of `customer_key`, `email`, `phone`. `email` and `phone` name a person by PII and answer `403 insufficient_scope` without `customers:read`, before anything is read.
+         *
+         *     **Resolution never creates anyone.** A merged-away customer resolves to the survivor. An unknown key, an erased customer and another profile's customer are the same `404 customer_not_found`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Your customer id — the `user_traits.external_id` you ingest. */
+                    customer_key?: string;
+                    /** @description Requires `customers:read`. */
+                    email?: string;
+                    /** @description E.164. Requires `customers:read`. */
+                    phone?: string;
+                    /** @description The opaque `pagination.cursor` from the previous page. */
+                    cursor?: string;
+                    /** @description Events per page (default 50, max 100). */
+                    limit?: string;
+                    /** @description The model the credit overlay (and `in_window`, `is_credited`) is computed under. Defaults to `last_touch`. */
+                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One page of the person's journey */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description `JourneyEvent` rows with `customers:read`, `JourneyEventProjected` rows without it — never mixed in one response. */
+                            data: (components["schemas"]["JourneyEvent"] | components["schemas"]["JourneyEventProjected"])[];
+                            pagination: {
+                                has_next: boolean;
+                                cursor?: string;
+                            };
+                            meta: {
+                                profile_id: string;
+                                person: {
+                                    /** @description Your own customer id for this person (`external_customer_id`). Null only when you named them by email/phone and never sent an `external_id`. After a merge the surviving customer's key is returned, whichever key you asked with. */
+                                    customer_key: string | null;
+                                    /** @description Every conversion of the person — the true total. */
+                                    conversion_count: number;
+                                    /** @description Marketing touches stamped to the person, whole history. */
+                                    touch_count: number;
+                                    first_touch_at: string | null;
+                                    last_touch_at: string | null;
+                                    /** @description The newest 50 conversions, newest first. `conversion_count` is the true total. */
+                                    conversions: {
+                                        outcome_event_id: string | null;
+                                        conversion_key: string;
+                                        occurred_at: string;
+                                        /**
+                                         * Format: decimal
+                                         * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                         * @example 1234.56
+                                         */
+                                        value_amount: string | null;
+                                        currency: string | null;
+                                        /** @description Whether any touch received credit for this conversion under the page's model. */
+                                        is_credited: boolean;
+                                    }[];
+                                    first_name: string | null;
+                                    last_name: string | null;
+                                    identifiers: components["schemas"]["CustomerIdentifier"][];
+                                } | {
+                                    /** @description Your own customer id for this person (`external_customer_id`). Null only when you named them by email/phone and never sent an `external_id`. After a merge the surviving customer's key is returned, whichever key you asked with. */
+                                    customer_key: string | null;
+                                    /** @description Every conversion of the person — the true total. */
+                                    conversion_count: number;
+                                    /** @description Marketing touches stamped to the person, whole history. */
+                                    touch_count: number;
+                                    first_touch_at: string | null;
+                                    last_touch_at: string | null;
+                                    /** @description The newest 50 conversions, newest first. `conversion_count` is the true total. */
+                                    conversions: {
+                                        outcome_event_id: string | null;
+                                        conversion_key: string;
+                                        occurred_at: string;
+                                        /**
+                                         * Format: decimal
+                                         * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                         * @example 1234.56
+                                         */
+                                        value_amount: string | null;
+                                        currency: string | null;
+                                        /** @description Whether any touch received credit for this conversion under the page's model. */
+                                        is_credited: boolean;
+                                    }[];
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Not exactly one of `customer_key` / `email` / `phone`, or an unknown `model` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Neither `conversions:read` nor `customers:read`; or `email` / `phone` without `customers:read` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `customer_not_found`: no live customer with that key in this profile (unknown, erased, or another profile's, all the same answer). A route this deployment does not serve answers `not_found` instead. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/appointments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List appointments (GHL calendar + tracked bookings + Google booking calendars)
+         * @description The profile's appointments between `from` and `to`, merged from three live sources: GoHighLevel's calendar API (events and contact details), tracked `appointment_booked` outcomes (UTMs, campaign and deal value), and the profile's Atribu-created Google booking calendars. Each source degrades on its own: when GoHighLevel refuses the token or a scope, `source` is `db_fallback` and `scopes_missing` says why; a dead Google token skips that calendar.
+         *
+         *     `calendars`, `users` and `sources` are the filter options for the rows returned.
+         *
+         *     Contains contact names, emails and phones, so it needs `customers:read`. Each call makes live GoHighLevel requests (one per calendar plus one per contact); the window is capped at 62 days.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Window start, ISO 8601 date or date-time. */
+                    from: string;
+                    /** @description Window end, ISO 8601 date or date-time. */
+                    to: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The merged appointments and the filter options. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "data": {
+                         *         "source": "merged",
+                         *         "scopes_missing": false,
+                         *         "ghl_connected": true,
+                         *         "stripe_connected": false,
+                         *         "appointments": [
+                         *           {
+                         *             "id": "evt_8f2",
+                         *             "contact_id": "c_91",
+                         *             "customer_profile_id": "uuid",
+                         *             "contact_name": "Ana Pérez",
+                         *             "contact_email": "ana@example.com",
+                         *             "contact_phone": "+56911112222",
+                         *             "title": "Evaluación",
+                         *             "status": "confirmed",
+                         *             "start_time": "2026-10-09T15:00:00.000Z",
+                         *             "end_time": "2026-10-09T15:30:00.000Z",
+                         *             "calendar_name": "Clínica",
+                         *             "calendar_id": "cal_1",
+                         *             "assigned_user_id": null,
+                         *             "assigned_user_name": null,
+                         *             "source": "merged",
+                         *             "attribution": {
+                         *               "first_touch_utm": {
+                         *                 "utm_source": "ig",
+                         *                 "utm_campaign": "1203"
+                         *               },
+                         *               "latest_touch_utm": null,
+                         *               "campaign_name": "Evaluaciones octubre",
+                         *               "ad_source": "Instagram"
+                         *             },
+                         *             "deal_value": 45000,
+                         *             "deal_value_currency": "CLP"
+                         *           }
+                         *         ],
+                         *         "calendars": [
+                         *           {
+                         *             "id": "cal_1",
+                         *             "name": "Clínica"
+                         *           }
+                         *         ],
+                         *         "users": [],
+                         *         "sources": [
+                         *           {
+                         *             "id": "ghl_live",
+                         *             "name": "Live"
+                         *           },
+                         *           {
+                         *             "id": "db_tracked",
+                         *             "name": "Tracked"
+                         *           }
+                         *         ]
+                         *       },
+                         *       "meta": {
+                         *         "profile_id": "uuid",
+                         *         "date_from": "2026-10-06T03:00:00.000Z",
+                         *         "date_to": "2026-10-13T02:59:59.000Z"
+                         *       }
+                         *     }
+                         */
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                source: "merged" | "ghl_live" | "db_fallback";
+                                /** @description GoHighLevel refused the token or a scope; the rows are the tracked bookings only. */
+                                scopes_missing: boolean;
+                                ghl_connected: boolean;
+                                stripe_connected: boolean;
+                                appointments: {
+                                    /** @description GHL event id, `db_<outcome_event id>` for a tracked-only booking, or `gcal_<event id>`. */
+                                    id: string;
+                                    /** @description GoHighLevel contact id, when known. */
+                                    contact_id: string | null;
+                                    customer_profile_id: string | null;
+                                    contact_name: string | null;
+                                    contact_email: string | null;
+                                    contact_phone: string | null;
+                                    title: string | null;
+                                    /** @example confirmed */
+                                    status: string;
+                                    /** @example 2026-10-09T15:00:00.000Z */
+                                    start_time: string;
+                                    end_time: string;
+                                    calendar_name: string | null;
+                                    calendar_id: string | null;
+                                    assigned_user_id: string | null;
+                                    assigned_user_name: string | null;
+                                    /**
+                                     * @description `ghl_live` = only in GoHighLevel's calendar; `db_tracked` = only a tracked `appointment_booked`; `merged` = both, matched by customer or contact (the tracked row contributes attribution and deal value); `google_calendar` = an event on one of the profile's Atribu booking calendars.
+                                     * @enum {string}
+                                     */
+                                    source: "ghl_live" | "db_tracked" | "merged" | "google_calendar";
+                                    attribution: {
+                                        first_touch_utm: {
+                                            [key: string]: string;
+                                        } | null;
+                                        latest_touch_utm: {
+                                            [key: string]: string;
+                                        } | null;
+                                        /** @description Resolved from the campaign id in `utm_campaign` when it is one of the profile's campaigns; otherwise the raw value. */
+                                        campaign_name: string | null;
+                                        /** @example Instagram */
+                                        ad_source: string | null;
+                                    } | null;
+                                    /** @description The tracked booking's deal value, in `deal_value_currency`. */
+                                    deal_value: number | null;
+                                    /** @example USD */
+                                    deal_value_currency: string | null;
+                                }[];
+                                calendars: {
+                                    id: string;
+                                    name: string;
+                                }[];
+                                users: {
+                                    id: string;
+                                    name: string;
+                                }[];
+                                sources: {
+                                    id: string;
+                                    name: string;
+                                }[];
+                            };
+                            meta: {
+                                profile_id: string;
+                                date_from?: string;
+                                date_to?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `from`/`to` missing, not ISO 8601, out of order, or more than 62 days apart. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The credential lacks `customers:read`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
                                 code: string;
                                 message: string;
                                 status: number;
@@ -12064,9 +12535,11 @@ export interface paths {
          *
          *     **Two ways it completes, and both answer `status: "completed"`.** When the consent resolves to exactly one account, `result.connection_id` names the connection that was written — read it with `GET /api/v1/connections/{id}`. When it exposes several, `result.pending_selection` says so and a human choice is still owed: finish it with `GET /api/v1/connections/pending/{provider}` and `POST …/finalize` (the parked provider token lives 60 minutes). The hand-off is `completed` either way, because the part only a browser could do is done.
          *
-         *     **A consent that fails answers `status: "failed"`** with `result.reason` — `provider_denied` when the user said no, `no_candidates` when the account has nothing to connect (not a retry: they have to be granted access at the provider first), `origin_not_allowed` when the `return_url` you supplied is not registered for this profile's app.
+         *     **Every ending comes back to your app (#1800).** Send your user to `start_url` (not `url`) with a `return_url`, and they meet the provider's consent screen and then your `return_url` — never a page of ours. The bounce carries `?connect=<slug>&provider=<provider>&status=<status>&profile_id=<id>&handoff_id=<id>`, plus `reason` on `failed`/`cancelled` and `candidate_count` on `pending_selection`. `status` is `success`, `pending_selection`, `failed`, or `cancelled` (the user cancelled on the provider's screen).
          *
-         *     **The URL is single-use and short-lived.** It stops working at `expires_at` (45 minutes) and the moment the hand-off settles; the page then shows the human what state it is in rather than a dead link. Mint another if they missed it — minting twice is two hand-offs, not an error.
+         *     **`reason` is one list, on the bounce and on your poll's `result.reason` alike:** `user_cancelled`, `provider_denied`, `provider_error`, `token_exchange_failed`, `account_connected_elsewhere`, `no_candidates`, `connect_failed`, `internal_error`, `state_expired`, `state_invalid`, `handoff_expired`, `handoff_used`, `provider_not_configured`, `origin_not_allowed`. A cancel settles the hand-off `cancelled`; every other reason settles it `failed`. `origin_not_allowed` is poll-only — there is no registered target to bounce to, which is the refusal.
+         *
+         *     **The URL is single-use and short-lived.** It stops working at `expires_at` (45 minutes) and the moment the hand-off settles — success, failure or cancel. One consent per hand-off: if your user finishes two (a double-click), exactly one is used and the other normally reports its outcome; the bounce is a hint, so confirm with the poll. A consent that stops partway on our side frees the link again after 3 minutes. A second click on a COMPLETED hand-off normally bounces its real outcome; one that ended `failed`/`cancelled` bounces `handoff_used`, an expired one `handoff_expired`. `internal_error` is transient and does not settle the hand-off — retry the same link. Mint another to retry anything else — minting twice is two hand-offs, not an error.
          *
          *     Scope: `attribution:write` — the same scope the connect picker declares, so one credential can start a connect and finish it.
          */
@@ -12086,7 +12559,7 @@ export interface paths {
                         /** @description Optional assertion, not a selector. Your credential already names a profile; sending a DIFFERENT one is 404. Omit it unless you want the request to fail loudly when your key is scoped somewhere you did not expect. */
                         profile_id?: string;
                         /**
-                         * @description Where to send the human when the consent finishes, instead of back to the hand-off page. Must be an absolute http(s) URL whose ORIGIN your app can receive the bounce on for this profile — any origin from your app's own `redirect_uris` works automatically (Atribu is the OAuth provider, so a `redirect_uris` entry is already your own page); `allowed_return_origins` is only for narrowing that set or adding an origin your `redirect_uris` don't cover. That check runs when the human clicks, so an origin outside both sets surfaces on your poll as `status: "failed"`, `result.reason: "origin_not_allowed"`, never as a 400 here. It receives `?connect=<slug>&status=…&profile_id=…`, the same query the consumer connect bounce has always used.
+                         * @description Where to send the human when the consent ends — success, failure or cancel — instead of back to the hand-off page. Must be an absolute http(s) URL whose ORIGIN your app can receive the bounce on for this profile: any origin from your app's own `redirect_uris` works automatically, and `allowed_return_origins` narrows that set or adds an origin your `redirect_uris` don't cover. Checked HERE (#1800): an origin outside both sets, a profile no app governs, or — for a delegated key — a profile governed by a different app than the key's is a 400. It is re-checked when the human clicks, and only a registration changed in between can still end the hand-off `failed` with `result.reason: "origin_not_allowed"`.
                          * @example https://app.example.com/onboarding/atribu
                          */
                         return_url?: string;
@@ -12094,7 +12567,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description The hand-off. `url` is what you give the human; `id` is what you poll. Identical to what `GET /api/v1/handoffs/{id}` returns. */
+                /** @description The hand-off. `start_url` is where a partner app sends its user (straight to the provider's consent); `url` is the page you give a human directly; `id` is what you poll. Identical to what `GET /api/v1/handoffs/{id}` returns. */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -12109,7 +12582,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description `provider` is not one of the six, or `return_url` is not an absolute http(s) URL. */
+                /** @description `provider` is not one of the six, or `return_url` is not an absolute http(s) URL on an origin registered for this profile's app (and, for a delegated key, the key's own app). */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -12162,6 +12635,151 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connections/{provider}/stages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a CRM's pipeline stages with the suggested and current outcome mapping
+         * @description Everything a «map your CRM stages» screen needs, in one read: every stage of every pipeline of every connected location, what Atribu suggests each stage means (with a label ready to show), the mapping in force, and — when there is no suggestion — why not.
+         *
+         *     **Writing the mapping** is `PATCH /api/v1/outcome-definitions/{outcome_definition_id}` with `{"event_key": "<outcomes[].key>"}`, one row per stage. It is idempotent: the same body twice leaves the same row, so applying every suggestion is safe to retry. The write needs `goals:write` and the attribution entitlement; `can_write` and each stage's `writable` say up front whether it would be refused.
+         *
+         *     Reads Atribu's own copy of the pipelines (refreshed on every CRM sync), never the CRM live, and calls no model: it is cheap and the same stage name always gets the same suggestion.
+         *
+         *     **Before auto-applying**, skip stages whose `current.source` is `user` (someone chose them) and treat `engine_default` as unset.
+         *
+         *     `provider`: `gohighlevel`. Any other value is 404.
+         *
+         *     Scope: `connections:read` or `analytics:read`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Language of every `label`. Defaults to `en`. */
+                    locale?: "es" | "en";
+                };
+                header?: never;
+                path: {
+                    provider: "gohighlevel";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The stages and their mapping */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["StageMapping"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unsupported `locale` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `connections:read` / `analytics:read` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unsupported provider */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -15624,6 +16242,133 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/instagram/accounts/{account_id}/comment-triggers/{trigger_id}/test-dm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a trigger's opening message as a test DM
+         * @description Sends the trigger's `opening_message` to one Instagram user (by IGSID) with Meta's HUMAN_AGENT tag, without counting as a trigger fire. Meta only accepts it when that person messaged the account in the last 7 days; otherwise the send is refused and the Meta error is returned.
+         *
+         *     Scope: `instagram`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    account_id: string;
+                    trigger_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @description The recipient's numeric IGSID. */
+                        recipient_igsid: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Sent */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                provider_message_id: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `instagram` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such row on this profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instagram/ctm-health": {
         parameters: {
             query?: never;
@@ -16985,9 +17730,9 @@ export interface paths {
         };
         /**
          * List the tracked Meta Pages for this profile
-         * @description The currently SAVED tracked Pages (from `meta_page_connections`), not the live Meta API list — that is the OAuth picker's own endpoint, which stays on the console.
+         * @description The currently SAVED tracked Pages (from `meta_page_connections`), not the live Meta API list — that is `GET /api/v1/integrations/meta/pages/available`.
          *
-         *     Scope: `instagram`.
+         *     Scope: `connections:read` or `instagram`.
          */
         get: {
             parameters: {
@@ -17092,9 +17837,9 @@ export interface paths {
         put?: never;
         /**
          * Select which Meta Pages to track
-         * @description Reconciles `meta_page_connections` to match the requested set: new ids are fetched from Meta and inserted, previously-saved ids not in the set are disabled (not deleted, so cached state survives a re-add).
+         * @description Reconciles `meta_page_connections` to match the requested set: new ids are fetched from Meta and inserted, previously-saved ids not in the set are disabled (not deleted, so cached state survives a re-add). Ids the stored Meta token cannot see are not saved and come back in `unavailable_page_ids`.
          *
-         *     Scope: `instagram`.
+         *     Scope: `connections:write` or `instagram`. An API key needs `connections:write` itself: `instagram` alone admits a signed-in user only. Requires a connected Meta Ads account.
          */
         post: {
             parameters: {
@@ -17126,6 +17871,7 @@ export interface paths {
                                 /** @enum {boolean} */
                                 success: true;
                                 enabled_count: number;
+                                unavailable_page_ids: string[];
                             };
                             meta: {
                                 /** @example uuid */
@@ -17187,6 +17933,114 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/meta/pages/available": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the Facebook Pages the connected Meta account can see
+         * @description The Pages the stored Meta Ads user token can see right now (a live Meta read, never cached), each marked `connected` when this profile already tracks it. Candidates come from the user's Page roles, the Pages ticked in the consent dialog and the ad account's promotable Pages, so a Page owned by a Business portfolio is listed too.
+         *
+         *     Pick Pages with `POST /api/v1/integrations/meta/pages`: Atribu then holds a Page token that lets `GET /api/v1/ads/videos/{id}` return a playable `source` for Page-owned ad videos.
+         *
+         *     When the grant lacks the Page permissions (an older consent) or Meta no longer accepts the token the answer is `needs_reconsent: true` with an empty list — not an error. Restart the Meta Ads connect hand-off; it asks for the Page permissions again. `reconsent_reason` is `missing_scopes` (see `missing_scopes`) or `token_invalid`.
+         *
+         *     Scope: `connections:read` or `instagram`. 422 when Meta Ads is not connected.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The available Pages, or the re-consent signal */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                pages: components["schemas"]["AvailableMetaPage"][];
+                                needs_reconsent: boolean;
+                                /** @enum {string|null} */
+                                reconsent_reason: "missing_scopes" | "token_invalid" | null;
+                                missing_scopes: string[];
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing scope, or the caller is an API key (these routes require a signed-in user) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -17338,6 +18192,194 @@ export interface paths {
                     content: {
                         "application/json": {
                             data: components["schemas"]["WhatsAppAutomaticEventsAccounts"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `whatsapp` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/whatsapp/declared-source-prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the "how did you find us?" prompt opt-in and the spec a bot follows
+         * @description Atribu never drives a WhatsApp conversation: the business's bot, a person, or its own template asks. A reply is recognised when the tapped row / button / quick reply carries an id of the form `atb_ds.<answer_key>` (`spec.options[].payload`) — whichever app sent the question — and is recorded only while the account is opted in. `spec.interactive_list` is a ready-to-send Cloud API interactive list per locale; `spec.template` is the quick-reply template variant for asking outside the 24h window (set each button's payload at send time with `sendComponents`, or Meta delivers the label instead).
+         *
+         *     Scope: `whatsapp`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The profile's WhatsApp accounts, their opt-in state, and the prompt spec */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WhatsAppDeclaredSourcePrompt"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the `whatsapp` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Turn the "how did you find us?" prompt on or off
+         * @description The business's opt-in, default off. While off, Atribu sends no declared-source prompt (403 on the send routes) and records no reply as a declared source, even one carrying `atb_ds.` ids.
+         *
+         *     Scope: `whatsapp`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        /** @description Narrow the change to one WABA. Omitted ⇒ every WABA on the profile. */
+                        waba_id?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The updated accounts and the prompt spec */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WhatsAppDeclaredSourcePrompt"];
                             meta: {
                                 /** @example uuid */
                                 profile_id: string;
@@ -18344,6 +19386,8 @@ export interface paths {
          *     The assignment is durable: it wins over the provider's own payer on every future re-sync of this payment (and its reversals), not only on the rows that exist today.
          *
          *     Scope: `attribution:write` — it re-points which customer a payment, and its conversion, is credited to.
+         *
+         *     The response is the fresh `Payment`. Without `customers:read` (e.g. a healthcare-profile key) its `customer` carries the id only — `name` and `email` are null.
          */
         put: {
             parameters: {
@@ -18511,6 +19555,8 @@ export interface paths {
          * @description Marks a payment as a later installment of an earlier sale, so it stops counting as a NEW purchase — it still counts as cash. Idempotent: setting the same value twice is a no-op.
          *
          *     Scope: `attribution:write`.
+         *
+         *     The response is the fresh `Payment`. Without `customers:read` (e.g. a healthcare-profile key) its `customer` carries the id only — `name` and `email` are null.
          */
         put: {
             parameters: {
@@ -18655,6 +19701,8 @@ export interface paths {
          *     `amount` must be greater than zero and no more than the payment's value minus what the provider has already reversed for it.
          *
          *     Scope: `attribution:write`.
+         *
+         *     The response is the fresh `Payment`. Without `customers:read` (e.g. a healthcare-profile key) its `customer` carries the id only — `name` and `email` are null.
          */
         post: {
             parameters: {
@@ -18784,6 +19832,8 @@ export interface paths {
          * @description Removes the manual refund recorded on this payment — its touchpoints, its conversion, and the reversal row itself — and enqueues a recompute. Idempotent: answers 200 with the current payment whether or not there was a manual refund to undo.
          *
          *     Scope: `attribution:write`.
+         *
+         *     The response is the fresh `Payment`. Without `customers:read` (e.g. a healthcare-profile key) its `customer` carries the id only — `name` and `email` are null.
          */
         delete: {
             parameters: {
@@ -18882,6 +19932,1111 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quality/ad-ids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get paid-Touch ad-id coverage
+         * @description What share of paid clicks name the ad that produced them, per platform, and why the rest do not. Ad-level credit is only possible for Touches with an ad id, so this is the ceiling on every ad-level number.
+         *
+         *     Also audits the profile's active Meta ads: `ads.missing_macro` lists each one whose URL parameters do not carry `{{ad.id}}` in a parameter Atribu reads (utm_content, utm_term or utm_id), busiest first, with the suggested replacement. `template` is Atribu's canonical value.
+         *
+         *     Reads durable tables only, so any range up to 366 days is supported.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Required. YYYY-MM-DD. */
+                    date_from: string;
+                    /** @description Required. YYYY-MM-DD. */
+                    date_to: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ad-id coverage for the profile */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AdIdCoverage"];
+                            meta: {
+                                /** @example 2026-08-01 */
+                                date_from?: string;
+                                /** @example 2026-08-26 */
+                                date_to?: string;
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid parameter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the analytics:read scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quality/itp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Safari ITP exposure
+         * @description How much of the profile's browser traffic Safari's 7-day storage cap (ITP) applies to — every iPhone and iPad browser, in-app browsers included, and Safari on Mac — whether the profile's collector protects it, observed evidence of lost visitor identity, and a recommendation.
+         *
+         *     Reads the last 90 days of the requested range (`narrowed` says when that is shorter) plus the last 7 days of collector traffic.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Required. YYYY-MM-DD. */
+                    date_from: string;
+                    /** @description Required. YYYY-MM-DD. */
+                    date_to: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ITP exposure for the profile */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ItpExposure"];
+                            meta: {
+                                /** @example 2026-08-01 */
+                                date_from?: string;
+                                /** @example 2026-08-26 */
+                                date_to?: string;
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid parameter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the analytics:read scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quality/ad-ids/url-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the URL-parameter apply state
+         * @description Whether this profile can apply Atribu's URL parameters to its Meta ads from here, and the change log (with undo availability). Makes no call to Meta.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Apply state for the profile */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /**
+                                 * @description `granted`: a Meta Ads connection's recorded grant includes `ads_management`. `unknown`: the grant was not recorded (older connections) — applying is offered and Meta's answer decides. `missing`: every usable connection was granted read-only — copy the parameters into Ads Manager instead. `no_connection`: no usable Meta Ads connection.
+                                 * @enum {string}
+                                 */
+                                write_permission: "granted" | "unknown" | "missing" | "no_connection";
+                                /** @description `write_permission` allows it AND this credential holds `campaigns:apply`. */
+                                can_apply: boolean;
+                                /** @description Atribu's canonical Meta URL-parameters template. */
+                                template: string;
+                                max_ads_per_apply: number;
+                                /** @description This profile's URL-parameter changes, newest first (at most 50). */
+                                recent: {
+                                    /** @description The `meta_action_log` row. Undo it with `POST /api/v1/quality/ad-ids/url-tags/undo`. */
+                                    action_id: string;
+                                    ad_id: string | null;
+                                    ad_name: string | null;
+                                    /** @description `applied` | `failed` | `rolled_back` | `pending`. */
+                                    status: string;
+                                    url_tags_before: string | null;
+                                    url_tags_after: string | null;
+                                    error_code: string | null;
+                                    /** @description Meta's own explanation (`error_user_msg`) when Meta sent one. */
+                                    error_message: string | null;
+                                    created_at: string;
+                                    applied_at: string | null;
+                                    rolled_back_at: string | null;
+                                    undo_available: boolean;
+                                }[];
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the analytics:read scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quality/ad-ids/url-tags/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Atribu's URL parameters to Meta ads
+         * @description Writes Atribu's URL parameters onto up to 25 Meta ads, MERGED with each ad's own: every parameter the ad already has that Atribu does not own is kept verbatim, and Atribu's keys (utm_source, utm_medium, utm_campaign, utm_term, utm_content, utm_id) take Atribu's `{{…}}` id macros.
+         *
+         *     **What Meta does with the edit.** URL parameters live on the ad's creative, and Meta does not let an existing creative's `url_tags` be edited. Atribu therefore creates a new creative from the ad's SAME page post (so its likes, comments and shares stay) with the merged parameters and points the ad at it. Meta counts a creative change as a significant edit: it can restart the ad set's learning phase, and the ad goes through Meta's review again. So every call must carry `acknowledge_learning_reset: true`.
+         *
+         *     Each ad carries `expected_url_tags` — the current value shown to the person. Meta's live value is read first; when it differs the ad is `skipped` (`changed_since_preview`) and nothing is written. Re-applying is safe: an ad that already carries the parameters is `skipped` (`already_applied`).
+         *
+         *     One result per ad, in request order. A Meta refusal is that ad's `failed` result, not an HTTP error. Undo one ad with `POST /api/v1/quality/ad-ids/url-tags/undo`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Required, every call: the person was told the edit can restart the ad set's learning phase.
+                         * @enum {boolean}
+                         */
+                        acknowledge_learning_reset: true;
+                        ads: {
+                            /**
+                             * @description Meta's ad id, from `ads.missing_macro[].ad_id`.
+                             * @example 120210000000000042
+                             */
+                            ad_id: string;
+                            /** @description The ad's CURRENT URL parameters as shown to the person (`missing_macro[].url_tags`); null when it has none. */
+                            expected_url_tags: string | null;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description One result per ad */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                results: {
+                                    ad_id: string;
+                                    ad_name: string | null;
+                                    /** @enum {string} */
+                                    outcome: "applied" | "skipped" | "failed";
+                                    /**
+                                     * @description Why a `skipped` ad was not changed. `already_applied`: it already carries Atribu's parameters (a re-apply is a no-op). `changed_since_preview`: its live parameters differ from `expected_url_tags` — show `suggested_url_tags` and ask again. `dynamic_creative` / `catalog_ad` / `no_post`: the creative cannot be rebuilt from its post — copy the parameters in Ads Manager. `write_permission_missing`: the Meta connection is read-only. `no_connection`, `not_found`, `no_creative`: nothing to write through or to.
+                                     * @enum {string|null}
+                                     */
+                                    reason: "already_applied" | "changed_since_preview" | "dynamic_creative" | "catalog_ad" | "no_post" | "no_creative" | "not_found" | "write_permission_missing" | "no_connection" | null;
+                                    url_tags_before: string | null;
+                                    url_tags_after: string | null;
+                                    suggested_url_tags: string | null;
+                                    error_code: string | null;
+                                    /** @description On `failed`: Meta's message, including `error_user_msg`. */
+                                    error_message: string | null;
+                                    action_id: string | null;
+                                    undo_available: boolean;
+                                }[];
+                                applied: number;
+                                skipped: number;
+                                failed: number;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing acknowledgement, or a malformed `ads` list */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the campaigns:apply scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quality/ad-ids/url-tags/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo a URL-parameter change
+         * @description Points the ad back at the creative it had before the change, which restores its previous URL parameters exactly. Like the apply, this is a creative change on Meta (learning phase, review). Refused with `outcome: "not_reversible"`, `reason_code: "state_drifted"` when the ad's creative was changed since — undoing would overwrite that newer change.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description From an apply result or `recent[]`.
+                         */
+                        action_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description What the undo did */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                action_id: string;
+                                ad_id: string | null;
+                                /** @description `rolled_back` | `not_reversible` | `invalid_state`. */
+                                outcome: string;
+                                reason: string | null;
+                                /** @description On `not_reversible`, e.g. `state_drifted`: the ad's creative changed since, so undoing would overwrite that. */
+                                reason_code: string | null;
+                                url_tags_restored: string | null;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Malformed `action_id` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized, or the Meta token is dead (`reconnect_required: true`) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing campaigns:apply, or the connection is read-only (`meta_write_permission_missing`) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No URL-parameter change with that id on this profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/platform-comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare platform-reported conversions with Atribu's attribution
+         * @description Per platform and per campaign / ad set / ad: what the ad platform REPORTS it produced (its own conversions and conversion value, from the delivery sync) beside what Atribu ATTRIBUTED to the same entity under `model` (conversions and cash revenue), with the gap and ROAS computed both ways.
+         *
+         *     The two sides are never blended. They disagree for known reasons: platforms credit view-through and modeled conversions, use their own windows, and date a conversion to the ad interaction; Atribu counts only conversions it can trace to a click, dates them by when they happened, and values them by cash collected. A paid click without an ad id cannot land on an ad row — its credit is reported per platform as `unassigned_*`.
+         *
+         *     Reads durable tables only, so any range up to 366 days is supported.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Required. YYYY-MM-DD. */
+                    date_from: string;
+                    /** @description Required. YYYY-MM-DD. */
+                    date_to: string;
+                    /** @description Attribution model for the Atribu side. Defaults to `last_touch`. */
+                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
+                    /** @description Row grain. Defaults to `campaign`. */
+                    level?: "campaign" | "ad_set" | "ad";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Platform-reported vs Atribu-attributed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PlatformComparison"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                                /** @example 2026-08-01 */
+                                date_from?: string;
+                                /** @example 2026-08-26 */
+                                date_to?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid parameter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the campaigns:read scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/recorded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Replay outcome.recorded events
+         * @description The `outcome.recorded` events of this profile — every GoHighLevel and MercadoPago outcome Atribu recorded for it since the event existed — in ledger (recording) order — the order the webhook enqueues them; retries can deliver pushes out of order — from an opaque cursor. Use it to backfill a new subscriber, or to reconcile after downtime: the ids are the webhook's, so de-duping on `id` makes the two paths safe to mix.
+         *
+         *     **Resuming.** `pagination.cursor` is returned on every page that has a position, including the last. Store it and pass it back later; `has_next: false` means you are caught up, not that the feed ended. Omit `cursor` to start from the first event. A cursor this endpoint did not issue is `400 invalid_parameter` (never a silent restart).
+         *
+         *     **Order.** Events appear once their transaction is settled, in recording order, and never behind a cursor you already hold.
+         *
+         *     **The scope decides the shape.** `conversions:read` opens the read with the person left out (`contact: null`, `contact_withheld: true`, and a `customer_key` that is not the provider's opaque id set to `null`); `customers:read` adds the person.
+         *
+         *     **Healthcare.** A healthcare-family profile (a healthcare workspace, or a profile in Platform-Safe / HIPAA privacy mode) is served only to a key of the app that provisioned it; any other caller, whatever its scopes, gets `403 healthcare_scope_forbidden`. That app's key never carries `customers:read` there, so the person is added when the app's grant on the profile opens contact (the webhook's rule), and that read is recorded in the PII access log. When the profile's privacy settings, the app that provisioned it or its grant cannot be read the answer is `503`, never a page without the check.
+         *
+         *     Only profiles provisioned by an app produce events, and only outcomes recorded after this endpoint shipped. Each event stays replayable for 90 days after it was delivered; an erased customer's events are not replayed.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description The opaque `pagination.cursor` of a previous response. */
+                    cursor?: string;
+                    /** @description Events per page (default 100, max 500). */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One page of events, oldest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OutcomeRecordedEvent"][];
+                            pagination: {
+                                /** @description More events are ready now. */
+                                has_next: boolean;
+                                /** @description The position after the last event served (or the one you sent, when nothing new is ready). Absent only on an empty feed read from the beginning. */
+                                cursor?: string;
+                            };
+                            meta: {
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `invalid_parameter`: `cursor` is not one this endpoint issued */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `insufficient_scope`: neither `conversions:read` nor `customers:read`. `healthcare_scope_forbidden`: the profile is healthcare-family and the caller is not a key of the app that provisioned it */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `service_unavailable`: the profile's privacy settings, or the app that provisioned it, could not be read; retry */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attribution/ad-people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count the people reached by ads, per month, day or ad
+         * @description How many distinct people had at least one ad-tagged Touch in each bucket of the window, where those Touches came from, and Meta's own reported messaging conversations started for the same bucket.
+         *
+         *     **Counts only.** The response never names, identifies or lists a person: every figure is an aggregate, and no probability or modelled number is included. It is safe for healthcare-family profiles under `analytics:read`.
+         *
+         *     **What counts.** A Touch with an ad id and a resolved person, of any kind except an organic interaction: a partner's historical import, a conversation that arrived with Meta's ad referral, a tracked website visit, or another ad-tagged record. `by_origin` says which.
+         *
+         *     **Days and months are in the profile's time zone** (`timezone`). Meta's figure is dated by the ad account's own day.
+         *
+         *     **`first_only=true`** counts each person once, in the bucket of their earliest-ever ad Touch on any channel; people first reached before the window are left out. With `channel`, it keeps only people whose first ad Touch was on that channel.
+         *
+         *     Reads durable tables only, so any range up to 366 days is supported.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Required. YYYY-MM-DD, in the profile's time zone. */
+                    date_from: string;
+                    /** @description Required. YYYY-MM-DD, inclusive. At most 366 days after `date_from`. */
+                    date_to: string;
+                    /** @description Bucket grain. Defaults to `month`. */
+                    group_by?: "month" | "day" | "ad";
+                    /** @description Only Touches that arrived through this channel. `web` is a tracked website visit; `other` is an ad-tagged Touch from neither web nor a messaging referral. */
+                    channel?: "whatsapp" | "instagram" | "messenger" | "web" | "other";
+                    /** @description Count each person only in the bucket of their earliest-ever ad Touch. Defaults to `false`. */
+                    first_only?: "true" | "false";
+                    /** @description `group_by=ad` only: how many ads to return, 1 to 1000. Defaults to 100. */
+                    limit?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description People reached by ads, per bucket */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AdPeople"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                                /** @example 2026-09-01 */
+                                date_from?: string;
+                                /** @example 2026-09-30 */
+                                date_to?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing or malformed date range, or an invalid `group_by`, `channel`, `first_only` or `limit` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the analytics:read scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -19776,6 +21931,19 @@ export interface paths {
                                  */
                                 outcome_value: string;
                                 roas: number;
+                                /** @description Conversions of EVERY kind credited to this entity under `model` — leads, DMs started, appointments, quotes, closed deals and cash payments; refunds/chargebacks excluded. NOT cash: never divide spend by it for ROAS or CAC — `outcome_count` is the cash-only count those use. Credited means credit weight > 0 under `model`, so under a single-credit model the rows plus `GET /api/v1/campaigns/unattributed` add up to the profile total. Comparable only within one `model`; never sum it across models. */
+                                attributed_outcome_count: number;
+                                /**
+                                 * @description `attributed_outcome_count` split by conversion type, e.g. `{"dm_started": 89, "lead_created": 88, "appointment_booked": 4}`. Keys are the profile's conversion types; values sum to `attributed_outcome_count`; a kind with nothing credited is absent rather than 0. Not cash.
+                                 * @example {
+                                 *       "dm_started": 89,
+                                 *       "lead_created": 88,
+                                 *       "appointment_booked": 4
+                                 *     }
+                                 */
+                                attributed_outcomes_by_type: {
+                                    [key: string]: number;
+                                };
                                 campaign_external_id?: string;
                                 /**
                                  * Format: decimal
@@ -19850,6 +22018,19 @@ export interface paths {
                                 /** @description `outcome_value_first_payment` ÷ spend. */
                                 roas_first_payment: number;
                                 cac_first_payment: number;
+                                /** @description Conversions of EVERY kind credited to this entity under `model` — leads, DMs started, appointments, quotes, closed deals and cash payments; refunds/chargebacks excluded. NOT cash: never divide spend by it for ROAS or CAC — `outcome_count` is the cash-only count those use. Credited means credit weight > 0 under `model`, so under a single-credit model the rows plus `GET /api/v1/campaigns/unattributed` add up to the profile total. Comparable only within one `model`; never sum it across models. */
+                                attributed_outcome_count: number;
+                                /**
+                                 * @description `attributed_outcome_count` split by conversion type, e.g. `{"dm_started": 89, "lead_created": 88, "appointment_booked": 4}`. Keys are the profile's conversion types; values sum to `attributed_outcome_count`; a kind with nothing credited is absent rather than 0. Not cash.
+                                 * @example {
+                                 *       "dm_started": 89,
+                                 *       "lead_created": 88,
+                                 *       "appointment_booked": 4
+                                 *     }
+                                 */
+                                attributed_outcomes_by_type: {
+                                    [key: string]: number;
+                                };
                             }[];
                             meta: components["schemas"]["Meta"];
                         };
@@ -19874,7 +22055,7 @@ export interface paths {
         };
         /**
          * Get a campaign's attributed conversions (drill-down)
-         * @description The conversions attributed to one campaign under the given model — the drill-down behind the campaign rollup at GET /api/v1/campaigns. `{id}` is the campaign's EXTERNAL (platform) id, the same value GET /api/v1/campaigns returns as `campaign_external_id` on each row — not `campaign_id` on that same resource, which is an internal identifier. Each row carries the credited share (credited_weight/credited_value), the touch's position within the full path (touch_count/path_length), and whether the credit is `is_inherited` (bridged lead→cash, never counted in ROAS). `customer_name`/`customer_email` are null unless the key also holds `customers:read`; every other field is visible under `campaigns:read` alone. The campaign's unattributed bucket has no external id and is not drillable — it returns an empty list.
+         * @description The conversions attributed to one campaign under the given model — the drill-down behind the campaign rollup at GET /api/v1/campaigns. `{id}` is the campaign's EXTERNAL (platform) id, the same value GET /api/v1/campaigns returns as `campaign_external_id` on each row — not `campaign_id` on that same resource, which is an internal identifier. Each row carries the credited share (credited_weight/credited_value), the touch's position within the full path (touch_count/path_length), and whether the credit is `is_inherited` (bridged lead→cash, never counted in ROAS). `customer_name`/`customer_email` are null unless the key also holds `customers:read`; every other field is visible under `campaigns:read` alone. The campaign's unattributed bucket has no external id and is not drillable — it returns an empty list. Paginated by conversion, newest first (`event_time` descending, ties broken by `conversion_id`): `limit` conversions per page (default 50, max 200), and while `pagination.has_next` is true pass `pagination.cursor` back as `cursor`. A page always carries a conversion's whole path, and can hold fewer than `limit` conversions when their paths are long (a page stays under 1,000 touchpoint rows) — `has_next` is what says whether more remain, never the page's size. A `limit` outside 1–200 or a cursor this endpoint did not issue is `400 invalid_parameter`. Before pagination the read stopped at 50 conversions without saying so.
          */
         get: {
             parameters: {
@@ -19882,6 +22063,10 @@ export interface paths {
                     date_from: string;
                     date_to: string;
                     model?: string;
+                    /** @description Conversions per page, an integer from 1 to 200. Default 50. Anything else is `400 invalid_parameter`. */
+                    limit?: number;
+                    /** @description `pagination.cursor` from the previous page. Omit for the first page. */
+                    cursor?: string;
                 };
                 header?: never;
                 path: {
@@ -19978,7 +22163,7 @@ export interface paths {
         };
         /**
          * Get the profile's top-performing ads (cohort-normalized creative scoring)
-         * @description Best ads scored against *comparable* creative (a cohort = channel × format × objective × audience warmth × geo × placement): cohort-normalized, empirical-Bayes-smoothed (small-sample ads shrink toward the cohort mean), and maturity-staged. Each ad carries THREE distinct measures — present them separately, never merge: `composite_score` (0–100, a transparent rule blend), `top_performer_likelihood` (0–1, a probability — a *likelihood, not a guarantee*; the calibrated ML-ranker output when `score_source='model'` with `model_version` set, else a monotone function of `composite_score`; never ROAS), and `attributed_revenue`/`roas` (real cash attribution, present when `truth_grade='attributed'`). `maturity_stage` (cold→early→mature→calibrated) says how settled the score is; `reason_codes` explain which funnel layer is strong/weak with a sample-confidence band. Scores refresh on a daily cadence. `window` is a rolling lookback (`7d`/`14d`/`28d`/`lifetime`), not a custom date range. The workspace-wide cross-profile view is exposed via the Atribu MCP server's `top_workspace_performers` tool.
+         * @description Best ads scored against *comparable* creative (a cohort = channel × format × objective × audience warmth × geo × placement): cohort-normalized, empirical-Bayes-smoothed (small-sample ads shrink toward the cohort mean), and maturity-staged. Each ad carries THREE distinct measures — present them separately, never merge: `composite_score` (0–100, a transparent rule blend), `top_performer_likelihood` (a LEARNED field `{ value, status, reason }`: the ML ranker's 0–1 probability, `served` only when a ranker has cleared the out-of-time serving gate and scored the row; `withheld` otherwise — show «no evaluado», never 0; never ROAS), and `attributed_revenue`/`roas` (real cash attribution, present when `truth_grade='attributed'`). `maturity_stage` (cold→early→mature→calibrated) says how settled the score is; `reason_codes` explain which funnel layer is strong/weak with a sample-confidence band. Scores refresh on a daily cadence. `window` is a rolling lookback (`7d`/`14d`/`28d`/`lifetime`), not a custom date range. The workspace-wide cross-profile view is exposed via the Atribu MCP server's `top_workspace_performers` tool.
          */
         get: {
             parameters: {
@@ -20013,7 +22198,36 @@ export interface paths {
                                 video_id: string | null;
                                 score_window: string;
                                 composite_score: number | null;
-                                top_performer_likelihood: number | null;
+                                /** @description The rule behind a rule-based verdict: `id` (render it with its dictionary sentence), the `thresholds` it compares against, and this verdict's measured `inputs`. A rule, not a model. */
+                                composite_rule: {
+                                    /** @enum {string} */
+                                    id: "composite_score" | "creative_degradation" | "scale_guidance" | "funnel_diagnosis" | "gap_direction" | "cockpit_tier" | "intent_band" | "lead_quality" | "experiment_grade" | "house_model_split";
+                                    thresholds: {
+                                        [key: string]: number;
+                                    };
+                                    inputs: {
+                                        [key: string]: number | string | boolean | null;
+                                    };
+                                } | null;
+                                /** @description The ML ranker's probability (0–1) that this ad is a top performer in its cohort — a likelihood, not a guarantee, never ROAS. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                top_performer_likelihood: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
                                 model_version: number | null;
                                 /** @enum {string} */
                                 score_source: "model" | "rules";
@@ -20082,13 +22296,96 @@ export interface paths {
                                     code?: string;
                                     metric_value?: number | null;
                                 }[];
-                                hazard_30d_pause: number | null;
-                                hazard_30d_degradation: number | null;
+                                /** @description Cox 30-day pause probability (0–1). A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                hazard_30d_pause: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
+                                /** @description Cox 30-day degradation probability (0–1). A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                hazard_30d_degradation: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
                                 /** @enum {string|null} */
                                 fatigue_state: "active" | "paused" | "degraded" | null;
-                                /** @enum {string|null} */
-                                fatigue_risk_tier: "low" | "medium" | "high" | "critical" | null;
-                                expected_lifespan_days: number | null;
+                                /** @description The rule behind a rule-based verdict: `id` (render it with its dictionary sentence), the `thresholds` it compares against, and this verdict's measured `inputs`. A rule, not a model. */
+                                fatigue_state_rule: {
+                                    /** @enum {string} */
+                                    id: "composite_score" | "creative_degradation" | "scale_guidance" | "funnel_diagnosis" | "gap_direction" | "cockpit_tier" | "intent_band" | "lead_quality" | "experiment_grade" | "house_model_split";
+                                    thresholds: {
+                                        [key: string]: number;
+                                    };
+                                    inputs: {
+                                        [key: string]: number | string | boolean | null;
+                                    };
+                                } | null;
+                                /** @description Cox wear-out tier. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                fatigue_risk_tier: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    /** @enum {string} */
+                                    value: "low" | "medium" | "high" | "critical";
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
+                                /** @description Expected remaining life in days, from the Cox survival curve. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                expected_lifespan_days: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
                                 identity: {
                                     /** @example meta */
                                     provider: string;
@@ -20158,8 +22455,25 @@ export interface paths {
                                 };
                                 score: {
                                     creative_fit_score: number | null;
-                                    /** @description The ML ranker's CALIBRATED probability — non-null only when a model actually scored this row (`score_source = 'model'`). The top-level `top_performer_likelihood` falls back to a monotone squash of `composite_score` when it did not, so this is how a consumer tells 'a model said 0.71' from 'the rule blend implies 0.71'. */
-                                    top_performer_likelihood_calibrated: number | null;
+                                    /** @description The ML ranker's CALIBRATED probability (0–1). `not_applicable` (reason `rules_fallback`) when the row was ranked by the rule blend instead. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                    top_performer_likelihood_calibrated: {
+                                        /** @enum {string} */
+                                        status: "served";
+                                        value: number;
+                                        reason: null;
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "withheld";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "not_applicable";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "rules_fallback" | "not_scored";
+                                    };
                                     pct_delivery: number | null;
                                     pct_attention: number | null;
                                     pct_retention: number | null;
@@ -20548,7 +22862,7 @@ export interface paths {
         };
         /**
          * Workspace fatigue risk ranking (Phase 4)
-         * @description Returns ads at predicted fatigue risk (high/critical tier only, fatigue_state='active') ranked by `hazard_30d_pause × spend` — the projected budget at risk if each ad pauses within 30 days. The Cox cause-specific 30-day pause probability is a *likelihood, not a guarantee*. Excludes already paused/degraded ads (those are observed states surfaced separately). Each row carries `fatigue_risk_tier`, `hazard_30d_pause`, `hazard_30d_degradation` (when the degradation cause has trained, else null), `expected_lifespan_days` (trapezoidal E[T] from the survival curve), and `risk_rank_score`. Models retrain weekly.
+         * @description Returns ads at predicted fatigue risk (high/critical tier only, fatigue_state='active') ranked by `hazard_30d_pause × spend`. Every row is a Cox model verdict, so the list is governed by the serving gate (#1761): while no Cox model has demonstrated out-of-time skill above chance, `model.status = 'withheld'` and `ads` is EMPTY — that means «not evaluated», never «nothing at risk». When served, each learned value (`fatigue_risk_tier`, `hazard_30d_pause`, `hazard_30d_degradation`, `expected_lifespan_days`, `risk_rank_score`) is a `{ value, status, reason }` object; read `value` only when `status = 'served'`.
          */
         get: {
             parameters: {
@@ -20582,8 +22896,126 @@ export interface paths {
                                  * @example 1234.56
                                  */
                                 min_spend: string;
+                                model: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                };
                                 ads: {
-                                    [key: string]: unknown;
+                                    ad_external_id: string;
+                                    ad_name: string | null;
+                                    campaign_name: string | null;
+                                    ad_set_name: string | null;
+                                    profile_id: string | null;
+                                    profile_name: string | null;
+                                    /**
+                                     * Format: decimal
+                                     * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                     * @example 1234.56
+                                     */
+                                    spend: string;
+                                    fatigue_state: string | null;
+                                    /** @description A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                    fatigue_risk_tier: {
+                                        /** @enum {string} */
+                                        status: "served";
+                                        /** @enum {string} */
+                                        value: "low" | "medium" | "high" | "critical";
+                                        reason: null;
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "withheld";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "not_applicable";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "rules_fallback" | "not_scored";
+                                    };
+                                    /** @description A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                    hazard_30d_pause: {
+                                        /** @enum {string} */
+                                        status: "served";
+                                        value: number;
+                                        reason: null;
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "withheld";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "not_applicable";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "rules_fallback" | "not_scored";
+                                    };
+                                    /** @description A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                    hazard_30d_degradation: {
+                                        /** @enum {string} */
+                                        status: "served";
+                                        value: number;
+                                        reason: null;
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "withheld";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "not_applicable";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "rules_fallback" | "not_scored";
+                                    };
+                                    /** @description A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                    expected_lifespan_days: {
+                                        /** @enum {string} */
+                                        status: "served";
+                                        value: number;
+                                        reason: null;
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "withheld";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "not_applicable";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "rules_fallback" | "not_scored";
+                                    };
+                                    /** @description A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                    risk_rank_score: {
+                                        /** @enum {string} */
+                                        status: "served";
+                                        value: number;
+                                        reason: null;
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "withheld";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "not_applicable";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "rules_fallback" | "not_scored";
+                                    };
                                 }[];
                             };
                             meta: components["schemas"]["Meta"];
@@ -20943,11 +23375,11 @@ export interface paths {
          * Get customer conversions
          * @description Paginated list of customers who achieved a goal. Requires `customers:read` scope. Returns PII (name, email).
          *
-         *     **Filters** are `filter[<dimension>]=<operator>:<value>`, e.g. `filter[channel]=is:Paid Social`. Dimensions: `channel`, `campaign`, `country`. Operators: `is`, `is_not`, `contains`, `not_contains`. Anything else is 400 `invalid_parameter` — a filter this endpoint cannot apply is refused, never silently dropped.
+         *     **Filters** are `filter[<dimension>]=<operator>:<value>`, e.g. `filter[channel]=is:Paid Social`. Dimensions: `channel`, `campaign`, `country`, `ad`. Operators: `is`, `is_not`, `contains`, `not_contains`. Anything else is 400 `invalid_parameter` — a filter this endpoint cannot apply is refused, never silently dropped.
          *
          *     A row is returned when the customer/visitor has **at least one touch** matching every filter (for `/customers`, a touch at or before the conversion; for `/visitors`, a touch inside the requested window). That is the same rule the rest of the attribution engine applies, so a filtered list reconciles with a filtered KPI. Note the consequence: the `channel` / `campaign_name` / `country` a row DISPLAYS are first-touch (customers) or last-touch (visitors) projections, so a returned row may show a different channel than the one filtered on.
          *
-         *     `campaign` compares against the campaign identifier carried on the touch — the value surfaced as `raw_campaign`, which for Meta is the campaign's platform id — not the resolved campaign name. `country` is the ISO-3166 alpha-2 code, the same value returned as `country`.
+         *     `campaign` compares against the campaign identifier carried on the touch — the value surfaced as `raw_campaign`, which for Meta is the campaign's platform id — not the resolved campaign name. `country` is the ISO-3166 alpha-2 code, the same value returned as `country`. `ad` compares against the ad's platform id carried on the touch (`ad_platform_id` on a journey touch), so `filter[ad]=is:<id>` lists the people one ad reached.
          *
          *     Filtering is applied in the database before pagination, so a filtered page is a full page and `pagination.cursor` stays correct.
          */
@@ -20969,6 +23401,8 @@ export interface paths {
                     "filter[campaign]"?: string;
                     /** @description Filter by country: `<operator>:<value>`, where operator is `is` | `is_not` | `contains` | `not_contains`. An unusable operator or value is 400 `invalid_parameter`, never ignored. See the operation description for what the value is compared against. */
                     "filter[country]"?: string;
+                    /** @description Filter by ad: `<operator>:<value>`, where operator is `is` | `is_not` | `contains` | `not_contains`. An unusable operator or value is 400 `invalid_parameter`, never ignored. See the operation description for what the value is compared against. */
+                    "filter[ad]"?: string;
                 };
                 header?: never;
                 path?: never;
@@ -21152,11 +23586,11 @@ export interface paths {
          * Get visitor list
          * @description Paginated list of all visitors (identified and anonymous). Requires `visitors:read` scope.
          *
-         *     **Filters** are `filter[<dimension>]=<operator>:<value>`, e.g. `filter[channel]=is:Paid Social`. Dimensions: `channel`, `campaign`, `country`. Operators: `is`, `is_not`, `contains`, `not_contains`. Anything else is 400 `invalid_parameter` — a filter this endpoint cannot apply is refused, never silently dropped.
+         *     **Filters** are `filter[<dimension>]=<operator>:<value>`, e.g. `filter[channel]=is:Paid Social`. Dimensions: `channel`, `campaign`, `country`, `ad`. Operators: `is`, `is_not`, `contains`, `not_contains`. Anything else is 400 `invalid_parameter` — a filter this endpoint cannot apply is refused, never silently dropped.
          *
          *     A row is returned when the customer/visitor has **at least one touch** matching every filter (for `/customers`, a touch at or before the conversion; for `/visitors`, a touch inside the requested window). That is the same rule the rest of the attribution engine applies, so a filtered list reconciles with a filtered KPI. Note the consequence: the `channel` / `campaign_name` / `country` a row DISPLAYS are first-touch (customers) or last-touch (visitors) projections, so a returned row may show a different channel than the one filtered on.
          *
-         *     `campaign` compares against the campaign identifier carried on the touch — the value surfaced as `raw_campaign`, which for Meta is the campaign's platform id — not the resolved campaign name. `country` is the ISO-3166 alpha-2 code, the same value returned as `country`.
+         *     `campaign` compares against the campaign identifier carried on the touch — the value surfaced as `raw_campaign`, which for Meta is the campaign's platform id — not the resolved campaign name. `country` is the ISO-3166 alpha-2 code, the same value returned as `country`. `ad` compares against the ad's platform id carried on the touch (`ad_platform_id` on a journey touch), so `filter[ad]=is:<id>` lists the people one ad reached.
          *
          *     Filtering is applied in the database before pagination, so a filtered page is a full page and `pagination.cursor` stays correct.
          */
@@ -21177,6 +23611,8 @@ export interface paths {
                     "filter[campaign]"?: string;
                     /** @description Filter by country: `<operator>:<value>`, where operator is `is` | `is_not` | `contains` | `not_contains`. An unusable operator or value is 400 `invalid_parameter`, never ignored. See the operation description for what the value is compared against. */
                     "filter[country]"?: string;
+                    /** @description Filter by ad: `<operator>:<value>`, where operator is `is` | `is_not` | `contains` | `not_contains`. An unusable operator or value is 400 `invalid_parameter`, never ignored. See the operation description for what the value is compared against. */
+                    "filter[ad]"?: string;
                 };
                 header?: never;
                 path?: never;
@@ -21698,11 +24134,13 @@ export interface paths {
         put?: never;
         /**
          * Send a channel-agnostic message
-         * @description Sends a WhatsApp or Instagram message via a connected `data_connection`. Requires the `whatsapp` or `instagram` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).
+         * @description Sends a WhatsApp, Instagram or Messenger message via a connected `data_connection`. Requires the `whatsapp`, `instagram` or `messenger` scope on the API key (matching the `channel`). For keys minted through the OAuth provider flow, an active `oauth_app_authorizations` row must also exist for the (app, profile, data_connection).
          *
          *     **WhatsApp media (image/video/audio/document)** accepts either `media.media_id` (pre-uploaded via Meta's `/media` endpoint, 30-day cache) or `media.link` (public HTTPS URL Meta fetches once per send — no caching, size caps enforced). High-fanout sends should pre-upload.
          *
          *     **Instagram image/video** accept `image_url` / `video_url` directly (Meta fetches the URL). Quick replies are IG-only.
+         *
+         *     **Messenger** sends text, image or video from the connected Facebook Page (`POST /{page-id}/messages`). It answers inside Meta's 24-hour standard messaging window; outside it only a human agent's reply with `human_agent: true` is allowed (up to 7 days). A send Meta refuses because the window is closed answers **422** with `code: messaging_window_closed`.
          *
          *     **WhatsApp Flows** (`content.type='flow'`) send a Meta-hosted multi-screen form behind a CTA button. Manage flows via `/api/v1/whatsapp/flows`; the customer's answers arrive on the `message.received` webhook as `raw.interactive.nfm_reply.response_json`.
          *
@@ -21711,6 +24149,8 @@ export interface paths {
          *     **Bulk email carries an unsubscribe target.** `content.list_unsubscribe: { url, one_click }` writes `List-Unsubscribe: <url>` onto the outgoing message and, with `one_click: true`, `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058) — which requires an `https://` URL. Omit it on a 1:1 reply.
          *
          *     **Email is capped per mailbox per UTC day** (#341). Atribu holds each connected mailbox well under its provider's own daily send limit — crossing that limit suspends the mailbox itself for up to 24 hours — so a send beyond the cap answers **429** and outbound resumes automatically at the next UTC midnight. Defaults are 300/day for a personal-domain mailbox (gmail.com, outlook.com, …) and 1,500/day for a Google Workspace / Microsoft 365 one; the effective cap is per connection and can be raised. Inbound sync is never paused.
+         *
+         *     **A mailbox the provider refuses is reported, not retried** (#1653). When Gmail or Microsoft Graph refuses a send because of the MAILBOX — the account is suspended, the grant was revoked, mail is disabled, or its own quota is exhausted — the response is a 4xx with its own `code` (`account_suspended`, `auth_revoked`, `mailbox_disabled`, `quota_exceeded`) and the provider's own words in `provider_code` / `provider_message`; the connection's health says so (`needs_action`, or `reconnect_required` for a dead grant) and a `channel.health.updated` event is pushed on provider `email`. A `needs_action` mailbox still accepts sends: the first one the provider accepts clears it and pushes the recovery. A refused recipient is `422 recipient_rejected` and does not touch health. Only a genuinely transient provider failure answers 502/503.
          */
         post: {
             parameters: {
@@ -21728,8 +24168,8 @@ export interface paths {
                         /** Format: uuid */
                         connection_id: string;
                         /** @enum {string} */
-                        channel: "whatsapp" | "instagram" | "email";
-                        /** @description E.164 phone for WhatsApp; IGSID for Instagram; recipient email address for Email. */
+                        channel: "whatsapp" | "instagram" | "email" | "messenger";
+                        /** @description E.164 phone for WhatsApp; IGSID for Instagram; PSID (page-scoped id) for Messenger; recipient email address for Email. */
                         to: string;
                         content: {
                             /** @enum {string} */
@@ -21741,6 +24181,7 @@ export interface paths {
                             type: "template";
                             template_name: string;
                             language_code: string;
+                            /** @description Meta's send-time template components, forwarded VERBATIM. A media-header template carries its media here: `{ type: 'header', parameters: [{ type: 'image', image: { link: 'https://…' } }] }` (or `video: { link }`, `document: { link, filename }`; `id` instead of `link` for a pre-uploaded media id), next to the `body` / `button` components. */
                             components?: {
                                 [key: string]: unknown;
                             }[];
@@ -21919,7 +24360,7 @@ export interface paths {
                                 data_base64?: string;
                             }[];
                         };
-                        /** @description Instagram only. When true, the message is sent with Meta's HUMAN_AGENT tag, letting an authorized human agent reply outside the 24-hour window (up to 7 days). Set this ONLY for messages genuinely sent by a human agent — never for automated/bot replies, which would violate Meta's messaging policy. Ignored on WhatsApp. */
+                        /** @description Instagram and Messenger only. When true, the message is sent with Meta's HUMAN_AGENT tag, letting an authorized human agent reply outside the 24-hour window (up to 7 days). Set this ONLY for messages genuinely sent by a human agent — never for automated/bot replies, which would violate Meta's messaging policy. Ignored on WhatsApp. */
                         human_agent?: boolean;
                     };
                 };
@@ -21936,8 +24377,9 @@ export interface paths {
                                 /** Format: uuid */
                                 connection_id: string;
                                 /** @enum {string} */
-                                channel: "whatsapp" | "instagram" | "email";
+                                channel: "whatsapp" | "instagram" | "email" | "messenger";
                                 to: string;
+                                /** @description The provider's id for the message that was sent. WhatsApp: the `wamid`. Instagram: the Graph `message_id`. Email on Gmail: the Gmail message id. Email on Outlook: the Microsoft Graph **immutable** id (`Prefer: IdType="ImmutableId"`) of the sent message — the id of its copy in Sent Items, stable for as long as it stays in that mailbox. Inbound `message.received` events for Outlook carry Graph's default-format id, so do not compare this value with an inbound `message_id` to recognise your own send; compare `rfc822_message_id`, which is provider-independent. */
                                 provider_message_id: string;
                                 sent_at: string;
                                 /** @description Email only. The provider thread the message is now in — Gmail `threadId` / Outlook `conversationId`, the SAME value the inbound `message.received` event carries as `thread_id`. For a send that carried no `thread_id` this is the NEW thread; for a reply it is the thread replied into. Round-trip it to keep following up in-thread. Absent on whatsapp/instagram; `null` when the provider named no thread. */
@@ -21949,7 +24391,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Missing scope or OAuth-app not authorized for this connection */
+                /** @description Missing scope or OAuth-app not authorized for this connection. On email, a provider verdict about the MAILBOX — do not retry, show `provider_message` to the mailbox owner: `account_suspended` (the provider suspended the account), `mailbox_disabled` (no usable mailbox / mail turned off), `auth_revoked` (grant revoked or expired; carries `reconnect_required: true`). The connection's health is marked and a `channel.health.updated` event is pushed. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -21976,7 +24418,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Validation error (content shape unsupported for this channel) */
+                /** @description Validation error (content shape unsupported for this channel); on email, `recipient_rejected` (the provider refused this recipient) or `provider_error` (any other provider refusal of this request — `provider_code` / `provider_message` say why; an identical retry fails the same way) */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -21985,7 +24427,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Email only — the mailbox reached its daily send cap; outbound resumes at the next UTC midnight */
+                /** @description Email only — `rate_limit_exceeded`: the mailbox reached Atribu's daily send cap (outbound resumes at the next UTC midnight) or the provider is throttling; `quota_exceeded`: the mailbox hit its own quota at the provider (storage full or its daily sending limit). Respect `Retry-After`. */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -21994,7 +24436,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Upstream Meta send failed */
+                /** @description Transient upstream failure — the provider (Meta, Gmail, Microsoft Graph) was unreachable, timed out or answered 5xx. `provider_error`; a retry may succeed. 503 when the provider itself said unavailable. */
                 502: {
                     headers: {
                         [name: string]: unknown;
@@ -22284,7 +24726,7 @@ export interface paths {
          * Resolve WhatsApp media (media_id → hosted URL)
          * @description Resolves an inbound WhatsApp `media_id` to a hosted, browser-fetchable URL. Meta's own media URL is auth-gated and expires ~5 minutes, so Atribu downloads the bytes and re-hosts them, returning a signed URL (~7-day TTL) — the same shape Instagram inbound attachments use.
          *
-         *     Note: Atribu also embeds this URL directly in the WhatsApp webhook fan-out as `attachments:[{type,payload:{url}}]`, so most consumers never need to call this. Use it when you prefer to resolve media on demand. WhatsApp media IDs from webhooks expire after 7 days. Requires the `whatsapp` scope.
+         *     Note: Atribu also embeds this URL directly in the WhatsApp webhook fan-out as `attachments:[{type,payload:{url}}]`, so most consumers never need to call this. Use it when you prefer to resolve media on demand — and for media ids that arrive inside a payload rather than as a message attachment, such as the `PhotoPicker` / `DocumentPicker` answers of a WhatsApp Flow (`raw.interactive.nfm_reply.response_json`). WhatsApp media IDs from webhooks expire after 7 days. Media over 100 MB is refused (`413 payload_too_large`) before any download. Requires the `whatsapp` scope.
          */
         get: {
             parameters: {
@@ -22330,6 +24772,15 @@ export interface paths {
                 };
                 /** @description Media expired or not found (WhatsApp media IDs expire after 7 days) */
                 410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Media larger than the 100 MB download cap (`payload_too_large`) */
+                413: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -23847,7 +26298,7 @@ export interface paths {
         };
         /**
          * List external calendar events (read-only)
-         * @description Lists events on one external calendar. Bound a window with `time_min`/`time_max` (RFC3339, ≤ 90 days) OR pass a `sync_token` for incremental changes (mutually exclusive). `page_token` continues either; `limit` is 1–2500 (default 250). Recurring series are expanded to instances. `next_sync_token` appears on the final page — persist it as the incremental cursor. Requires the `calendar.read` scope.
+         * @description Lists events on one external calendar. Bound a window with `time_min`/`time_max` (RFC3339, ≤ 90 days) OR pass a `sync_token` for incremental changes (mutually exclusive). `page_token` continues either; `limit` is 1–2500 (default 250). Recurring series are expanded to instances. `next_sync_token` appears on the final page — persist it as the incremental cursor. Requires `calendar.read` (a read connection, `google_calendar_read` / `microsoft_calendar_read`, any calendar its account can see) OR `calendar` (a booking key): with a `calendar` key and no `calendar.read`, `connection_id` must be the key's `google_calendar` booking connection (an OAuth-minted key needs its active grant on it) and `calendar_id` must be a booking calendar Atribu created for that connection (`POST /api/v1/calendar/calendars`); `primary` and every other calendar answer 422 `calendar_unsupported`. No Google scope beyond the booking grant's `calendar.app.created` is used.
          */
         get: {
             parameters: {
@@ -23923,7 +26374,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Missing `calendar.read` scope or unauthorized connection */
+                /** @description Missing both `calendar.read` and `calendar` scopes, unauthorized connection, or (booking key) a grant without `calendar.app.created` */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -23950,7 +26401,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Validation error (bad params, or sync_token + window together) */
+                /** @description Validation error (bad params, or sync_token + window together), or `calendar_unsupported`: a `calendar` (booking) key named `primary` or a calendar Atribu did not create for that connection */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -24240,7 +26691,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Missing whatsapp scope */
+                /** @description Missing whatsapp scope, or a button id in the `atb_ds.` (declared-source) namespace while the declared-source prompt is off for this account */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -24259,6 +26710,98 @@ export interface paths {
                     };
                 };
                 /** @description Invalid body or conversation id */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Upstream Meta send failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/conversations/{id}/messages/declared-source-prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask a WhatsApp customer "how did you find us?"
+         * @description Sends the declared-source question as an interactive list (options shuffled per send, `Other` last) on the business's behalf. Atribu never sends it on its own: only when this is called, only when the business opted the account in (`PATCH /api/v1/whatsapp/declared-source-prompt`), and only inside the 24h customer-service window — outside it, ask with the template variant from `GET /api/v1/whatsapp/declared-source-prompt`. The customer's reply is recorded as a declared source (shown beside attribution, never as a touch or credit).
+         *
+         *     Scope: `whatsapp`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Language of the question and options. Default `es`.
+                         * @enum {string}
+                         */
+                        locale?: "es" | "en";
+                    };
+                };
+            };
+            responses: {
+                /** @description Prompt sent */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WhatsAppConversationMessage"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing whatsapp scope, or the declared-source prompt is off for this WhatsApp account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No such conversation for this profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Service window expired, invalid locale, or invalid conversation id */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -24311,6 +26854,7 @@ export interface paths {
                     "application/json": {
                         template_name: string;
                         language_code: string;
+                        /** @description Meta's send-time template components, forwarded verbatim — incl. a media header's `{ type: 'header', parameters: [{ type: 'image', image: { link } }] }`. */
                         components: {
                             [key: string]: unknown;
                         }[];
@@ -24468,7 +27012,7 @@ export interface paths {
         put?: never;
         /**
          * Create a WhatsApp message template
-         * @description Submits a new template for Meta review. Returns immediately with `status: PENDING`. Use `GET /api/v1/whatsapp/templates` to poll the approval status. Body text supports `{{param_name}}` placeholders — when provided, the SDK auto-generates the required `body_text_named_params` example block and sets `parameter_format=NAMED` on the Meta payload.
+         * @description Submits a new template for Meta review. Returns immediately with `status: PENDING`. Use `GET /api/v1/whatsapp/templates` to poll the approval status. Body text supports `{{param_name}}` placeholders — when provided, the SDK auto-generates the required `body_text_named_params` example block and sets `parameter_format=NAMED` on the Meta payload. A media header (`header_media: { format: IMAGE|VIDEO|DOCUMENT, url }`) is downloaded from the public https URL and uploaded to Meta as the template's review sample before the create; the template is then sent with `content.type='template'` and a `header` component carrying the actual media per send.
          */
         post: {
             parameters: {
@@ -24490,7 +27034,18 @@ export interface paths {
                         language: string;
                         /** @description `{{param_name}}` placeholders auto-generate a NAMED `example` block. */
                         body_text: string;
+                        /** @description TEXT header. Mutually exclusive with `header_media`. */
                         header_text?: string;
+                        /** @description Media header (IMAGE / VIDEO / DOCUMENT). Mutually exclusive with `header_text` (422 `validation_error` when both are sent). The URL's file is only Meta's review sample (`example.header_handle`); each send supplies its own header media as a `header` component parameter, e.g. `{ type: 'header', parameters: [{ type: 'image', image: { link } }] }` (`video: { link }`, `document: { link, filename }`). Refusals: 422 `invalid_content` (URL refused, unreachable, non-2xx, or not the format's type), 413 `payload_too_large` (over the format's cap). */
+                        header_media?: {
+                            /** @enum {string} */
+                            format: "IMAGE" | "VIDEO" | "DOCUMENT";
+                            /**
+                             * Format: uri
+                             * @description Public `https://` URL of the header SAMPLE. Atribu downloads it server-side (no auth headers, at most 3 redirects, every hop must resolve to a public address) and uploads it to Meta's Resumable Upload API. Accepted: IMAGE → JPEG or PNG ≤ 5 MB; VIDEO → MP4 ≤ 16 MB; DOCUMENT → PDF ≤ 100 MB. The file's bytes decide its type; a `Content-Type` outside the format's set is refused before download.
+                             */
+                            url: string;
+                        };
                         footer_text?: string;
                         /** @description Template buttons. Meta caps: 10 total, at most 2 URL, 1 PHONE_NUMBER and 1 FLOW. Buttons are static by default; a URL button may end in a `{{1}}` dynamic suffix (with a required `example`) filled in at send time. Send-time flow params (flow_token, flow_action_data) ride the template send as a sub_type='flow' button component. */
                         buttons?: ({
@@ -24555,7 +27110,16 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Validation error */
+                /** @description `header_media` sample over the format's cap — 5 MB image / 16 MB video / 100 MB document (`payload_too_large`) */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error (`validation_error`, incl. `header_text` + `header_media` together or a non-https `header_media.url`), or a `header_media.url` that was refused, unreachable, or not the format's type (`invalid_content`) */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -24564,8 +27128,17 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Upstream Meta template create failed */
+                /** @description Upstream Meta template create (or header media upload) failed */
                 502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Media headers are not configured on this deployment (`service_unavailable`) */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -25413,6 +27986,227 @@ export interface paths {
                 };
                 /** @description Upstream Meta deprecate failed */
                 502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/flows/endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the WhatsApp Flows data endpoint
+         * @description The registration (never the signing secret) plus a live read of the key Meta holds for the number — the publish preflight: a data_exchange flow can publish only with `key.status = VALID`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    connection_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Endpoint status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WhatsAppFlowEndpoint"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found, or no endpoint registered for it */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description connection_id invalid or required */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        /**
+         * Register the WhatsApp Flows data endpoint
+         * @description Idempotent. On first call Atribu generates an RSA-2048 key pair for the connection's phone number (private key sealed at rest), uploads the public key to Meta (`/{phone_number_id}/whatsapp_business_encryption`), and mints the `endpoint_uri` and a `signing_secret` (returned this once). Later calls update `data_url` / `enabled` and re-upload the key when Meta no longer holds it. A Meta failure does not fail the call: `key.status` and `last_error` report it and a retried PUT retries the upload. `connection_id` may be omitted when the profile has exactly one WhatsApp connection.
+         *
+         *     **Data hop.** For every Flow request except `ping` (answered by Atribu), Atribu POSTs `{ type: "whatsapp.flow.data_exchange", endpoint_id, connection_id, phone_number_id, waba_id, request: { version, action, screen?, data?, flow_token } }` to `data_url` with `X-Atribu-Signature: t=<unix>,v1=<hex HMAC-SHA256(signing_secret, "<t>.<raw body>")>` and `X-Atribu-Delivery-Id`. Answer 200 with `{ screen, data }` (Atribu encrypts it back to Meta) or `{ error: { status: 427, message } }` (an invalid flow_token → HTTP 427 to Meta). A timeout (8 s), a network error or any non-200 answers Meta 500. Client error notifications (`data.error`) are acknowledged by Atribu and forwarded best-effort as `type: "whatsapp.flow.error_notification"`, whose answer is ignored.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id?: string;
+                        /** @description HTTPS URL on a public host (same rules as webhook subscription URLs). */
+                        data_url: string;
+                        enabled: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Endpoint registered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WhatsAppFlowEndpoint"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not ready, or the number's endpoint belongs to another profile */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error (data_url not https / not public; connection_id required) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whatsapp/flows/endpoint/rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate the WhatsApp Flows data-hop signing secret
+         * @description Mints a new `signing_secret`, effective immediately for every request Atribu forwards to `data_url`. Returned once, in this response.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Secret rotated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["WhatsAppFlowEndpoint"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing scope or unauthorized connection */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Connection not found, or no endpoint registered for it */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description connection_id invalid or required */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -28314,9 +31108,9 @@ export interface paths {
                          * @description HTTPS URL where Atribu will POST signed events. Must be a public DNS name (#1150): no literal IPs, no internal namespaces (.internal/.local/.ts.net/…), no embedded credentials, and every resolved address must be publicly routable — loopback, RFC 1918, link-local (169.254.169.254), CGNAT 100.64/10, unique-local (fd00:ec2::254), multicast and their IPv6-mapped forms are refused with 422. Re-checked before every delivery; redirects are not followed.
                          */
                         url: string;
-                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated" | "call.status.updated" | "call.permission.updated" | "comment.received" | "catalog.updated" | "product.stock.changed" | "product.price.changed" | "checkout.abandoned" | "order.status.changed" | "connection.connected" | "connection.reconnect_required" | "connection.revoked" | "handoff.completed" | "recompute.completed" | "conversion.attributed" | "export.completed" | "export.failed" | "profile.freshness.changed")[];
-                        /** @description Channel providers, plus `atribu` for the platform lifecycle events (connection.*, handoff.completed, recompute.completed, conversion.attributed, export.*, profile.freshness.changed). Delivery matches on providers AND events, so those nine are opt-in: without `atribu` here you receive none of them. */
-                        providers: ("whatsapp" | "instagram" | "email" | "google_calendar" | "shopify" | "atribu")[];
+                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated" | "call.status.updated" | "call.permission.updated" | "whatsapp.flow.status" | "whatsapp.flow.alert" | "comment.received" | "catalog.updated" | "product.stock.changed" | "product.price.changed" | "checkout.abandoned" | "order.status.changed" | "connection.connected" | "connection.reconnect_required" | "connection.revoked" | "handoff.completed" | "recompute.completed" | "conversion.attributed" | "export.completed" | "export.failed" | "profile.freshness.changed" | "outcome.recorded")[];
+                        /** @description Channel providers, plus `atribu` for the platform lifecycle events (connection.*, handoff.completed, recompute.completed, conversion.attributed, export.*, profile.freshness.changed, outcome.recorded). Delivery matches on providers AND events, so those ten are opt-in: without `atribu` here you receive none of them. */
+                        providers: ("whatsapp" | "instagram" | "messenger" | "email" | "google_calendar" | "shopify" | "atribu")[];
                     };
                 };
             };
@@ -30063,6 +32857,7 @@ export interface paths {
                                 score_window: string;
                                 count: number;
                             };
+                            capabilities: components["schemas"]["Capabilities"];
                         };
                     };
                 };
@@ -30109,7 +32904,7 @@ export interface paths {
          *
          *     Requires an `Idempotency-Key` header (1–256 chars). Leg-level dedup is automatic (the executor derives its keys from the recommendation id), so retrying an already-applied recommendation returns `200` with `replayed: true` rather than double-spending.
          *
-         *     `applied_by` is REQUIRED for the budget kinds (`scale_winner`, `budget_reallocate_winners`): money-tier changes never move without a human on the record, and the id is verified to be an active owner/admin of the key's workspace.
+         *     `applied_by` is REQUIRED for the budget kinds (`scale_winner`, `budget_reallocate_winners`): money-tier changes never move without a human on the record, and the id is verified to be an active owner/admin of the key's workspace. **Exception — an app-provisioned profile:** when the key was minted by the OAuth app that provisioned this profile (`profiles.provisioned_by`), an omitted `applied_by` resolves to the workspace's owner — the user provisioning created for the dealer — as long as that user is still its active owner. The app no longer has to look that id up through `GET /api/v1/workspaces/{id}/members`. Any other key, and every explicit `applied_by`, behaves exactly as before.
          *
          *     **`require_approval: true` routes the apply past a person instead of executing it.** You get `202` with a hand-off — a URL to give your user (session-less, works on a phone, expires in 45 minutes) and an id to poll. That is how an agent, or an agency acting for a client, puts a human between itself and an ad account's money. Every refusal the direct apply gives (`404`, `409`, `410`, `403`) is still answered BEFORE the hand-off is minted, so a hand-off is never handed out for a change that cannot succeed.
          */
@@ -30130,7 +32925,7 @@ export interface paths {
                     "application/json": {
                         /**
                          * Format: uuid
-                         * @description `auth.users` id to attribute the apply to. Required for budget kinds.
+                         * @description `auth.users` id to attribute the apply to. Required for budget kinds — except on a key of the app that provisioned this profile, where omitting it attributes the apply to the workspace's (shadow) owner.
                          */
                         applied_by?: string;
                         /**
@@ -30156,6 +32951,11 @@ export interface paths {
                                 replayed: boolean;
                                 legs: components["schemas"]["RecommendationApplyLeg"][];
                                 external_action_url: string | null;
+                                /**
+                                 * @description How the actor was decided: `applied_by` sent explicitly, or `app_shadow_owner` — omitted on a key of the app that provisioned the profile. NULL when no actor is recorded. Also stored on each leg's `meta_action_log` row.
+                                 * @enum {string|null}
+                                 */
+                                applied_by_basis?: "applied_by" | "app_shadow_owner" | null;
                                 /** @description Present only when `status` is `failed`. */
                                 error?: {
                                     code: string;
@@ -30743,7 +33543,7 @@ export interface paths {
                     date_from: string;
                     /** @description End date (YYYY-MM-DD, inclusive). Max range: 366 days. */
                     date_to: string;
-                    /** @description Comma-separated subset of attribution models to compare. Defaults to all of them: last_touch, first_touch, linear, time_decay, last_non_direct. */
+                    /** @description Comma-separated subset of attribution models to compare. Defaults to the five standard models: last_touch, first_touch, linear, time_decay, last_non_direct. The house model `atribu` is included only when named. */
                     models?: string;
                 };
                 header?: never;
@@ -30796,7 +33596,7 @@ export interface paths {
                 query: {
                     /** @description The outcome event to explain. */
                     outcome_event_id: string;
-                    /** @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct. Defaults to last_touch. */
+                    /** @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct, atribu (the house model, read only when named). Defaults to last_touch. */
                     model?: string;
                     /** @description Set to `true` to include the per-model credit comparison. */
                     compare?: string;
@@ -31634,7 +34434,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Session branch only (#1067): the workspace has reached its plan's active_profiles limit. Carries upgrade_required: true and upgrade: { plan } on the error envelope. */
+                /** @description Session branch (#1067): the workspace has reached its plan's active_profiles limit. Carries upgrade_required: true and upgrade: { plan } on the error envelope. Basic-auth branch (policy S5): `healthcare_scope_forbidden`, a replay asked a healthcare-family profile (workspace `is_healthcare_agency`, or `privacy_mode` `platform_safe` / `hipaa`) for `analytics_pii`. A partner grant for such a profile never carries `customers:read`, and keys minted for it leave that scope out. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -31658,6 +34458,28 @@ export interface paths {
                 };
                 /** @description Session branch only: the workspace does not exist, or you are not an active owner/admin member */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                upgrade_required?: boolean;
+                                upgrade?: {
+                                    plan: string;
+                                };
+                                docs_url?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `invalid_state` (#1782): `privacy_mode` would change a profile that is not `standard`. Omit the field or send the stored value; the merchant owner changes it in the catalog. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -31702,6 +34524,28 @@ export interface paths {
                 };
                 /** @description Provisioning succeeded but the grant could not be recorded — retry */
                 500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                upgrade_required?: boolean;
+                                upgrade?: {
+                                    plan: string;
+                                };
+                                docs_url?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `service_unavailable`: Atribu could not read the profile's healthcare settings, or could not write `privacy_mode` or revoke the keys it requires. The grant was not written. On a first call the dealer (workspace, profile) may already exist, so the retry answers `200` with `created: false`. The call is idempotent; retry it. */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -31975,6 +34819,23 @@ export interface paths {
                         };
                     };
                 };
+                /** @description `healthcare_scope_forbidden`: the profile is healthcare-family (workspace `is_healthcare_agency`, or `privacy_mode` `platform_safe` / `hipaa`) and `scopes` asks for `analytics_pii`. A partner grant for such a profile never carries `customers:read`; request `analytics` instead */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_state */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
                 /** @description Unknown profile, another app's profile, an archived profile, or one this app holds no live grant on — indistinguishable */
                 404: {
                     headers: {
@@ -32117,6 +34978,7 @@ export interface paths {
                                 date_to?: string;
                                 profile_id: string;
                             };
+                            capabilities: components["schemas"]["Capabilities"];
                         };
                     };
                 };
@@ -35225,7 +38087,7 @@ export interface paths {
          * The workspace's top-performing ads, across every profile
          * @description The cross-profile creative leaderboard. Ads are scored against *comparable* creative — a cohort is channel × format × objective × audience warmth × geo × placement, and that cohort is populated ACROSS the workspace, which is why this read exists at this grain and cannot be assembled from per-profile calls.
          *
-         *     **Three distinct measures per ad. Present them separately; never merge them.** `composite_score` (0–100) is a transparent rule blend of within-cohort percentiles. `top_performer_likelihood` (0–1) is a PROBABILITY — a likelihood, not a guarantee, and never ROAS; it is the calibrated ML-ranker output when `score_source='model'` (with `model_version` set) and a monotone function of `composite_score` otherwise. `attributed_revenue`/`roas` is real cash Atribu attributed, present when `truth_grade='attributed'`. `meta_reported_conversions` is a FOURTH thing again — Meta's own last-click count, never folded into `truth_grade` and never added to Atribu's outcomes.
+         *     **Three distinct measures per ad. Present them separately; never merge them.** `composite_score` (0–100) is a transparent rule blend of within-cohort percentiles. `top_performer_likelihood` is a LEARNED field `{ value, status, reason }` (#1761): the ML ranker's 0–1 probability — a likelihood, not a guarantee, never ROAS — `served` only when a ranker has cleared the out-of-time serving gate and scored the row, `withheld` otherwise (render «no evaluado», never 0). The Cox fatigue values are learned fields too. `attributed_revenue`/`roas` is real cash Atribu attributed, present when `truth_grade='attributed'`. `meta_reported_conversions` is a FOURTH thing again — Meta's own last-click count, never folded into `truth_grade` and never added to Atribu's outcomes.
          *
          *     `primary_outcome_kind` is the cohort-appropriate HEADLINE: `cash` → revenue/ROAS, `pipeline` → attributed leads + `attributed_pipeline_value` (a projection, never in ROAS), `messaging` → conversations started, `meta` → Meta's own number (labelled as such), `none` → the composite score alone. Filter on it with `outcome_kinds` rather than sorting a lead-gen workspace by a ROAS that is null on every row.
          *
@@ -35256,7 +38118,7 @@ export interface paths {
                     outcome_kinds?: string;
                     formats?: string;
                     maturity_stages?: string;
-                    /** @description Comma-separated predicted hazard tiers: `low`|`medium`|`high`|`critical`. */
+                    /** @description Comma-separated predicted hazard tiers: `low`|`medium`|`high`|`critical`. A Cox verdict: while the Cox family is withheld by the serving gate (#1761) no row carries a tier, so this filter matches nothing. */
                     fatigue_risk_tiers?: string;
                     /** @description Comma-separated OBSERVED states: `active`|`paused`|`degraded`. */
                     fatigue_states?: string;
@@ -35290,7 +38152,36 @@ export interface paths {
                                 video_id: string | null;
                                 score_window: string;
                                 composite_score: number | null;
-                                top_performer_likelihood: number | null;
+                                /** @description The rule behind a rule-based verdict: `id` (render it with its dictionary sentence), the `thresholds` it compares against, and this verdict's measured `inputs`. A rule, not a model. */
+                                composite_rule: {
+                                    /** @enum {string} */
+                                    id: "composite_score" | "creative_degradation" | "scale_guidance" | "funnel_diagnosis" | "gap_direction" | "cockpit_tier" | "intent_band" | "lead_quality" | "experiment_grade" | "house_model_split";
+                                    thresholds: {
+                                        [key: string]: number;
+                                    };
+                                    inputs: {
+                                        [key: string]: number | string | boolean | null;
+                                    };
+                                } | null;
+                                /** @description The ML ranker's probability (0–1) that this ad is a top performer in its cohort — a likelihood, not a guarantee, never ROAS. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                top_performer_likelihood: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
                                 model_version: number | null;
                                 /** @enum {string} */
                                 score_source: "model" | "rules";
@@ -35359,13 +38250,96 @@ export interface paths {
                                     code?: string;
                                     metric_value?: number | null;
                                 }[];
-                                hazard_30d_pause: number | null;
-                                hazard_30d_degradation: number | null;
+                                /** @description Cox 30-day pause probability (0–1). A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                hazard_30d_pause: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
+                                /** @description Cox 30-day degradation probability (0–1). A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                hazard_30d_degradation: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
                                 /** @enum {string|null} */
                                 fatigue_state: "active" | "paused" | "degraded" | null;
-                                /** @enum {string|null} */
-                                fatigue_risk_tier: "low" | "medium" | "high" | "critical" | null;
-                                expected_lifespan_days: number | null;
+                                /** @description The rule behind a rule-based verdict: `id` (render it with its dictionary sentence), the `thresholds` it compares against, and this verdict's measured `inputs`. A rule, not a model. */
+                                fatigue_state_rule: {
+                                    /** @enum {string} */
+                                    id: "composite_score" | "creative_degradation" | "scale_guidance" | "funnel_diagnosis" | "gap_direction" | "cockpit_tier" | "intent_band" | "lead_quality" | "experiment_grade" | "house_model_split";
+                                    thresholds: {
+                                        [key: string]: number;
+                                    };
+                                    inputs: {
+                                        [key: string]: number | string | boolean | null;
+                                    };
+                                } | null;
+                                /** @description Cox wear-out tier. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                fatigue_risk_tier: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    /** @enum {string} */
+                                    value: "low" | "medium" | "high" | "critical";
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
+                                /** @description Expected remaining life in days, from the Cox survival curve. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                expected_lifespan_days: {
+                                    /** @enum {string} */
+                                    status: "served";
+                                    value: number;
+                                    reason: null;
+                                } | {
+                                    /** @enum {string} */
+                                    status: "withheld";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                } | {
+                                    /** @enum {string} */
+                                    status: "not_applicable";
+                                    value: null;
+                                    /** @enum {string} */
+                                    reason: "rules_fallback" | "not_scored";
+                                };
                                 identity: {
                                     /** @example meta */
                                     provider: string;
@@ -35435,8 +38409,25 @@ export interface paths {
                                 };
                                 score: {
                                     creative_fit_score: number | null;
-                                    /** @description The ML ranker's CALIBRATED probability — non-null only when a model actually scored this row (`score_source = 'model'`). The top-level `top_performer_likelihood` falls back to a monotone squash of `composite_score` when it did not, so this is how a consumer tells 'a model said 0.71' from 'the rule blend implies 0.71'. */
-                                    top_performer_likelihood_calibrated: number | null;
+                                    /** @description The ML ranker's CALIBRATED probability (0–1). `not_applicable` (reason `rules_fallback`) when the row was ranked by the rule blend instead. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                    top_performer_likelihood_calibrated: {
+                                        /** @enum {string} */
+                                        status: "served";
+                                        value: number;
+                                        reason: null;
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "withheld";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                    } | {
+                                        /** @enum {string} */
+                                        status: "not_applicable";
+                                        value: null;
+                                        /** @enum {string} */
+                                        reason: "rules_fallback" | "not_scored";
+                                    };
                                     pct_delivery: number | null;
                                     pct_attention: number | null;
                                     pct_retention: number | null;
@@ -36251,6 +39242,2339 @@ export interface paths {
                         "application/json": {
                             error: {
                                 /** @example validation_error */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/link-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mint link-identity tokens (atb_t) for your customers
+         * @description Issues a signed, opaque `atb_t` token per customer for the links in your e-mails, WhatsApp messages, CRM sequences and the pages your own app renders. When the customer clicks — on any device — the Atribu tracker reads the token, removes it from the address bar, and links that browser to the customer, so the visits it makes from then on (and the anonymous ones it made before) count toward them.
+         *
+         *     **No personal data in your URLs.** The token is encrypted and authenticated: it never contains an e-mail, a phone or any readable id, two tokens for the same person look unrelated, and a token altered by even one character is ignored. It is valid only for this profile and only until `expires_at`.
+         *
+         *     **Existing customers only.** A row that matches nobody answers `not_found`; this endpoint never creates a customer. To add customers, use `POST /api/v1/customers`.
+         *
+         *     **Setup is two steps**, the same in every tool: save each customer's token on their contact, then add the tool's merge tag to your links. The response's `recipes` spell out the exact field and merge tag for GoHighLevel, Klaviyo and WhatsApp templates.
+         *
+         *     **Partner apps** name each customer by `customer_key`, the id they already send as `user_traits.external_id`, and get it back on every row; `customer_profile_id` is returned only to a key with `customers:read`. The `partner_page` recipe covers a page the app renders itself.
+         *
+         *     A browser already linked to a DIFFERENT customer is never re-assigned by a token (a forwarded e-mail opened on a shared computer is weaker evidence than the link it already has).
+         *
+         *     Requires the `attribution:write` scope. Answers `503 link_tokens_disabled` on a deployment without a token signing secret: the feature is off there, and a retry will not change that.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkTokenMintRequest"];
+                };
+            };
+            responses: {
+                /** @description Every row processed — check each result's own `status`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LinkTokenMintResponse"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description `invalid_request`: the body is not a JSON object. `invalid_parameter`: no customers, more than 500, a malformed row, an `identifier_type` without its `identifier_value`, or an out-of-range `expires_in_days` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The key lacks the `attribution:write` scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `link_tokens_disabled`: link-identity tokens are turned off on this deployment. Do not retry. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/erasures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Erase a customer by your own key
+         * @description For a partner app that deletes a contact on its side, whether through its own archive flow or a data-subject request, and must cascade that erasure to Atribu. Erases the customer's personal data in this profile: name, e-mail, phone and every identifier, conversation content, and the personal fields of the raw events. Their conversions, touches and attribution stay, anonymous, so your reports and ROAS do not change. Afterwards the customer cannot be read by `customer_key`, and link tokens minted for them no longer link a browser.
+         *
+         *     **Idempotent** on `request_ref`: the same value again for the same customer answers `200` with the original receipt; the same value for a different customer is refused with `400`. A new `request_ref` for any `customer_key` of a customer you already erased answers `200` with the first receipt.
+         *
+         *     **API keys only.** A console session or an MCP user token gets `403 api_key_required`: a person erases through `POST /api/v1/workspaces/{workspaceId}/customer-erasures` as owner or admin. The receipt records the key that asked.
+         *
+         *     **Never needs the attribution add-on.** An app-provisioned profile without the `atribu_attribution` entitlement can still erase.
+         *
+         *     Irreversible. Conversions already delivered to Meta or Google are outside Atribu's reach.
+         *
+         *     Requires `attribution:write`. Healthcare-family keys hold it; the receipt never carries `customer_profile_id`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PartnerCustomerErasureRequest"];
+                };
+            };
+            responses: {
+                /** @description A replay of the same `request_ref`, or a `customer_key` you already erased: the original receipt. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerCustomerErasureReceipt"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Erased now. The body is the receipt; keep `erasure_id`. */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerCustomerErasureReceipt"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description `invalid_request`: the body is not a JSON object. `invalid_parameter`: `request_ref` missing, malformed, or already used for a different customer; zero or several selectors; an unknown `identifier_type`; a selector that cannot parse; or an unknown `reason` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `api_key_required`: the credential is a console session or an MCP user token. `insufficient_scope`: the key lacks `attribution:write`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `customer_not_found`: no customer of this profile matches (another profile's customer answers the same). Nothing was erased or created. A route this deployment does not serve answers `not_found` instead. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/erasures/{erasure_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read an erasure receipt
+         * @description The receipt `POST /api/v1/customers/erasures` returned, with its current `status` and `completed_at`. Requires `attribution:write` or `conversions:read`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    erasure_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The receipt */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerCustomerErasureReceipt"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description `erasure_id` is not a UUID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The key holds neither `attribution:write` nor `conversions:read` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `erasure_not_found`: no erasure with that id in this profile (another profile's id answers the same). */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/events/retractions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retract an event you ingested
+         * @description Undo an event this profile ingested through `POST /api/v1/events`, named by the idempotency key it was sent with. For correcting a wrong row, for example a backfill that credited a payment to the wrong contact: resending the event cannot remove a customer it was filed under.
+         *
+         *     In one transaction it deletes the event, the conversions extracted from it and their attribution, recomputes the first-payment flag of the customer's other payments, queues the profile's attribution recompute, and records an audit entry naming your key and `reason`. The response is counts only. Customer-list audiences drop the customer at their next nightly refresh if nothing else qualifies them.
+         *
+         *     **Refused, deleting nothing,** when a conversion export exists for the event in any status (`409 event_already_exported`: an ad platform may have seen it), or when a WhatsApp or Instagram conversation recorded the event as its lead (`409 event_linked_to_conversation`).
+         *
+         *     **Idempotent.** A key you already retracted answers `200` with `status: "already_retracted"` and zero counts. A key never ingested in this profile (or another profile's) is `404 event_not_found`. Ingesting the same key again after a retraction creates a new event, which can itself be retracted.
+         *
+         *     Only rows written by `POST /api/v1/events` are reachable; Webpay and provider events are not. Never needs the attribution add-on.
+         *
+         *     Requires the `events:write` scope.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EventRetractionRequest"];
+                };
+            };
+            responses: {
+                /** @description Retracted now (`status: "retracted"`), or by an earlier call (`"already_retracted"`, zero counts). */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["EventRetraction"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description `invalid_request`: the body is not a JSON object. `invalid_parameter`: `idempotency_key` missing, empty or over 1000 characters, or `reason` not a string or over 500 characters. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example event_not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example event_not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `insufficient_scope`: the credential lacks `events:write`. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example event_not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `event_not_found`: no `POST /api/v1/events` row of this profile has that key (another profile's key answers the same). Nothing was retracted. A route this deployment does not serve answers `not_found` instead. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example event_not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `event_already_exported`: a conversion export exists for the event. `event_linked_to_conversation`: a conversation recorded it as its lead. Nothing was deleted; do not retry. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example event_not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example event_not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attribution/declared-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare what buyers said with what attribution credited
+         * @description Declared (zero-party) source — the answers buyers gave to "How did you hear about us?" (the Shopify thank-you / order-status survey) — broken down against the channel click attribution credited for the SAME orders under `model`.
+         *
+         *     A declared source is a separate measurement shown BESIDE attribution. It is never a touch and never changes credit, ROAS or any other number. `agreement_rate` is a diagnostic of where the two disagree.
+         *
+         *     The window is on when the buyer answered (UTC). `cash_value` is cash (`revenue_type = cash`) on the answered orders.
+         *
+         *     Requires `analytics:read`.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Start date (YYYY-MM-DD, inclusive) */
+                    date_from: string;
+                    /** @description End date (YYYY-MM-DD, inclusive). Max range: 366 days. */
+                    date_to: string;
+                    /** @description Attribution model to compare against. Default last_touch. */
+                    model?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Declared source beside attributed channel */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["DeclaredSourceBreakdown"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Invalid date range or model */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the analytics:read scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/partner/declared-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a customer's "how did you find us?" answer from your WhatsApp conversation
+         * @description For a partner that asks the question inside its OWN WhatsApp conversation and interprets the reply. The answer is stored in the declared-source store with `origin = whatsapp` and `collected_via = partner`, and shows up in `GET /api/v1/attribution/declared-source` beside click attribution. It is never a touch and never changes credit.
+         *
+         *     **Scoping.** No `profile_id`: the key is the tenant, exactly as on `POST /api/v1/partner/wa-joins`. `merchant_phone` / `waba_id` must name one of that profile's WhatsApp accounts (`404` otherwise), and that account must have the question switched on (`PATCH /api/v1/whatsapp/declared-source-prompt`, `403` otherwise).
+         *
+         *     **The customer** is exactly one of `external_ref` (your own customer id) or `wa_id` (resolved from the phone). A known `external_ref` resolves read-only. To backfill answers for people Atribu has never seen, send `email` and/or `phone` with the `external_ref`: Atribu resolves or creates the customer from that PII and binds the ref, exactly as `POST /api/v1/events` does for `user_traits.external_id`. A ref alone never creates a customer. Both forms work on healthcare-family profiles; a national id (RUT) is never accepted.
+         *
+         *     **Idempotent — retry it.** Keyed on `wamid`, and WhatsApp's unit is the customer: one answer per customer per profile, first wins.
+         *
+         *     Scope: `whatsapp` (a partner connection's token) or `events:write`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["PartnerDeclaredSourceRequest"];
+                };
+            };
+            responses: {
+                /** @description Recorded, or already answered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerDeclaredSourceResult"];
+                            meta: {
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Malformed body — including both or neither customer form, `asked_at` after `answered_at`, a malformed `email` / `phone`, or a national id (`invalid_parameter`: a `national_id` / `rut` key, or a RUT-shaped `external_ref` / `phone`) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `insufficient_scope`; `forbidden` — the question is off for this WhatsApp account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No WhatsApp account on the key's profile matches `merchant_phone` / `waba_id` */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `entitlement_required` — an `events:write` key on a profile without the attribution entitlement */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `unknown_answer_key`, or `unknown_customer_ref` — `external_ref` names no live customer on this profile and no `email` / `phone` came with it */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Transient — retry with the same body */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/partner/ad-referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a historical click-to-message ad referral
+         * @description For a business moving to Atribu from another WhatsApp bot: tell Atribu which Meta ad a PAST conversation came from, so the ad gets the credit it earned before Atribu was connected.
+         *
+         *     **What it records.** A touch at `occurred_at` naming the ad (campaign and ad set resolved from Atribu's Meta sync), judged by the profile's own attribution windows — a later conversion is credited to it only inside them (click window for last touch, first-touch window for first touch). That is how a later `closed_won` or `payment_received` is credited to the ad that started the conversation.
+         *
+         *     **No lead.** It never creates a `lead_created` and never changes an existing lead, so the customer's next lead is recorded — and exported — normally. Leads from before Atribu was connected are not reconstructed.
+         *
+         *     **Nothing from this call is sent to Meta.** A touch is never exported, and the click id stays with the touch: it is not stored on the customer, so it never rides a later conversion to Meta.
+         *
+         *     **Scoping and the customer** work exactly as on `POST /api/v1/partner/declared-source`: the key is the tenant, `merchant_phone` / `waba_id` must name one of that profile's WhatsApp accounts, and the customer is `external_ref` (with `email` / `phone` to create someone Atribu has never seen) or `wa_id`. A national id (RUT) is never accepted.
+         *
+         *     **Idempotent — retry it.** Keyed on `idempotency_key`.
+         *
+         *     **Preview first.** `POST /api/v1/partner/ad-referrals/preview` reports, with no writes, which existing conversions a batch would re-credit.
+         *
+         *     Scope: `whatsapp` (a partner connection's token) or `events:write`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["PartnerAdReferralRequest"];
+                };
+            };
+            responses: {
+                /** @description Recorded, or already recorded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerAdReferralResult"];
+                            meta: {
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Malformed body — both or neither customer form, a non-numeric `ad_id`, `ctwa_clid` on a non-WhatsApp channel, an `occurred_at` in the future, or a national id (`invalid_parameter`) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `insufficient_scope` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No WhatsApp account on the key's profile matches `merchant_phone` / `waba_id` */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `entitlement_required` — an `events:write` key on a profile without the attribution entitlement; `idempotency_key_conflict` — the key was already used for a different referral; `idempotency_key_in_flight` — a first request with the key is still running (retry shortly) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `unknown_ad` — `ad_id` is not one of the profile's Meta ads; `unknown_customer_ref` — `external_ref` names no live customer and no `email` / `phone` came with it */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Transient — retry with the same body */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/partner/ad-referrals/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview what a batch of historical ad referrals would re-credit
+         * @description Read-only. Takes up to 500 referrals in the shape `POST /api/v1/partner/ad-referrals` takes and reports, without creating a customer or writing anything, how applying them would change credit: how many of the named customers' existing conversions would gain a touch inside the profile's attribution windows, and — per attribution model — how many would change the ad they credit. Run it before a backfill.
+         *
+         *     Scope: `whatsapp` (a partner connection's token) or `events:write`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["PartnerAdReferralPreviewRequest"];
+                };
+            };
+            responses: {
+                /** @description The impact of applying the batch */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerAdReferralPreview"];
+                            meta: {
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Malformed body — both or neither customer form, a non-numeric `ad_id`, `ctwa_clid` on a non-WhatsApp channel, an `occurred_at` in the future, or a national id (`invalid_parameter`) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `insufficient_scope` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No WhatsApp account on the key's profile matches `merchant_phone` / `waba_id` */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `entitlement_required` — an `events:write` key on a profile without the attribution entitlement */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `unknown_customer_ref` — an `external_ref` names no live customer and no `email` / `phone` came with it */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Transient — retry with the same body */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/partner/audiences/customer-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the customer-list audience
+         * @description The state of this profile's Meta customer list of the people who PAID in the last 365 days, and of its 1 % lookalike — and whether the profile can have one at all (`available`, `reason`). Use it as the capability check before offering the feature. Requires `exports:read`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerCustomerListAudienceStatus"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The credential lacks `exports:read` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create the customer-list audience
+         * @description Creates, once per profile, a Meta Custom Audience named «Vitrina · Clientes que pagaron» (the name is fixed by Atribu and is never taken from the request) holding the people who paid this profile in the last 365 days (net of refunds and disputes; merged duplicates count as one person), and runs its first upload. What is sent is the column set the recorded consent version covers (`USER_PROVIDED_ONLY`, `CUSTOM`): under the current text (v2), hashed e-mail, phone, first name, last name and country from each member's own customer record (the guardian's when a guardian paid); a list created under v1 keeps sending hashed e-mail and phone only. Never a national id or an amount. People with a marketing opt-out, erased customers, merged duplicates and customers your app marked (`PUT /api/v1/profiles/{profileId}/audience-exclusions`) are left out. There is no fallback to leads or appointments. Atribu replaces the members nightly.
+         *
+         *     **Consent.** `consent` must name the current published consent text (`version` and the SHA-256 of one locale's text, `@atribu/api-contract` `CUSTOMER_LIST_AUDIENCE_CONSENT_*`), rendered verbatim and accepted by the business owner. A missing, older or foreign one is `409 consent_required`, before any Meta call. A new list needs the current version (v2). A list already live under v1 keeps uploading only what v1 covers, and re-POSTing its v1 acceptance stays idempotent; a `POST` with the v2 consent re-records it on the list (nothing is re-created).
+         *
+         *     **Lookalike.** With `lookalike: { ratio: 0.01, country }` the 1 % lookalike is created too, or recorded as `waiting_size` while the list has fewer than ~100 people.
+         *
+         *     **Idempotent** per profile: a second call returns the existing audience without creating or uploading again. An `Idempotency-Key` header is honoured on top. Requires `exports:write`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PartnerCustomerListAudienceCreate"];
+                };
+            };
+            responses: {
+                /** @description The audience exists in Meta and its upload landed; Meta is still matching it. */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerCustomerListAudienceStatus"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The credential lacks `exports:write` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `consent_required`: no consent, or not the current text (`error.consent` names the current version and hashes). `invalid_state` with `reason`: not available for this profile (the `reason` values of the read). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `validation_error`: a malformed body, or a lookalike that is not `{ ratio: 0.01, country }`. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `provider_error`: Meta refused the create or the upload. Retry; nothing is created twice. */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Delete the customer-list audience
+         * @description Stops it: the lookalike and then the list are DELETED in Meta, not merely orphaned, and the nightly refresh stops. Works even after the feature was switched off for the profile. Answers the final state; with nothing to delete, `200` with `audience: null`. Requires `exports:write`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The final state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerCustomerListAudienceStatus"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The credential lacks `exports:write` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `invalid_state`: the Meta connection the audience was created on is not usable, so it cannot be deleted in Meta. Nothing was marked deleted. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `provider_error`: Meta refused a delete. Anything already deleted stays deleted; retry. */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/partner/audiences/customer-list/lookalike": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add the 1 % lookalike
+         * @description Adds the one lookalike («Vitrina · Parecidos a clientes que pagaron (1 %)») to an existing customer list. Below ~100 people it is recorded as `waiting_size` and created by the nightly refresh. A second call is a no-op. Requires `exports:write`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PartnerCustomerListLookalike"];
+                };
+            };
+            responses: {
+                /** @description The state, with the lookalike */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["PartnerCustomerListAudienceStatus"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The credential lacks `exports:write` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `invalid_state`: not available (`reason`), `no_customer_list`, or a lookalike for another country exists (`lookalike_exists`). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `validation_error`: not `{ ratio: 0.01, country }`. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{profileId}/audience-exclusions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Keep customers out of every audience
+         * @description Marks (or unmarks) customers of a profile your app provisioned so they are never in a Meta audience Atribu builds, starting with the customer-list audience. The mark is generic: Atribu attaches no meaning to it and infers nothing. Who carries it is your decision, and a customer you do not mark is not excluded.
+         *
+         *     Each row names one customer the way the other partner routes do (`customer_key`, `email`, `phone`, or `identifier_type` + `identifier_value`) and states the end state in `excluded`. **Idempotent**: replaying a body changes nothing, and within one body the last row naming a customer wins. A row naming nobody answers `not_found`: no customer is ever created, so mark a customer again once it has reached Atribu. A mark set on a customer that is later merged keeps the merged customer out. Up to 1,000 rows per call; send a longer list as several calls.
+         *
+         *     App credential (HTTP Basic `client_id:client_secret`); only profiles your app provisioned. Any other profile, archived or unknown, answers `404`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    profileId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AudienceExclusionsRequest"];
+                };
+            };
+            responses: {
+                /** @description Per-row outcome and counts */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["AudienceExclusionsResult"];
+                            meta: components["schemas"]["Meta"];
+                        };
+                    };
+                };
+                /** @description `validation_error`: no `customers`, more than 1,000, or a malformed row. `invalid_request`: not JSON. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing or invalid app credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `not_found`: not a profile your app provisioned */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `database_unavailable`: Atribu's database could not be reached mid-request. Retry the same body after `Retry-After` seconds; the call is idempotent, so a partly applied batch converges. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/oauth-apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * OAuth apps this workspace administers, with their DPA state
+         * @description The partner apps whose app-level Data Processing Agreement this workspace's owners and admins accept (`oauth_apps.owner_workspace_id`, set by Atribu when the app is registered). Each carries its DPA state and how many of the profiles it provisioned the acceptance covers. Readable by any member of the workspace. An API key cannot call it: a key is minted for one profile and belongs to no workspace.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The workspace that administers the app (`oauth_apps.owner_workspace_id`). */
+                    workspaceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The apps */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                apps: components["schemas"]["OwnedOAuthApp"][];
+                            };
+                            meta: {
+                                workspace_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not an owner or admin of this workspace, an API key, or an MCP token */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not a member of this workspace */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/oauth-apps/{appId}/dpa/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept the DPA for every profile an OAuth app provisions
+         * @description Accepts Atribu's Data Processing Agreement ONCE for a partner app. A partner that provisions headless profiles for its own customers (`POST /api/v1/profiles`) is the DPA counterparty for those profiles — its customers never sign in to Atribu — so the acceptance is written through, in the same transaction, to every profile the app provisioned (`dpa_status = accepted` with this version, time and acceptor), and every profile it provisions later is accepted at birth. A profile whose own owner already accepted directly keeps that acceptance.
+         *
+         *     **Idempotent.** Accepting an app that is already accepted writes no new signature and keeps the original `dpa_accepted_at`; it still re-applies the acceptance to any provisioned profile that lacks it.
+         *
+         *     `document_version` names which shipped DPA text you displayed; it is checked against the same allowlist as the profile click-wrap. Omit it to accept the current full text.
+         *
+         *     **A signed-in owner or admin of this workspace, in a browser session.** An `atb_live_` API key never reaches this route, and an MCP `atb_user_` token is refused with `403 insufficient_scope`: a token is the credential its owner minted for an agent, and an agent cannot agree to a contract on the partner's behalf. The same rule as `POST /api/v1/legal/dpa/accept`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The workspace that administers the app (`oauth_apps.owner_workspace_id`). */
+                    workspaceId: string;
+                    /** @description The OAuth app's id (`app_id` from the list). */
+                    appId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /** @example 2026-07-20-v1 */
+                        document_version?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Accepted, or already accepted — `changed` says which */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OAuthAppDpaDecision"];
+                            meta: {
+                                workspace_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `appId` is not a uuid */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not an owner or admin of this workspace, an API key, or an MCP token */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such app, or this workspace does not administer it — one answer */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `document_version` is not a version of the DPA this build ships */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/oauth-apps/{appId}/dpa/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw an OAuth app's DPA acceptance
+         * @description Withdraws the app-level acceptance. Every profile that held the DPA BY INHERITANCE from this app returns to `dpa_status = withdrawn`, so Atribu holds its Platform-Safe exports at the legal gate again; a profile whose own owner accepted directly keeps its acceptance. Withdrawing an app that is not accepted changes nothing.
+         *
+         *     **A signed-in owner or admin of this workspace, in a browser session.** An `atb_live_` API key never reaches this route, and an MCP `atb_user_` token is refused with `403 insufficient_scope`: a token is the credential its owner minted for an agent, and an agent cannot agree to a contract on the partner's behalf. The same rule as `POST /api/v1/legal/dpa/accept`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The workspace that administers the app (`oauth_apps.owner_workspace_id`). */
+                    workspaceId: string;
+                    /** @description The OAuth app's id (`app_id` from the list). */
+                    appId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Withdrawn, or already not accepted — `changed` says which */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["OAuthAppDpaDecision"];
+                            meta: {
+                                workspace_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `appId` is not a uuid */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing, invalid or expired credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Not an owner or admin of this workspace, an API key, or an MCP token */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such app, or this workspace does not administer it — one answer */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example insufficient_scope */
                                 code: string;
                                 message: string;
                                 status: number;
@@ -37088,156 +42412,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workspaces/{workspaceId}/test-roadmap": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What each profile should test next, and how much creative it has to judge on
-         * @description `gaps` are patterns proven somewhere in the workspace that a profile is not running, each with the evidence behind it and a concrete `exemplar_ad_external_id` so the suggestion can be checked rather than trusted.
-         *
-         *     **`coverage` is not optional context — it is what makes an empty `gaps` readable.** No gaps means one of two opposite things: this profile already does everything that works, or it has four scored ads and nothing can be concluded. Only `scored_ad_count` separates them, which is why both ride in one response.
-         *
-         *     **The lift is an ASSOCIATION.** `lift_vs_workspace` is the row's win rate over the workspace's own baseline, and `confidence_interval_low`/`_high` is the interval that estimate sits in. Rendering the lift without the interval reports a point estimate as a fact — and neither is a causal claim. The only causal evidence on this surface is an experiment (`/experiments`).
-         *
-         *     A gap's `exemplar_composite_score` (a 0–100 rule blend) and `exemplar_roas` (a ratio over attributed cash) are separate fields and must stay so — one is a score, the other is money divided by money.
-         *
-         *     `test_key` is the stable id to record a decision against (see `POST /creative-tests/decisions`); the exemplar ad rotates on every rebuild and must never be used as a key.
-         *
-         *     **Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).
-         *
-         *     A workspace owner, admin or analyst sees every profile in the workspace; anyone else sees only the profiles they hold a membership on. That narrowing happens in the database, not in the response shape, so a guest gets a 200 over a smaller set — never someone else's rows.
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description A rolling LOOKBACK, not a date range: `creative_feature_store` holds one row per (profile × ad × window), so these four are the only windows that exist. Default `28d`. */
-                    window?: "7d" | "14d" | "28d" | "lifetime";
-                    /** @description Gaps per PROFILE, 1–20. Default 4. */
-                    per_profile_limit?: string;
-                };
-                header?: never;
-                path: {
-                    /** @description The workspace to read. A workspace you are not an ACTIVE member of answers 404 — the same answer a workspace that does not exist gets, so the status code never becomes a way to enumerate tenants. */
-                    workspaceId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The testing roadmap and its coverage */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["WorkspaceTestRoadmap"];
-                            meta: {
-                                /** @example uuid */
-                                workspace_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Invalid window or per_profile_limit */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Missing the campaigns:read scope, or the credential is an API key (single-profile by design) */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description The workspace does not exist, or this caller is not a member of it */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Rate limited */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workspaces/{workspaceId}/top-performers/brief": {
         parameters: {
             query?: never;
@@ -37681,6 +42855,7 @@ export interface paths {
                                 /** @example uuid */
                                 workspace_id: string;
                             };
+                            capabilities: components["schemas"]["Capabilities"];
                         };
                     };
                 };
@@ -37773,647 +42948,6 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspaceId}/replicate-runs/{runId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * One Replicate run — a winning ad adapted for another profile
-         * @description The deep link behind a 'your draft is ready' notification.
-         *
-         *     A run names TWO profiles, and BOTH must be ones you can open: a member who holds the target but not the source must not learn the source ad's name, which is exactly what the run carries. A run that does not exist, one in another workspace, and one whose profiles you cannot open all answer the SAME 404, so the status code cannot be used to probe for runs.
-         *
-         *     `fit`, `brief`, `variants`, `scene_rail`, `expected_band`, `brand_guard`, `hook_candidates`, `extract_payload` and `research_payload` are OPAQUE — whatever the generating pass wrote. Render what you recognise, never compute from them.
-         *
-         *     **Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    workspaceId: string;
-                    runId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The run */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["WorkspaceReplicateRun"];
-                            meta: {
-                                /** @example uuid */
-                                workspace_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Malformed workspaceId or runId */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Missing the campaigns:read scope, or the credential is an API key (single-profile by design) */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description The run does not exist, is in another workspace, or names a profile you cannot open */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Rate limited */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspaceId}/replicate-runs/{runId}/handoff": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Bind a finished Replicate run to the creative session it was handed to
-         * @description Call this once you have created the chat/brief session an operator will read the draft in, so the run stops advertising itself as ready to send and the deep link resolves to that session.
-         *
-         *     **Idempotent on the RUN, without an `Idempotency-Key`.** A run carries at most one `ads_lab_session_id`; a second handoff answers 200 with the FIRST one and `already_handed_off: true`, and your id is not stored. Re-pointing the run would orphan a session an operator may already have open.
-         *
-         *     **A compare-and-set from `review`.** A run that is not in `review` and does not already carry a session answers 409 — a cancel that raced the send must not come back as `sent`.
-         *
-         *     The same 404 the GET gives: a run that does not exist, one in another workspace, and one whose two profiles you cannot both open are indistinguishable.
-         *
-         *     **Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    workspaceId: string;
-                    runId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        /**
-                         * Format: uuid
-                         * @description The session you created for this draft.
-                         */
-                        ads_lab_session_id: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description The run, now bound to a session */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["WorkspaceReplicateHandoff"];
-                            meta: {
-                                /** @example uuid */
-                                workspace_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Malformed workspaceId, runId or ads_lab_session_id */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Missing the campaigns:apply scope, or the credential is an API key (single-profile by design) */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description The run does not exist, is in another workspace, or names a profile you cannot open */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description The run is not in `review` and carries no session — its status moved underneath you */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Rate limited */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspaceId}/creative-tests/decisions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Dismiss or draft one testing-roadmap gap
-         * @description The roadmap is generated on read; this records only the DECISIONS, keyed on `(workspace, profile, score_window, test_key)`. Never key a decision on the exemplar ad — it rotates on every rebuild, and the decision must survive that.
-         *
-         *     One route for both decisions because they are one row: a `drafted` may flip a prior `dismissed` and vice versa. Each decision only touches its OWN columns, so re-deciding never erases the other's history.
-         *
-         *     **Idempotent.** Repeating a decision is a 200 with the same body, not a 409 — a retry after a dropped response must not read as an error.
-         *
-         *     `drafted_run_id` is only valid with `decision=drafted`; sending it with a dismissal is a 400 rather than a silently stored link the status contradicts.
-         *
-         *     A `profile_id` you cannot open answers 404, identical to one that does not exist.
-         *
-         *     **Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description The workspace to read. A workspace you are not an ACTIVE member of answers 404 — the same answer a workspace that does not exist gets, so the status code never becomes a way to enumerate tenants. */
-                    workspaceId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        profile_id: string;
-                        test_key: string;
-                        /** @enum {string} */
-                        kind: "cohort" | "archetype" | "format";
-                        target_dimension: string;
-                        target_value: string;
-                        /** @enum {string} */
-                        decision: "dismissed" | "drafted";
-                        /**
-                         * @description Default `28d`. Part of the decision's key.
-                         * @enum {string}
-                         */
-                        score_window?: "7d" | "14d" | "28d" | "lifetime";
-                        /**
-                         * Format: uuid
-                         * @description Only with `decision=drafted`.
-                         */
-                        drafted_run_id?: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description The decision now recorded */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["CreativeTestDecision"];
-                            meta: {
-                                /** @example uuid */
-                                workspace_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Missing or invalid body field */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Missing the campaigns:apply scope, or the credential is an API key (single-profile by design) */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description The workspace or the named profile does not exist, or you cannot open it */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Rate limited */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspaceId}/experiment-promotions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record an ad's promotion to a Meta experiment
-         * @description Call this BEFORE handing the operator off to Ads Manager, so the draft survives them never coming back.
-         *
-         *     **Idempotent without an `Idempotency-Key`: the key is the ad.** One promotion per `(workspace, profile, ad_external_id)`, and re-posting returns the same `promotion_id`.
-         *
-         *     **It never regresses a lifecycle.** If the reconciliation sync has already advanced the promotion to `live` or `linked`, the existing row is left exactly as it is, your draft is NOT stored, and the response says so in `advanced_beyond_write`. A client that ignores that flag tells an operator their draft was saved when it was not.
-         *
-         *     `draft_config` and `draft_payload` are stored verbatim and are opaque to this API. `create_job_enqueued` reports whether the direct-create job was queued — it is server-flag gated and non-fatal, so `false` never means the promotion failed.
-         *
-         *     A `profile_id` you cannot open answers 404, identical to one that does not exist.
-         *
-         *     **Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to read across and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description The workspace to read. A workspace you are not an ACTIVE member of answers 404 — the same answer a workspace that does not exist gets, so the status code never becomes a way to enumerate tenants. */
-                    workspaceId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": {
-                        /** Format: uuid */
-                        profile_id: string;
-                        ad_external_id: string;
-                        ad_name?: string | null;
-                        adset_external_id?: string | null;
-                        campaign_external_id?: string | null;
-                        meta_ad_account_id?: string | null;
-                        deep_link_url?: string | null;
-                        draft_config: {
-                            [key: string]: unknown;
-                        };
-                        draft_payload: {
-                            [key: string]: unknown;
-                        };
-                        /**
-                         * @description Default `handed_off`. `submitted` only when a direct create actually fired.
-                         * @enum {string}
-                         */
-                        mode?: "handed_off" | "submitted";
-                    };
-                };
-            };
-            responses: {
-                /** @description The recorded promotion */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data: components["schemas"]["AdExperimentPromotion"];
-                            meta: {
-                                /** @example uuid */
-                                workspace_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Missing or invalid body field */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Missing the campaigns:apply scope, or the credential is an API key (single-profile by design) */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description The workspace or the named profile does not exist, or you cannot open it */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-                /** @description Rate limited */
-                429: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error: {
-                                /** @example invalid_parameter */
-                                code: string;
-                                message: string;
-                                status: number;
-                                request_id: string;
-                            };
-                        };
-                    };
-                };
-            };
-        };
         delete?: never;
         options?: never;
         head?: never;
@@ -40581,6 +45115,8 @@ export interface paths {
         /**
          * Update one outcome-definition's event key
          * @description The ONE column the settings page's inline editor changes: which milestone (`event_key`) this CRM pipeline-stage LABEL maps to. `outcome_definitions` are NOT `conversion_definitions` — see `GET /api/v1/goals/definitions`'s description for the distinction. A definition belonging to another profile answers 404, byte-identical to one that does not exist.
+         *
+         *     **Mapping a CRM's stages (#1800).** `GET /api/v1/connections/{provider}/stages` lists every stage with its `outcome_definition_id`, the suggested outcome and the current one; write a stage's mapping here, one row per stage. Idempotent: the same `event_key` twice leaves the same row. For a `pipeline_stage` row `event_key` must be one of that read's `outcomes[].key` (otherwise 422); the edit applies to what ingestion reads from now on.
          */
         patch: {
             parameters: {
@@ -40663,7 +45199,24 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Malformed body */
+                /** @description `entitlement_required` — the profile was provisioned by an app and does not have the `atribu_attribution` entitlement; the app enables it with `PUT /api/v1/profiles/{profileId}/entitlements/atribu_attribution`. `GET /api/v1/connections/{provider}/stages` reports this up front as `write_blocked_reason: "entitlement_required"`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `validation_error` — a missing/malformed field, or (for a `pipeline_stage` definition) an `event_key` outside the pipeline-stage vocabulary: lead_created, contacted, follow_up, appointment_booked, no_show, showed, qualified, disqualified, closed_lost, closed_won, ignored. */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -40712,6 +45265,8 @@ export interface paths {
         /**
          * Replace one family of outcome definitions
          * @description Delete-then-insert every `outcome_definitions` row of ONE family (`pipeline_stage` | `order_event`) for this profile, replacing it with the given list. This is the shape onboarding's finish/skip step and the settings page's mode-switch seeding both use to (re)write a whole pipeline-stage or order-event ladder at once — there is no per-row create; use this with the family's full desired list, including rows that are not changing.
+         *
+         *     For `pipeline_stage`, every `event_key` must be in the same vocabulary `PATCH /api/v1/outcome-definitions/{id}` enforces (422 otherwise, before anything is deleted). A partner mapping a CRM's stages should NOT use this route: it re-inserts the family with new ids and without the CRM stage ids — PATCH each stage instead.
          *
          *     NOT wrapped in a database transaction: a failure between the delete and the insert can leave the family empty. The browser code this route replaces was not atomic either (two sequential calls with no rollback), so this is not a regression.
          */
@@ -40777,7 +45332,24 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Malformed body */
+                /** @description `entitlement_required` — the profile was provisioned by an app and does not have the `atribu_attribution` entitlement; the app enables it with `PUT /api/v1/profiles/{profileId}/entitlements/atribu_attribution`. `GET /api/v1/connections/{provider}/stages` reports this up front as `write_blocked_reason: "entitlement_required"`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `validation_error` — a missing/malformed field, or (for a `pipeline_stage` definition) an `event_key` outside the pipeline-stage vocabulary: lead_created, contacted, follow_up, appointment_booked, no_show, showed, qualified, disqualified, closed_lost, closed_won, ignored. */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -41969,6 +46541,7 @@ export interface paths {
                                 /** @example uuid */
                                 profile_id: string;
                             };
+                            capabilities: components["schemas"]["Capabilities"];
                         };
                     };
                 };
@@ -42767,6 +47340,115 @@ export interface paths {
                                 stale: boolean;
                                 /** @description The cache TTL the `stale` flag is computed against, in milliseconds. */
                                 ttl_ms: number;
+                                /** @description #306/#1669 — the profile-level Platform-Safe check. NULL unless `privacy_mode` is `platform_safe`. `results` holds only the feed destinations' rows. Under `target: clean` a row remediation of `wire_optimization` becomes `recreate_ad_set` (with `target` and `ad_set_ids`, null on a cached read) — an in-place re-point is what Meta refuses on a published ad set. Under `target: existing` rows keep their own remediation: nothing is provisioned or recreated. */
+                                platform_safe: {
+                                    /**
+                                     * @description #1669 — where the scrubbed feed goes. `existing` (default): the ordinary Meta CAPI destination(s), no recreation. `clean`: only the Clean Dataset.
+                                     * @enum {string}
+                                     */
+                                    target: "existing" | "clean";
+                                    /** @description The enabled destinations that receive the Platform-Safe feed. */
+                                    target_destination_ids: string[];
+                                    /**
+                                     * @description Whether a Clean Dataset exists. Under `target: clean`, `missing` means the profile sends Meta nothing; under `existing` it is informational.
+                                     * @enum {string}
+                                     */
+                                    platform_safe_dataset: "provisioned" | "missing";
+                                    clean_dataset_id: string | null;
+                                    clean_destination_id: string | null;
+                                    /** @description Enabled Meta CAPI destinations Atribu deliberately sends nothing to: the ordinary ones under `clean`, a leftover Clean Dataset under `existing`. Their verdicts are left out of `results`. */
+                                    suppressed_destination_ids: string[];
+                                    /**
+                                     * @description Every Platform-Safe export is held at the legal gate until a PERSON accepts the DPA, provisioned dataset or not. An API key cannot accept it; `sign_dpa` names the hand-off.
+                                     * @enum {string}
+                                     */
+                                    dpa_status: "accepted" | "not_accepted";
+                                    /** @description `provision_platform_safe_dataset` under `target: clean` when `platform_safe_dataset` is `missing`; `sign_dpa` (`POST /api/v1/legal/dpa/handoff`) when `dpa_status` is `not_accepted`; `switch_to_clean_dataset` (`POST /api/v1/conversion-sync/platform-safe/target` with `{target: "clean"}`) always under `target: existing` — the step to take when Events Manager shows Meta blocking Lead / Schedule / Purchase on the existing dataset. */
+                                    remediation: {
+                                        /** @enum {string} */
+                                        kind: "provision_platform_safe_dataset" | "sign_dpa" | "switch_to_clean_dataset";
+                                        /** @enum {string} */
+                                        method: "POST";
+                                        /** @example /api/v1/conversion-sync/platform-safe/target */
+                                        path: string;
+                                        /** @description The request body to send, when the call needs one — `{target: "clean"}` on `switch_to_clean_dataset`. */
+                                        body?: {
+                                            /** @enum {string} */
+                                            target: "clean";
+                                        };
+                                    }[];
+                                    /** @description #1669 — the event name each rule sends to each feed destination, with the 7-day double-count check against the dataset's own counts. */
+                                    event_mapping: {
+                                        rule_id: string;
+                                        destination_id: string;
+                                        dataset_id: string | null;
+                                        /**
+                                         * @description The event name Atribu sends for this rule: the rule's own override (`platform_event_name_overrides`), else the standard event of its conversion's category. Under `target: existing` it must be the name the live ad sets optimize on — change it on the rule, or disable the rule.
+                                         * @example Schedule
+                                         */
+                                        meta_event_name: string;
+                                        is_standard_event: boolean;
+                                        /** @description Atribu's sends of this name to this destination in the last 7 days. Null when not read. */
+                                        atribu_sent_7d: number | null;
+                                        /** @description Events of this name the dataset counted BEYOND Atribu's in the last 7 days (the advertiser's pixel, a CRM). Null when Meta's counts have not been polled for this dataset. */
+                                        other_sources_7d: number | null;
+                                        /** @description True when another source fires the SAME event name on the SAME dataset, so Atribu's copy counts twice (flagged at max(2, 10% of Atribu's sends) foreign events). Pick a name the pixel does not send, or disable the rule. Null = unknown. */
+                                        double_count_risk: boolean | null;
+                                    }[];
+                                    categorization: {
+                                        /** @description What to check by hand in Meta Events Manager (data source categories, blocked events) — Meta exposes no API field for a dataset's category. */
+                                        checklist: string[];
+                                        help_url: string;
+                                        /** @description The zero-accepted-events heuristic: an open `platform_safe_events_not_accepted` alert means Atribu sent Lead / Schedule / Purchase on at least 3 of the last 7 days and Meta counted none — the dataset may be restricted. Null when alerts could not be read. */
+                                        events_not_accepted: {
+                                            open: boolean;
+                                            dataset_ids: string[];
+                                            raised_at: string | null;
+                                        } | null;
+                                    };
+                                    /** @description Live ad sets still optimizing on the old dataset, each with its recreate steps. Read only under `target: clean`, on `force=1` and on `POST /wiring/recheck` (it costs Meta reads); NULL on a cached read, under `existing` (nothing moves), or when the read failed (see `ad_sets_error`). `[]` means read, and nothing to move. */
+                                    ad_sets_to_move: {
+                                        ad_set_id: string;
+                                        ad_set_name: string;
+                                        campaign_id: string;
+                                        campaign_name: string;
+                                        effective_status: string;
+                                        current_event_type: string | null;
+                                        /** @description Null when the Clean Dataset has no conversion this ad set can safely move to. */
+                                        target: {
+                                            /** @description The Clean Dataset. */
+                                            dataset_id: string;
+                                            /** @description The neutral Clean Dataset custom conversion the new ad set must optimize for. */
+                                            custom_conversion_id: string;
+                                            /** @example Schedule */
+                                            meta_event_name: string;
+                                            /** @example Atribu · Schedule */
+                                            neutral_name: string;
+                                            /**
+                                             * @description #1669 — what the new ad set optimizes on. `standard_event`: the Clean Dataset and the standard event `meta_event_name` (category `custom_event_type`) — no custom conversion, so nothing depends on a custom parameter Meta's Core Setup strips. `custom_conversion`: the neutral custom conversion, only for an event that is not a standard Meta event.
+                                             * @enum {string}
+                                             */
+                                            optimize_on: "standard_event" | "custom_conversion";
+                                            /**
+                                             * @description The standard category when `optimize_on` is `standard_event`.
+                                             * @example SCHEDULE
+                                             */
+                                            custom_event_type: string | null;
+                                        } | null;
+                                        unmappable_reason: string | null;
+                                        remediation: {
+                                            /** @enum {string} */
+                                            kind: "recreate_ad_set";
+                                            help_url: string;
+                                            /** @description Guided-manual recreate in Ads Manager: duplicate the ad set, set the Clean Dataset conversion BEFORE publishing the copy, publish, then pause the original. */
+                                            steps: string[];
+                                        } | null;
+                                    }[] | null;
+                                    ad_sets_checked_at: string | null;
+                                    ad_sets_error: string | null;
+                                    /** @description What no API call can do about a Clean Dataset move (#306): Meta freezes a published ad set's dataset and conversion (subcode 3260011), an API copy inherits the freeze, and a new ad set restarts learning with a new id. `[]` under `target: existing`. */
+                                    cannot_automate: string[];
+                                } | null;
                             };
                             meta: {
                                 /** @example uuid */
@@ -42936,6 +47618,115 @@ export interface paths {
                                 stale: boolean;
                                 /** @description The cache TTL the `stale` flag is computed against, in milliseconds. */
                                 ttl_ms: number;
+                                /** @description #306/#1669 — the profile-level Platform-Safe check. NULL unless `privacy_mode` is `platform_safe`. `results` holds only the feed destinations' rows. Under `target: clean` a row remediation of `wire_optimization` becomes `recreate_ad_set` (with `target` and `ad_set_ids`, null on a cached read) — an in-place re-point is what Meta refuses on a published ad set. Under `target: existing` rows keep their own remediation: nothing is provisioned or recreated. */
+                                platform_safe: {
+                                    /**
+                                     * @description #1669 — where the scrubbed feed goes. `existing` (default): the ordinary Meta CAPI destination(s), no recreation. `clean`: only the Clean Dataset.
+                                     * @enum {string}
+                                     */
+                                    target: "existing" | "clean";
+                                    /** @description The enabled destinations that receive the Platform-Safe feed. */
+                                    target_destination_ids: string[];
+                                    /**
+                                     * @description Whether a Clean Dataset exists. Under `target: clean`, `missing` means the profile sends Meta nothing; under `existing` it is informational.
+                                     * @enum {string}
+                                     */
+                                    platform_safe_dataset: "provisioned" | "missing";
+                                    clean_dataset_id: string | null;
+                                    clean_destination_id: string | null;
+                                    /** @description Enabled Meta CAPI destinations Atribu deliberately sends nothing to: the ordinary ones under `clean`, a leftover Clean Dataset under `existing`. Their verdicts are left out of `results`. */
+                                    suppressed_destination_ids: string[];
+                                    /**
+                                     * @description Every Platform-Safe export is held at the legal gate until a PERSON accepts the DPA, provisioned dataset or not. An API key cannot accept it; `sign_dpa` names the hand-off.
+                                     * @enum {string}
+                                     */
+                                    dpa_status: "accepted" | "not_accepted";
+                                    /** @description `provision_platform_safe_dataset` under `target: clean` when `platform_safe_dataset` is `missing`; `sign_dpa` (`POST /api/v1/legal/dpa/handoff`) when `dpa_status` is `not_accepted`; `switch_to_clean_dataset` (`POST /api/v1/conversion-sync/platform-safe/target` with `{target: "clean"}`) always under `target: existing` — the step to take when Events Manager shows Meta blocking Lead / Schedule / Purchase on the existing dataset. */
+                                    remediation: {
+                                        /** @enum {string} */
+                                        kind: "provision_platform_safe_dataset" | "sign_dpa" | "switch_to_clean_dataset";
+                                        /** @enum {string} */
+                                        method: "POST";
+                                        /** @example /api/v1/conversion-sync/platform-safe/target */
+                                        path: string;
+                                        /** @description The request body to send, when the call needs one — `{target: "clean"}` on `switch_to_clean_dataset`. */
+                                        body?: {
+                                            /** @enum {string} */
+                                            target: "clean";
+                                        };
+                                    }[];
+                                    /** @description #1669 — the event name each rule sends to each feed destination, with the 7-day double-count check against the dataset's own counts. */
+                                    event_mapping: {
+                                        rule_id: string;
+                                        destination_id: string;
+                                        dataset_id: string | null;
+                                        /**
+                                         * @description The event name Atribu sends for this rule: the rule's own override (`platform_event_name_overrides`), else the standard event of its conversion's category. Under `target: existing` it must be the name the live ad sets optimize on — change it on the rule, or disable the rule.
+                                         * @example Schedule
+                                         */
+                                        meta_event_name: string;
+                                        is_standard_event: boolean;
+                                        /** @description Atribu's sends of this name to this destination in the last 7 days. Null when not read. */
+                                        atribu_sent_7d: number | null;
+                                        /** @description Events of this name the dataset counted BEYOND Atribu's in the last 7 days (the advertiser's pixel, a CRM). Null when Meta's counts have not been polled for this dataset. */
+                                        other_sources_7d: number | null;
+                                        /** @description True when another source fires the SAME event name on the SAME dataset, so Atribu's copy counts twice (flagged at max(2, 10% of Atribu's sends) foreign events). Pick a name the pixel does not send, or disable the rule. Null = unknown. */
+                                        double_count_risk: boolean | null;
+                                    }[];
+                                    categorization: {
+                                        /** @description What to check by hand in Meta Events Manager (data source categories, blocked events) — Meta exposes no API field for a dataset's category. */
+                                        checklist: string[];
+                                        help_url: string;
+                                        /** @description The zero-accepted-events heuristic: an open `platform_safe_events_not_accepted` alert means Atribu sent Lead / Schedule / Purchase on at least 3 of the last 7 days and Meta counted none — the dataset may be restricted. Null when alerts could not be read. */
+                                        events_not_accepted: {
+                                            open: boolean;
+                                            dataset_ids: string[];
+                                            raised_at: string | null;
+                                        } | null;
+                                    };
+                                    /** @description Live ad sets still optimizing on the old dataset, each with its recreate steps. Read only under `target: clean`, on `force=1` and on `POST /wiring/recheck` (it costs Meta reads); NULL on a cached read, under `existing` (nothing moves), or when the read failed (see `ad_sets_error`). `[]` means read, and nothing to move. */
+                                    ad_sets_to_move: {
+                                        ad_set_id: string;
+                                        ad_set_name: string;
+                                        campaign_id: string;
+                                        campaign_name: string;
+                                        effective_status: string;
+                                        current_event_type: string | null;
+                                        /** @description Null when the Clean Dataset has no conversion this ad set can safely move to. */
+                                        target: {
+                                            /** @description The Clean Dataset. */
+                                            dataset_id: string;
+                                            /** @description The neutral Clean Dataset custom conversion the new ad set must optimize for. */
+                                            custom_conversion_id: string;
+                                            /** @example Schedule */
+                                            meta_event_name: string;
+                                            /** @example Atribu · Schedule */
+                                            neutral_name: string;
+                                            /**
+                                             * @description #1669 — what the new ad set optimizes on. `standard_event`: the Clean Dataset and the standard event `meta_event_name` (category `custom_event_type`) — no custom conversion, so nothing depends on a custom parameter Meta's Core Setup strips. `custom_conversion`: the neutral custom conversion, only for an event that is not a standard Meta event.
+                                             * @enum {string}
+                                             */
+                                            optimize_on: "standard_event" | "custom_conversion";
+                                            /**
+                                             * @description The standard category when `optimize_on` is `standard_event`.
+                                             * @example SCHEDULE
+                                             */
+                                            custom_event_type: string | null;
+                                        } | null;
+                                        unmappable_reason: string | null;
+                                        remediation: {
+                                            /** @enum {string} */
+                                            kind: "recreate_ad_set";
+                                            help_url: string;
+                                            /** @description Guided-manual recreate in Ads Manager: duplicate the ad set, set the Clean Dataset conversion BEFORE publishing the copy, publish, then pause the original. */
+                                            steps: string[];
+                                        } | null;
+                                    }[] | null;
+                                    ad_sets_checked_at: string | null;
+                                    ad_sets_error: string | null;
+                                    /** @description What no API call can do about a Clean Dataset move (#306): Meta freezes a published ad set's dataset and conversion (subcode 3260011), an API copy inherits the freeze, and a new ad set restarts learning with a new id. `[]` under `target: existing`. */
+                                    cannot_automate: string[];
+                                } | null;
                             };
                             meta: {
                                 /** @example uuid */
@@ -43266,6 +48057,8 @@ export interface paths {
          * @description Re-points up to 20 ad sets' `promoted_object` at the event this rule sends, one at a time so a single failure cannot cancel the rest. Every write goes through the Meta action layer, so each one has an audit row, an idempotent replay key and a rollback.
          *
          *     Ad sets Meta froze at publish come back in `needs_duplicate_swap` untouched. Re-sending with `confirm_duplicate_swap: true` and a `duplicate_swap_mode` rebuilds them (at most 5 per request): `switch` pauses the original once the replacement is live, `run_both` leaves both running. There is deliberately NO default — one pauses a running ad set and the other doubles the money on that audience.
+         *
+         *     **Partners (#306 option B).** An API key or MCP user token that sends `confirm_duplicate_swap: true` must also send `consent: { version, text_hash, accepted_by, accepted_at }` for the CURRENT consent text, which your UI renders verbatim (Partners → Automated duplicate-and-swap). Missing, another version, another text or older than 24 hours → `409 consent_required` with `error.consent` naming the current version and hashes; nothing is read from or sent to Meta. Every rebuild is stated in `warnings` (new ad set ids, learning reset, double spend).
          */
         post: {
             parameters: {
@@ -43285,6 +48078,7 @@ export interface paths {
                         confirm_duplicate_swap?: boolean;
                         /** @enum {string} */
                         duplicate_swap_mode?: "switch" | "run_both";
+                        consent?: components["schemas"]["SwapConsent"];
                     };
                 };
             };
@@ -43332,6 +48126,8 @@ export interface paths {
                                 results: {
                                     [key: string]: unknown;
                                 }[];
+                                /** @description #306 — the consequences of every ad set this call rebuilt: new ad set ids, Meta's learning reset and any double-spend window. Empty when nothing was rebuilt. Show them to the merchant. */
+                                warnings: components["schemas"]["DuplicateSwapWarning"][];
                                 checked_at: string;
                             };
                             meta: {
@@ -43392,7 +48188,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description The rule is archived, the destination is not a configured Meta CAPI destination, or Meta refused because the object already exists */
+                /** @description `consent_required` — an API key or MCP user token confirmed a duplicate-and-swap without a current consent (carries `error.consent`). Otherwise: The rule is archived, the destination is not a configured Meta CAPI destination, or Meta refused because the object already exists */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -43400,16 +48196,25 @@ export interface paths {
                     content: {
                         "application/json": {
                             error: {
-                                /** @example invalid_parameter */
+                                /** @example consent_required */
                                 code: string;
                                 message: string;
                                 status: number;
                                 request_id: string;
+                                /** @description Present on `consent_required`: the current consent version and text hashes. */
+                                consent?: {
+                                    /** @example 2026-09-23.duplicate-swap.v1 */
+                                    version: string;
+                                    text_hashes: {
+                                        en: string;
+                                        es: string;
+                                    };
+                                };
                             };
                         };
                     };
                 };
-                /** @description Malformed body, or `confirm_duplicate_swap` with no `duplicate_swap_mode` */
+                /** @description Malformed body (including a malformed `consent`), or `confirm_duplicate_swap` with no `duplicate_swap_mode` */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -44358,6 +49163,10 @@ export interface paths {
         /**
          * Provision the Clean Dataset and its neutral conversions
          * @description Creates a FRESH dataset in the profile's ad account (a Clean Dataset must have zero restriction history, so an existing one is never adopted), registers one NEUTRAL custom conversion per tracked outcome event, and persists the pair as a Platform-Safe `meta_capi` destination. Every Meta write goes through the action layer, so each one leaves an audit row and is keyed for idempotent replay — a retry after a lost response reports the dataset that exists rather than spending the account's only other pixel slot. Workspace owners and admins only when the caller is a person; an API key with `exports:write` may.
+         *
+         *     **Idempotent.** When a Clean Dataset already covers every tracked outcome type the answer is `already_provisioned`, straight from Atribu's database: no Meta call, no write. A newly tracked outcome type falls through to the full path, which resumes the same dataset and registers only the missing conversion.
+         *
+         *     **Partner order (#306).** An API key or an MCP user token must switch the profile to `platform_safe` FIRST (`PUT /api/v1/conversion-sync/catalog`) — otherwise `409 platform_safe_required`. That is also the fail-safe order: a Platform-Safe profile with no Clean Dataset sends Meta nothing. The Meta connection is the one an enabled Meta CAPI destination names, or else the profile's single connected Meta Ads account.
          */
         post: {
             parameters: {
@@ -44384,8 +49193,11 @@ export interface paths {
                         "application/json": {
                             /** @description TWO shapes at 200, discriminated by `status`. `action_required` is NOT a failure: Atribu asked Meta and the answer was that a human has to do this part — the token lacks `ads_management`, or the ad account's single self-created-pixel slot is already held by the advertiser's own pixel and a Clean Dataset must have zero restriction history. Neither is fixable by a retry, which is why neither is a 4xx. */
                             data: {
-                                /** @enum {string} */
-                                status: "provisioned";
+                                /**
+                                 * @description `provisioned` — this call created (or resumed) the dataset and/or registered conversions. `already_provisioned` — a Clean Dataset already covers every tracked outcome type, so nothing was sent to Meta and nothing was written. A partner may call this on every setup run.
+                                 * @enum {string}
+                                 */
+                                status: "provisioned" | "already_provisioned";
                                 dataset_id: string;
                                 conversions: {
                                     /** @description The Atribu outcome-event type this conversion is registered under. */
@@ -44403,14 +49215,72 @@ export interface paths {
                                 }[];
                                 /** @description The `tracking_export_destinations` row the Clean Dataset now lives on. */
                                 destination_id: string | null;
+                                /** @description What the provision checked before it answered (#306). */
+                                checks: {
+                                    /** @example platform_safe */
+                                    privacy_mode: string;
+                                    /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                                    meta_connection_id: string | null;
+                                    /**
+                                     * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                                     * @enum {string}
+                                     */
+                                    ads_management: "granted" | "missing" | "not_checked";
+                                    /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                                    outcome_types_tracked: number;
+                                    /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                                    outcome_types_mapped: number;
+                                    /**
+                                     * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                                     * @enum {string}
+                                     */
+                                    dpa_status: "accepted" | "not_accepted";
+                                    /**
+                                     * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                                     * @enum {string}
+                                     */
+                                    platform_safe_target: "existing" | "clean";
+                                };
                             } | {
                                 /** @enum {string} */
                                 status: "action_required";
                                 /** @enum {string} */
                                 reason: "ads_management_missing" | "pixel_slot_taken";
+                                /**
+                                 * @description The Meta permissions the advertiser must grant on reconnect — `ads_management` when `reason` is `ads_management_missing`; empty for `pixel_slot_taken`.
+                                 * @example [
+                                 *       "ads_management"
+                                 *     ]
+                                 */
                                 missing_permissions: string[];
                                 /** @description The plan the advertiser must carry out by hand in Events Manager. */
                                 manual_steps: string[];
+                                /** @description What the provision checked before it answered (#306). */
+                                checks: {
+                                    /** @example platform_safe */
+                                    privacy_mode: string;
+                                    /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                                    meta_connection_id: string | null;
+                                    /**
+                                     * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                                     * @enum {string}
+                                     */
+                                    ads_management: "granted" | "missing" | "not_checked";
+                                    /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                                    outcome_types_tracked: number;
+                                    /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                                    outcome_types_mapped: number;
+                                    /**
+                                     * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                                     * @enum {string}
+                                     */
+                                    dpa_status: "accepted" | "not_accepted";
+                                    /**
+                                     * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                                     * @enum {string}
+                                     */
+                                    platform_safe_target: "existing" | "clean";
+                                };
                             };
                             meta: {
                                 /** @example uuid */
@@ -44453,7 +49323,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description The profile has no enabled Meta destination, or no conversion definitions to map */
+                /** @description `platform_safe_required` — an API key or MCP user token called this on a profile whose `privacy_mode` is not `platform_safe`. `meta_connection_required` — no usable Meta Ads connection (none, or several with no Meta CAPI destination naming one). `invalid_state` — the profile has no conversion definitions to map. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -44570,7 +49440,7 @@ export interface paths {
                                     /** @description The event the ad set actually NAMES, when it names one (an inline `pixel_rule` or a `custom_event_str`). Display only: go-live maps on the CATEGORY, and when this disagrees with it there is no safe mapping at all. */
                                     current_event_name: string | null;
                                     from_pixel_id: string | null;
-                                    /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`), passed through rather than re-described, so it cannot drift from its producer. */
+                                    /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`, `optimization`), passed through rather than re-described, so it cannot drift from its producer. `optimization` (#1669) is what the move writes: `{kind: "standard_event", pixelId, eventName, customEventType}` whenever the conversion is a standard Meta event — the ad set then optimizes on the Clean Dataset's standard event and depends on no custom parameter (Core Setup strips them) — or `{kind: "custom_conversion", customConversionId}` only for an event that is not a standard one. */
                                     target: {
                                         [key: string]: unknown;
                                     } | null;
@@ -44599,7 +49469,7 @@ export interface paths {
                                     /** @description The event the ad set actually NAMES, when it names one (an inline `pixel_rule` or a `custom_event_str`). Display only: go-live maps on the CATEGORY, and when this disagrees with it there is no safe mapping at all. */
                                     current_event_name: string | null;
                                     from_pixel_id: string | null;
-                                    /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`), passed through rather than re-described, so it cannot drift from its producer. */
+                                    /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`, `optimization`), passed through rather than re-described, so it cannot drift from its producer. `optimization` (#1669) is what the move writes: `{kind: "standard_event", pixelId, eventName, customEventType}` whenever the conversion is a standard Meta event — the ad set then optimizes on the Clean Dataset's standard event and depends on no custom parameter (Core Setup strips them) — or `{kind: "custom_conversion", customConversionId}` only for an event that is not a standard one. */
                                     target: {
                                         [key: string]: unknown;
                                     } | null;
@@ -44697,7 +49567,9 @@ export interface paths {
         put?: never;
         /**
          * Apply the Platform-Safe go-live change
-         * @description Moves the named ad sets onto the Clean Dataset's neutral Custom Conversion. Each ad set's target is recomputed SERVER-SIDE and never trusted from the body, so a stale tab cannot send an ad set somewhere unexpected. The in-place re-point is always attempted first, even when a preview said it would fail — the attempt is the authoritative test and a preview is a snapshot; only Meta's frozen-ad-set refusal escalates to a rebuild, and only with `confirm_recreate`. Rides the action layer, so every write has pre-state, an audit row and a rollback. Workspace owners and admins only when the caller is a person: this switches which event campaigns optimize on and resets Meta's learning.
+         * @description Moves the named ad sets onto the Clean Dataset — its STANDARD event (`{pixel_id, custom_event_type}`) whenever the conversion is a standard Meta event, the neutral Custom Conversion only otherwise (#1669: a Custom Conversion's rule reads a custom parameter, which Meta's Core Setup strips). Each ad set's target is recomputed SERVER-SIDE and never trusted from the body, so a stale tab cannot send an ad set somewhere unexpected. The in-place re-point is always attempted first, even when a preview said it would fail — the attempt is the authoritative test and a preview is a snapshot; only Meta's frozen-ad-set refusal escalates to a rebuild, and only with `confirm_recreate`. Rides the action layer, so every write has pre-state, an audit row and a rollback. Workspace owners and admins only when the caller is a person: this switches which event campaigns optimize on and resets Meta's learning.
+         *
+         *     **Partners (#306 option B).** An API key or MCP user token that sends `confirm_recreate: true` must also send `consent: { version, text_hash, accepted_by, accepted_at }` for the CURRENT consent text, which your UI renders verbatim (Partners → Automated duplicate-and-swap). Missing, another version, another text or older than 24 hours → `409 consent_required` with `error.consent` naming the current version and hashes; nothing is sent to Meta. Every rebuild is stated in `warnings` (new ad set ids, learning reset, double-spend window). A partner rebuild needs `platform_safe_target: clean`; under `existing` it is `409 invalid_state` naming the `switch_to_clean_dataset` remediation (`POST /api/v1/conversion-sync/platform-safe/target`).
          */
         post: {
             parameters: {
@@ -44713,6 +49585,7 @@ export interface paths {
                         ad_set_ids: string[];
                         /** @description Consent to REBUILD any ad set Meta refuses to re-point in place. Absent, those ad sets come back in `needs_recreate` UNTOUCHED: recreating costs a new ad set id (reporting history does not follow it) and a learning reset, so it needs its own yes, not the one given for a re-point. */
                         confirm_recreate?: boolean;
+                        consent?: components["schemas"]["SwapConsent"] & unknown;
                     };
                 };
             };
@@ -44750,6 +49623,8 @@ export interface paths {
                                     code: string;
                                     message: string;
                                 }[];
+                                /** @description #306 — the consequences of every ad set this call rebuilt: new ad set ids, Meta's learning reset and any double-spend window. Empty when nothing was rebuilt. Show them to the merchant. */
+                                warnings: components["schemas"]["DuplicateSwapWarning"][];
                                 checked_at: string;
                             };
                             meta: {
@@ -44793,7 +49668,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description No Clean Dataset yet, or none of the requested ad sets can be re-pointed (already on it, or unmappable) */
+                /** @description `consent_required` — an API key or MCP user token confirmed a rebuild without a current consent (carries `error.consent`). `invalid_state` — no Clean Dataset yet, none of the requested ad sets can be re-pointed (already on it, or unmappable), or a key / MCP token confirmed a rebuild while `platform_safe_target` is `existing` (remediation `switch_to_clean_dataset`). */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -44801,16 +49676,25 @@ export interface paths {
                     content: {
                         "application/json": {
                             error: {
-                                /** @example invalid_parameter */
+                                /** @example consent_required */
                                 code: string;
                                 message: string;
                                 status: number;
                                 request_id: string;
+                                /** @description Present on `consent_required`: the current consent version and text hashes. */
+                                consent?: {
+                                    /** @example 2026-09-23.duplicate-swap.v1 */
+                                    version: string;
+                                    text_hashes: {
+                                        en: string;
+                                        es: string;
+                                    };
+                                };
                             };
                         };
                     };
                 };
-                /** @description `ad_set_ids` is empty, longer than 20, or holds a malformed id */
+                /** @description `ad_set_ids` is empty, longer than 20, or holds a malformed id; or `consent` is not an object of four non-empty strings, or `accepted_at` is not a timestamp / lies in the future */
                 422: {
                     headers: {
                         [name: string]: unknown;
@@ -44829,6 +49713,307 @@ export interface paths {
                 };
                 /** @description Rate limited */
                 429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/platform-safe/target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch where the Platform-Safe feed goes: existing dataset or Clean Dataset
+         * @description Platform-Safe scrubs every Meta event the same way (default-deny `custom_data`, origin-only URL, neutral names); `platform_safe_target` decides WHICH dataset receives them (#1669).
+         *
+         *     `existing` (the default) sends to the profile's ordinary Meta CAPI destination(s) — the dataset its live ad sets already optimize on, so nothing is recreated. Meta classifies a data SOURCE (domain + business), not single events, so the scrubbed feed adds nothing a restriction reacts to.
+         *
+         *     `clean` is the remediation once Meta restricts that dataset (Events Manager shows Lead / Schedule / Purchase blocked). It runs the provision (idempotent), flips the target ONLY when a Clean Dataset exists afterwards, and lists the ad sets to recreate on it — apply them with `POST /api/v1/conversion-sync/platform-safe/repoint`. When the provision answers `action_required`, the target stays `existing` (`switched: false`) so the profile keeps sending rather than sending nothing.
+         *
+         *     Back to `existing` is refused with `409 clean_dataset_has_live_ad_sets` while ad sets on the Clean Dataset are still delivering (or when Meta cannot be read to check), unless `confirm_live_ad_sets: true`.
+         *
+         *     Only on a profile in `platform_safe` mode. Workspace owners and admins only when the caller is a person; an API key with `exports:write` may.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description `existing` — the ordinary Meta dataset(s), no recreation. `clean` — provision the Clean Dataset and route the feed only to it.
+                         * @enum {string}
+                         */
+                        target: "existing" | "clean";
+                        /** @description `clean` only: overrides the Clean Dataset's branded default name. */
+                        dataset_name?: string;
+                        /** @description `existing` only: consent to move the feed off a Clean Dataset whose ad sets are still delivering. Those ad sets stop receiving conversions. */
+                        confirm_live_ad_sets?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description The target now in force, and what the switch did */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /**
+                                 * @description The target in force after this call.
+                                 * @enum {string}
+                                 */
+                                target: "existing" | "clean";
+                                /** @enum {string} */
+                                previous_target: "existing" | "clean";
+                                /** @description Whether this call changed the target. */
+                                switched: boolean;
+                                /** @description `clean` only: the provision this switch ran. `action_required` means nothing could be created automatically — the target did NOT flip. */
+                                provision: {
+                                    /**
+                                     * @description `provisioned` — this call created (or resumed) the dataset and/or registered conversions. `already_provisioned` — a Clean Dataset already covers every tracked outcome type, so nothing was sent to Meta and nothing was written. A partner may call this on every setup run.
+                                     * @enum {string}
+                                     */
+                                    status: "provisioned" | "already_provisioned";
+                                    dataset_id: string;
+                                    conversions: {
+                                        /** @description The Atribu outcome-event type this conversion is registered under. */
+                                        outcome_type: string;
+                                        /**
+                                         * @description The NEUTRAL Meta event name the rule matches — never a health term.
+                                         * @example Schedule
+                                         */
+                                        meta_event_name: string;
+                                        /** @example SCHEDULE */
+                                        custom_event_type: string;
+                                        /** @example Atribu · Schedule */
+                                        neutral_name: string;
+                                        conversion_id: string;
+                                    }[];
+                                    /** @description The `tracking_export_destinations` row the Clean Dataset now lives on. */
+                                    destination_id: string | null;
+                                    /** @description What the provision checked before it answered (#306). */
+                                    checks: {
+                                        /** @example platform_safe */
+                                        privacy_mode: string;
+                                        /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                                        meta_connection_id: string | null;
+                                        /**
+                                         * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                                         * @enum {string}
+                                         */
+                                        ads_management: "granted" | "missing" | "not_checked";
+                                        /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                                        outcome_types_tracked: number;
+                                        /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                                        outcome_types_mapped: number;
+                                        /**
+                                         * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                                         * @enum {string}
+                                         */
+                                        dpa_status: "accepted" | "not_accepted";
+                                        /**
+                                         * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                                         * @enum {string}
+                                         */
+                                        platform_safe_target: "existing" | "clean";
+                                    };
+                                } | {
+                                    /** @enum {string} */
+                                    status: "action_required";
+                                    /** @enum {string} */
+                                    reason: "ads_management_missing" | "pixel_slot_taken";
+                                    /**
+                                     * @description The Meta permissions the advertiser must grant on reconnect — `ads_management` when `reason` is `ads_management_missing`; empty for `pixel_slot_taken`.
+                                     * @example [
+                                     *       "ads_management"
+                                     *     ]
+                                     */
+                                    missing_permissions: string[];
+                                    /** @description The plan the advertiser must carry out by hand in Events Manager. */
+                                    manual_steps: string[];
+                                    /** @description What the provision checked before it answered (#306). */
+                                    checks: {
+                                        /** @example platform_safe */
+                                        privacy_mode: string;
+                                        /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                                        meta_connection_id: string | null;
+                                        /**
+                                         * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                                         * @enum {string}
+                                         */
+                                        ads_management: "granted" | "missing" | "not_checked";
+                                        /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                                        outcome_types_tracked: number;
+                                        /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                                        outcome_types_mapped: number;
+                                        /**
+                                         * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                                         * @enum {string}
+                                         */
+                                        dpa_status: "accepted" | "not_accepted";
+                                        /**
+                                         * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                                         * @enum {string}
+                                         */
+                                        platform_safe_target: "existing" | "clean";
+                                    };
+                                } | null;
+                                /** @description `clean` only: live ad sets still optimizing on the old dataset, each with its Clean Dataset target. Each one must be recreated (new id, learning reset); apply with `POST /api/v1/conversion-sync/platform-safe/repoint`. Null when not read — see `ad_sets_error`. */
+                                ad_sets_to_recreate: {
+                                    ad_set_id: string;
+                                    ad_set_name: string;
+                                    campaign_id: string;
+                                    campaign_name: string;
+                                    campaign_objective: string;
+                                    effective_status: string;
+                                    current_optimization_goal: string;
+                                    current_event_type: string | null;
+                                    /** @description The event the ad set actually NAMES, when it names one (an inline `pixel_rule` or a `custom_event_str`). Display only: go-live maps on the CATEGORY, and when this disagrees with it there is no safe mapping at all. */
+                                    current_event_name: string | null;
+                                    from_pixel_id: string | null;
+                                    /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`, `optimization`), passed through rather than re-described, so it cannot drift from its producer. `optimization` (#1669) is what the move writes: `{kind: "standard_event", pixelId, eventName, customEventType}` whenever the conversion is a standard Meta event — the ad set then optimizes on the Clean Dataset's standard event and depends on no custom parameter (Core Setup strips them) — or `{kind: "custom_conversion", customConversionId}` only for an event that is not a standard one. */
+                                    target: {
+                                        [key: string]: unknown;
+                                    } | null;
+                                    /**
+                                     * @description Why `target` is null. `event_diverges_from_category` means the ad set optimizes for a specific event its category does not stand for, so mapping on the category would change what it optimizes for — 25 ad sets on one prod account are in exactly that state (2026-09-09).
+                                     * @enum {string|null}
+                                     */
+                                    unmappable_reason: "no_clean_conversion" | "event_diverges_from_category" | null;
+                                }[] | null;
+                                ad_sets_error: string | null;
+                                /** @description `existing` only: Clean Dataset ad sets that were still delivering when the switch was confirmed. Null when there was no Clean Dataset to check or Meta could not be read. */
+                                live_clean_ad_sets: {
+                                    ad_set_id: string;
+                                    ad_set_name: string;
+                                    campaign_name: string | null;
+                                    effective_status: string;
+                                }[] | null;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope, or (on the write) not a workspace owner/admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `platform_safe_required` — the profile is not in `platform_safe` mode. `clean_dataset_has_live_ad_sets` — switching back to `existing` while Clean Dataset ad sets still deliver (or unverifiable); resend with `confirm_live_ad_sets: true`. `meta_connection_required` / `invalid_state` — from the provision on `clean`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `target` is not `existing` or `clean`, `dataset_name` is malformed or sent with `existing`, or `confirm_live_ad_sets` is not a boolean */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta refused the provision */
+                502: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -46003,6 +51188,381 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversion-sync/data-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Meta dataset state per data source, and what it would export
+         * @description For the profile's WhatsApp Business Account and its website pixel: whether a Meta Conversions API destination is wired, the prerequisites, the dataset id, the activation watermark (`export_from`), whether Atribu's system user has access, and — when it is not ready — why. `export_preview` counts the last 30 days' outcome events by the lane each would take: events with a click-to-WhatsApp click id go to the WhatsApp dataset as `business_messaging`; every other event goes to the website pixel only if one exists, otherwise it is not sent. Never calls Meta.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Per-kind state and the export preview */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /**
+                                 * @description `automatic` — a profile created in Atribu: the WhatsApp dataset is created the moment Meta Ads and WhatsApp are both connected. `on_request` — a profile a consumer app provisioned: connecting only REPORTS `ready`; the dataset is created by `POST /api/v1/conversion-sync/data-sources/whatsapp/ensure` and nothing else.
+                                 * @enum {string}
+                                 */
+                                creation: "automatic" | "on_request";
+                                prerequisites: {
+                                    meta_ads: {
+                                        connected: boolean;
+                                        connection_id: string | null;
+                                        ad_account_id: string | null;
+                                    };
+                                    whatsapp: {
+                                        connected: boolean;
+                                        waba_id: string | null;
+                                    };
+                                    /** @description The Instagram professional account the Instagram dataset is created on (2026-10-07). */
+                                    instagram: {
+                                        connected: boolean;
+                                        ig_account_id: string | null;
+                                    };
+                                    /**
+                                     * @description An app-provisioned profile exports nothing without the `atribu_attribution` entitlement; `missing` makes ensure answer `409 entitlement_required`.
+                                     * @enum {string}
+                                     */
+                                    attribution_entitlement: "entitled" | "missing" | "not_required";
+                                };
+                                data_sources: components["schemas"]["ConversionSyncDataSourceStatus"][];
+                                /** @description The pixels on the connected Meta ad account — what `POST …/website/ensure` accepts as `dataset_id`. A live Graph read of the account's pixels. `null` (never `[]`) when Meta Ads is not connected or Meta could not be read; see `selectable_pixels_error`. */
+                                selectable_pixels: {
+                                    id: string;
+                                    name: string | null;
+                                    last_fired_time: string | null;
+                                }[] | null;
+                                selectable_pixels_error: string | null;
+                                /** @description What would be exported once the WhatsApp dataset is on, over the last 30 days. Read from Atribu's own tables; nothing is sent. */
+                                export_preview: {
+                                    window_days: number;
+                                    /** @description Enabled signal rules sending a conversion definition to Meta. ZERO means nothing is exported at all, whatever the destinations — create a rule (`POST /api/v1/exports/rules`). */
+                                    enabled_meta_rules: number;
+                                    /** @description Enabled pipeline-stage rules targeting Meta; not included in the counts. */
+                                    enabled_meta_stage_rules: number;
+                                    /** @description Every outcome event of the window, by the lane it would take. */
+                                    events: {
+                                        total: number;
+                                        /** @description Events carrying a click-to-WhatsApp click id (`ctwa_clid`, the event's own or the customer's) that declare `business_messaging` or nothing. */
+                                        whatsapp_lane: number;
+                                        /** @description Everything else: no `ctwa_clid`, or a declared non-messaging `action_source`. */
+                                        website_lane: number;
+                                    };
+                                    /** @description The subset an enabled Meta rule matches — an upper bound on the candidates, before per-event gates (consent, staleness, value pre-flight, privacy). */
+                                    rule_matched: {
+                                        total: number;
+                                        /** @description Events carrying a click-to-WhatsApp click id (`ctwa_clid`, the event's own or the customer's) that declare `business_messaging` or nothing. */
+                                        whatsapp_lane: number;
+                                        /** @description Everything else: no `ctwa_clid`, or a declared non-messaging `action_source`. */
+                                        website_lane: number;
+                                    };
+                                    whatsapp_lane: {
+                                        /** @enum {string|null} */
+                                        destination: "whatsapp_dataset" | null;
+                                        /** @enum {string} */
+                                        action_source: "business_messaging";
+                                    };
+                                    website_lane: {
+                                        /**
+                                         * @description Null when the profile has no website pixel destination. Such events are then NOT sent to Meta — never to the WhatsApp dataset — and the export ledger records each as `skipped` with `skip_reason: no_website_destination`. When a pixel exists they go there with a non-messaging `action_source` (the declared one, or `system_generated`; never `business_messaging` or `chat`).
+                                         * @enum {string|null}
+                                         */
+                                        destination: "website_pixel" | null;
+                                        /** @enum {string|null} */
+                                        not_sent_reason: "no_website_destination" | null;
+                                        /** @description The window's website-lane events by the `action_source` they would carry: a declared non-messaging value verbatim (`physical_store`, `system_generated`, `website`, …); a declared `business_messaging`/`chat` without a click id → `system_generated`; nothing declared → `inferred` (`website` with browser signals, else `system_generated`, decided per event at send time). */
+                                        by_action_source: {
+                                            [key: string]: number;
+                                        };
+                                    };
+                                    truncated: boolean;
+                                    sampled_events: number;
+                                };
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/data-sources/{kind}/ensure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the WhatsApp or Instagram dataset, or attach an existing website pixel (idempotent)
+         * @description Creates the Meta dataset linked to the profile's WhatsApp Business Account (or fetches the one Meta already has), grants Atribu's system user access, and wires it as an ENABLED Conversions API destination whose `export_from` is now — history is never sent. `201` when this call created the destination, `200` when it already existed (a retry is safe). For a profile a consumer app provisioned this is the ONLY way the dataset gets created; connecting WhatsApp or Meta Ads only reports `ready`. A delegated key may call it only for a profile its own app provisioned; a person must be a workspace owner or admin. `website`: body `{ dataset_id }` — one of the connected ad account's EXISTING pixels (`selectable_pixels`); validated against Meta's listing, wired as the website destination with `export_from` = now. Atribu NEVER creates a pixel here. The same pixel again is 200; a different pixel while one is attached is 409. `instagram` (2026-10-07): exactly like `whatsapp`, on the profile's connected Instagram professional account (`POST /{ig_user_id}/dataset` at Meta); no body. Events that carry the Instagram messaging identity (`click_ids.messaging_channel: instagram` + `click_ids.ig_sid` + `click_ids.instagram_business_account_id`) are then exported to it as `business_messaging`. Meta requires the app's advanced `instagram_manage_events` access; without it Meta refuses and the call answers with Meta's classified error.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: "whatsapp" | "website" | "instagram";
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description `website` only (required there): the pixel id, from `selectable_pixels`.
+                         * @example 563560652959748
+                         */
+                        dataset_id?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Already present — nothing new was created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                outcome: "created" | "already_present";
+                                data_source: components["schemas"]["ConversionSyncDataSourceStatus"];
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                outcome: "created" | "already_present";
+                                data_source: components["schemas"]["ConversionSyncDataSourceStatus"];
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `invalid_parameter` — `kind` is not `whatsapp`, `website` or `instagram`. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `meta_connection_required` — no Meta Ads connection. `whatsapp_connection_required` — no live WhatsApp Business Account. `instagram_connection_required` — no connected Instagram professional account. `instagram_facebook_login_required` — the Instagram account is connected through Instagram Login; Meta creates datasets only for one connected through Facebook Login for Business (refused before any Meta call). `invalid_state` (`reason: duplicate_kind`) — another enabled destination of the same kind already holds this ad account; or (`reason: dataset_unreadable` / `already_exists`) Meta has a dataset this token cannot read. `entitlement_required` — an app-provisioned profile without the `atribu_attribution` entitlement. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `validation_error` — `website` without a `dataset_id`, or one that is not a pixel on the connected ad account; or Meta rejected a parameter (its words in `message`). */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `provider_error` — Meta failed; a retry may succeed. */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversion-sync/blueprints": {
         parameters: {
             query?: never;
@@ -46893,7 +52453,7 @@ export interface paths {
             parameters: {
                 query?: {
                     /** @description Attribution model for the ROAS trend. Defaults to `last_touch`. */
-                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct";
+                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
                 };
                 header?: never;
                 path?: never;
@@ -46938,6 +52498,17 @@ export interface paths {
                                         /** @description Always `true`. A structural reminder that this is a DIRECTIONAL read of traceable ROAS and fatigue — never a causal or incrementality claim. Consumers must label it as such. */
                                         is_directional: boolean;
                                         basis?: string[];
+                                        /** @description The rule behind a rule-based verdict: `id` (render it with its dictionary sentence), the `thresholds` it compares against, and this verdict's measured `inputs`. A rule, not a model. */
+                                        rule: {
+                                            /** @enum {string} */
+                                            id: "composite_score" | "creative_degradation" | "scale_guidance" | "funnel_diagnosis" | "gap_direction" | "cockpit_tier" | "intent_band" | "lead_quality" | "experiment_grade" | "house_model_split";
+                                            thresholds: {
+                                                [key: string]: number;
+                                            };
+                                            inputs: {
+                                                [key: string]: number | string | boolean | null;
+                                            };
+                                        };
                                     } & {
                                         [key: string]: unknown;
                                     };
@@ -46951,8 +52522,45 @@ export interface paths {
                                     recent_spend: string;
                                     cash_outcomes_28d: number;
                                     fatigue: {
-                                        risk_tier: string | null;
-                                        hazard_30d_pause: number | null;
+                                        /** @description Cox wear-out tier of the ad set's riskiest ad. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                        risk_tier: {
+                                            /** @enum {string} */
+                                            status: "served";
+                                            /** @enum {string} */
+                                            value: "low" | "medium" | "high" | "critical";
+                                            reason: null;
+                                        } | {
+                                            /** @enum {string} */
+                                            status: "withheld";
+                                            value: null;
+                                            /** @enum {string} */
+                                            reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                        } | {
+                                            /** @enum {string} */
+                                            status: "not_applicable";
+                                            value: null;
+                                            /** @enum {string} */
+                                            reason: "rules_fallback" | "not_scored";
+                                        };
+                                        /** @description Highest Cox 30-day pause probability among the ad set's ads. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                                        hazard_30d_pause: {
+                                            /** @enum {string} */
+                                            status: "served";
+                                            value: number;
+                                            reason: null;
+                                        } | {
+                                            /** @enum {string} */
+                                            status: "withheld";
+                                            value: null;
+                                            /** @enum {string} */
+                                            reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                                        } | {
+                                            /** @enum {string} */
+                                            status: "not_applicable";
+                                            value: null;
+                                            /** @enum {string} */
+                                            reason: "rules_fallback" | "not_scored";
+                                        };
                                     } | null;
                                     series: {
                                         day: string;
@@ -46983,6 +52591,7 @@ export interface paths {
                                 /** @example uuid */
                                 profile_id: string;
                             };
+                            capabilities: components["schemas"]["Capabilities"];
                         };
                     };
                 };
@@ -47401,7 +53010,9 @@ export interface paths {
          *
          *     **Deliberately accepts an API key**, unlike the money-tier operations it can undo. Rolling back has no tier gate, both audit columns are nullable, and an undo an agent cannot reach is an undo that will not happen in time.
          *
-         *     A refusal carries its REASON: `not_reversible` with a `reason_code` is a considered answer (Meta cannot be put back the way it was), which is why it is a 200 and not a 4xx.
+         *     A refusal carries its REASON: `not_reversible` with a `reason_code` is a considered answer (Meta cannot be put back the way it was), which is why it is a 200 and not a 4xx. For a budget change, a pause and a resume the live object is read first: when it no longer carries what the action wrote (a later change, or a person in Ads Manager), the answer is `not_reversible` with `reason_code: "state_drifted"` and nothing is written — a rollback never restores a stale pre-state over a newer change.
+         *
+         *     The person behind a session/user token, or — for the key of the app that provisioned the profile — its shadow owner, is recorded on the rollback row. A connection whose recorded Meta grant lacks `ads_management` is `403 meta_write_permission_missing` before any Meta call.
          */
         post: {
             parameters: {
@@ -47571,6 +53182,8 @@ export interface paths {
                                     enabled: boolean;
                                     meta_pixel_id: string | null;
                                     google_conversion_action: string | null;
+                                    /** @description TikTok pixel code (Events API `event_source_id`). Null on every non-TikTok destination. */
+                                    tiktok_pixel_code: string | null;
                                     /** @description The destination's own stored configuration — provider-shaped, including the Platform-Safe `mode`/`dataset_id`/`outcome_conversion_mappings` block when this is a Clean Dataset. */
                                     destination_config?: unknown;
                                     created_at: string | null;
@@ -47579,7 +53192,7 @@ export interface paths {
                                         ready: boolean;
                                         /** @enum {string} */
                                         state: "inactive" | "ready" | "missing_setup" | "failed_recently";
-                                        /** @description `destination_disabled`, `missing_connection`, `connection_<status>`, `missing_meta_pixel_id`, `missing_google_conversion_action`. `destination_disabled` is excluded from the readiness test: a destination that is merely switched off is `inactive`, not misconfigured. */
+                                        /** @description `destination_disabled`, `missing_connection`, `connection_<status>`, `missing_meta_pixel_id`, `missing_google_conversion_action`, `missing_tiktok_pixel_code`. `destination_disabled` is excluded from the readiness test: a destination that is merely switched off is `inactive`, not misconfigured. */
                                         issues: string[];
                                         /** @example connected */
                                         connection_status: string;
@@ -47609,10 +53222,15 @@ export interface paths {
                                 }[];
                                 settings: {
                                     /**
-                                     * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload from a NEW (Clean) dataset, so health or other sensitive context cannot reach the ad platform.
+                                     * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload (default-deny `custom_data`, origin-only URL, neutral names), so health or other sensitive context cannot reach the ad platform. Which dataset receives it is `platform_safe_target`.
                                      * @enum {string}
                                      */
                                     privacy_mode: "standard" | "hipaa" | "custom" | "platform_safe";
+                                    /**
+                                     * @description #1669 — where a `platform_safe` profile's scrubbed Meta events go. `existing` (default): the profile's ordinary Meta CAPI destination(s), the dataset its live ad sets already optimize on — no new ad sets, no learning reset. `clean`: only the provisioned Clean Dataset, the remediation once Meta restricts the existing dataset. Read-only here: change it with `POST /api/v1/conversion-sync/platform-safe/target`. Ignored in every other privacy mode.
+                                     * @enum {string}
+                                     */
+                                    platform_safe_target: "existing" | "clean";
                                     /** @description The profile's privacy filters: `url_sanitization`, `url_allowlist`, `event_blocklist_paths`, `parameter_allowlist`, `parameter_blocklist`, the `strip_*` booleans, `enable_ldu`, and `healthcare_export_allowlist`. Every field is optional and the object is validated STRICTLY on write — an unrecognized key is refused rather than dropped, because silently accepting a misspelled privacy control would report success for a filter that was never applied. */
                                     privacy_config: {
                                         [key: string]: unknown;
@@ -47712,6 +53330,8 @@ export interface paths {
         /**
          * Replace the profile's privacy and export settings
          * @description A PUT, not a PATCH: the body is the complete privacy state and the write replaces it. Only a workspace owner or admin may CHANGE `privacy_mode` — downgrading out of HIPAA or Platform-Safe silently re-leaks health context — but re-writing the SAME mode is open to any member, so editing an allowlist or an export toggle does not need an owner. An API key holding `exports:write` may do either. Returns the settings as they stand AFTER the write, not an echo of the request.
+         *
+         *     Writing `platform_safe` or `hipaa` makes the profile healthcare-family (policy S5): every live partner key on it carrying `customers:read` or `visitors:read` is revoked (#1782). A partner app can set the same mode at provisioning instead (`POST /api/v1/profiles`, `privacy_mode`).
          */
         put: {
             parameters: {
@@ -47746,10 +53366,15 @@ export interface paths {
                         "application/json": {
                             data: {
                                 /**
-                                 * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload from a NEW (Clean) dataset, so health or other sensitive context cannot reach the ad platform.
+                                 * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload (default-deny `custom_data`, origin-only URL, neutral names), so health or other sensitive context cannot reach the ad platform. Which dataset receives it is `platform_safe_target`.
                                  * @enum {string}
                                  */
                                 privacy_mode: "standard" | "hipaa" | "custom" | "platform_safe";
+                                /**
+                                 * @description #1669 — where a `platform_safe` profile's scrubbed Meta events go. `existing` (default): the profile's ordinary Meta CAPI destination(s), the dataset its live ad sets already optimize on — no new ad sets, no learning reset. `clean`: only the provisioned Clean Dataset, the remediation once Meta restricts the existing dataset. Read-only here: change it with `POST /api/v1/conversion-sync/platform-safe/target`. Ignored in every other privacy mode.
+                                 * @enum {string}
+                                 */
+                                platform_safe_target: "existing" | "clean";
                                 /** @description The profile's privacy filters: `url_sanitization`, `url_allowlist`, `event_blocklist_paths`, `parameter_allowlist`, `parameter_blocklist`, the `strip_*` booleans, `enable_ldu`, and `healthcare_export_allowlist`. Every field is optional and the object is validated STRICTLY on write — an unrecognized key is refused rather than dropped, because silently accepting a misspelled privacy control would report success for a filter that was never applied. */
                                 privacy_config: {
                                     [key: string]: unknown;
@@ -47817,6 +53442,23 @@ export interface paths {
                 };
                 /** @description Rate limited */
                 429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `service_unavailable` (#1782): the settings were written, but the partner keys a `platform_safe` / `hipaa` mode requires revoking could not be revoked. Retry the same write; it revokes again. */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -50043,7 +55685,7 @@ export interface paths {
         put?: never;
         /**
          * Generate (and store) an AI summary of one customer's journey
-         * @description Reads the first 100 events of the customer's timeline and asks a model for a 2–3 sentence summary, replacing any stored one. Draws ONE unit from the workspace's daily AI allowance; when that is spent the answer is `429` with `Retry-After` naming the next UTC midnight. A customer with no events returns a null summary and costs nothing.
+         * @description Reads the first 100 events of the customer's timeline and asks a model for a 2–3 sentence summary, replacing any stored one. Draws ONE unit from the workspace's daily AI allowance; when that is spent the answer is `429` with `Retry-After` naming the next UTC midnight. A customer with no events returns a null summary and costs nothing. A healthcare-family profile (its workspace is a healthcare agency, or the profile runs in `platform_safe` / `hipaa` privacy mode) never sends a patient's journey to a model: the answer is `403` `forbidden`, and so is a profile whose status cannot be read.
          */
         post: {
             parameters: {
@@ -53121,6 +58763,8 @@ export interface paths {
          * Set whether this workspace is a healthcare agency
          * @description Drives the HIPAA-specific gates elsewhere in the product (BAA requirement, PHI handling prompts). A one-field flag, not a full compliance edit — the per-profile BAA/signature workflow lives elsewhere.
          *
+         *     Setting it to `true` makes every profile in the workspace healthcare-family (policy S5): live partner keys on them carrying `customers:read` or `visitors:read` are revoked (#1782).
+         *
          *     **Session bearers only.** An API key is minted for exactly one profile — the credential IS the scope — so it has no workspace to act on and this route answers `403 insufficient_scope` for one. Present a Supabase session bearer (the credential Atribu's own console uses).
          *
          *     **Operator-only write.** Beyond the session-bearer requirement above, the caller's `workspace_role` on this workspace must be `owner` or `admin` — `analyst` and `guest` both answer `403 forbidden` here, even though they can read this same resource.
@@ -53230,6 +58874,23 @@ export interface paths {
                 };
                 /** @description Rate limited */
                 429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `service_unavailable` (#1782): the flag was set, but the partner keys it requires revoking could not be revoked. Retry the same call; it revokes again. */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -54439,7 +60100,7 @@ export interface paths {
             parameters: {
                 query: {
                     /** @description Required. Which connector's progress to report. */
-                    provider: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc";
+                    provider: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc" | "tiktok_ads" | "messenger";
                 };
                 header?: never;
                 path?: never;
@@ -56690,7 +62351,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description Malformed body, an unknown field (the body is strict), an unparseable `occurred_at`, or an unknown `feature` */
+                /** @description Malformed body, an unknown field (the body is strict), an unparseable `occurred_at`, an unknown `feature`, or a `privacy_mode` other than `standard` / `platform_safe` / `hipaa` */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -56741,8 +62402,42 @@ export interface paths {
                         };
                     };
                 };
+                /** @description `invalid_state` (#1782): `privacy_mode` would change a profile that is not `standard`. Nothing was written. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
                 /** @description Rate limited */
                 429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `service_unavailable`: `privacy_mode` could not be written, or the keys it requires revoking could not be revoked (the mode is then already stored). The entitlement and the grant were not touched; retry the call. */
+                503: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -56761,6 +62456,1648 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ads/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause one ad
+         * @description Pauses one ACTIVE ad by its Meta id — with no recommendation behind it. The same action-layer write `pause_underperformer` applies (tier `confirm`: this POST is the confirmation and no person is required), with the same audit trail (`meta_action_log`) and the same rollback.
+         *
+         *     Refused BEFORE any Meta call when the ad is not this profile's (`404`), the profile has no usable Meta Ads connection (`409 meta_connection_required`) or the connection's recorded grant lacks `ads_management` (`403 meta_write_permission_missing`). Pausing an already paused ad is a `200` with `outcome: "no_change"` and no Meta write; an ARCHIVED or DELETED ad is `409 invalid_state` and is never written (Meta would un-archive it).
+         *
+         *     **Undo** with `POST /api/v1/conversion-sync/actions/{action_id}/rollback` or the resume route. A rollback restores this row's PRE-STATE, and only while the ad still carries what this call wrote — if it was changed since, the rollback answers `not_reversible` with `reason_code: "state_drifted"` and writes nothing.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description REQUIRED. One per logical change, scoped to your credential and to THIS route (the same value on `pause` and then `resume` is two changes). Replaying the same key with the same request within 24 hours returns the first response verbatim and does not call Meta — not even to read. The same key with a DIFFERENT request is `409 idempotency_key_conflict`; a retry that arrives while the first is still running is `409 idempotency_key_in_flight` (retry with backoff). Past the 24-hour window, Atribu's action log still recognises an applied key for the same object and answers `outcome: "replayed"`. */
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    /** @description Meta's ad id — the `platform_id` of a `GET /api/v1/campaigns?level=ad` row. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Who the change is done for — an `auth.users` id that must be an active owner or admin of this workspace. Omit it on a key minted by the app that PROVISIONED this profile: the change is then attributed to the workspace's (shadow) owner. A signed-in session or an MCP user token is its own actor.
+                         */
+                        applied_by?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Terminal outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @example 120210000000000042 */
+                                ad_id: string;
+                                ad_name: string | null;
+                                /** @enum {string} */
+                                change: "pause" | "resume";
+                                /**
+                                 * @description `applied` — Meta was written. `no_change` — the ad was already in the requested state (zero Meta writes). `replayed` — this `Idempotency-Key` already applied; the stored result is returned.
+                                 * @enum {string}
+                                 */
+                                outcome: "applied" | "no_change" | "replayed";
+                                /**
+                                 * @description The ad's configured status after the call (its own, not the effective delivery status).
+                                 * @enum {string}
+                                 */
+                                status: "PAUSED" | "ACTIVE";
+                                previous_status: string | null;
+                                /** @description The `meta_action_log` row. Undo with `POST /api/v1/conversion-sync/actions/{action_id}/rollback`. */
+                                action_id: string | null;
+                                rollback_available: boolean;
+                                applied_by: string | null;
+                                /**
+                                 * @description How `applied_by` was decided: sent explicitly, the person behind the credential, or resolved as the shadow owner for the provisioning app's key. Also stored on the `meta_action_log` row's `target.applied_by_basis`.
+                                 * @enum {string|null}
+                                 */
+                                applied_by_basis: "applied_by" | "person" | "app_shadow_owner" | null;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `Idempotency-Key`, or malformed body / `applied_by` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized, or the Meta token is dead (`reconnect_required: true`) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `campaigns:apply` (`insufficient_scope`); the connection's recorded Meta grant lacks `ads_management` (`meta_write_permission_missing`, audited as a failed log row); `forbidden` — no person can be put on the record for a budget change, an `applied_by` that is not an active owner/admin, a session naming someone else without being an owner/admin itself, or Meta refused the write for a missing permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such object in this profile (a foreign id answers the same) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No usable Meta Ads connection (`meta_connection_required`); the object is in a state the change cannot apply to (`invalid_state` — e.g. pausing or resuming an ARCHIVED or DELETED ad); the profile's attribution Add-on is off (`entitlement_required`); or the `Idempotency-Key` is already used by a different request (`idempotency_key_conflict`) or is still running (`idempotency_key_in_flight`) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `rate_limit_exceeded` — Atribu's own per-key limit, or Meta throttled the ad account (codes 17/32/613). Respect `Retry-After`. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta answered with an unclassified error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ads/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume one paused ad
+         * @description Resumes one PAUSED ad by its Meta id (`ad_resume`, tier `confirm`) — including an ad paused outside Atribu. An ACTIVE ad is a `200` with `outcome: "no_change"`; an ARCHIVED, DELETED or in-review ad is `409 invalid_state` and is never written. Delivery resumes at the ad set's existing budget.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description REQUIRED. One per logical change, scoped to your credential and to THIS route (the same value on `pause` and then `resume` is two changes). Replaying the same key with the same request within 24 hours returns the first response verbatim and does not call Meta — not even to read. The same key with a DIFFERENT request is `409 idempotency_key_conflict`; a retry that arrives while the first is still running is `409 idempotency_key_in_flight` (retry with backoff). Past the 24-hour window, Atribu's action log still recognises an applied key for the same object and answers `outcome: "replayed"`. */
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    /** @description Meta's ad id — the `platform_id` of a `GET /api/v1/campaigns?level=ad` row. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Who the change is done for — an `auth.users` id that must be an active owner or admin of this workspace. Omit it on a key minted by the app that PROVISIONED this profile: the change is then attributed to the workspace's (shadow) owner. A signed-in session or an MCP user token is its own actor.
+                         */
+                        applied_by?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Terminal outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @example 120210000000000042 */
+                                ad_id: string;
+                                ad_name: string | null;
+                                /** @enum {string} */
+                                change: "pause" | "resume";
+                                /**
+                                 * @description `applied` — Meta was written. `no_change` — the ad was already in the requested state (zero Meta writes). `replayed` — this `Idempotency-Key` already applied; the stored result is returned.
+                                 * @enum {string}
+                                 */
+                                outcome: "applied" | "no_change" | "replayed";
+                                /**
+                                 * @description The ad's configured status after the call (its own, not the effective delivery status).
+                                 * @enum {string}
+                                 */
+                                status: "PAUSED" | "ACTIVE";
+                                previous_status: string | null;
+                                /** @description The `meta_action_log` row. Undo with `POST /api/v1/conversion-sync/actions/{action_id}/rollback`. */
+                                action_id: string | null;
+                                rollback_available: boolean;
+                                applied_by: string | null;
+                                /**
+                                 * @description How `applied_by` was decided: sent explicitly, the person behind the credential, or resolved as the shadow owner for the provisioning app's key. Also stored on the `meta_action_log` row's `target.applied_by_basis`.
+                                 * @enum {string|null}
+                                 */
+                                applied_by_basis: "applied_by" | "person" | "app_shadow_owner" | null;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `Idempotency-Key`, or malformed body / `applied_by` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized, or the Meta token is dead (`reconnect_required: true`) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `campaigns:apply` (`insufficient_scope`); the connection's recorded Meta grant lacks `ads_management` (`meta_write_permission_missing`, audited as a failed log row); `forbidden` — no person can be put on the record for a budget change, an `applied_by` that is not an active owner/admin, a session naming someone else without being an owner/admin itself, or Meta refused the write for a missing permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such object in this profile (a foreign id answers the same) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No usable Meta Ads connection (`meta_connection_required`); the object is in a state the change cannot apply to (`invalid_state` — e.g. pausing or resuming an ARCHIVED or DELETED ad); the profile's attribution Add-on is off (`entitlement_required`); or the `Idempotency-Key` is already used by a different request (`idempotency_key_conflict`) or is still running (`idempotency_key_in_flight`) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `rate_limit_exceeded` — Atribu's own per-key limit, or Meta throttled the ad account (codes 17/32/613). Respect `Retry-After`. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta answered with an unclassified error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/adsets/{id}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change one ad set's daily budget
+         * @description Sets one ad set's daily budget by its Meta id, through the same action-layer write `scale_winner` applies. Tier `money`: a person must be on the record — send `applied_by`, use a session or MCP user token, or call with a key of the app that provisioned this profile (its shadow owner is used). Anything else is `403` before anything is read.
+         *
+         *     **The guardrail is ±50 % of the LIVE budget per call** (read from Meta at apply time, never from a snapshot), with a minimum daily budget; a change outside it is `422 budget_change_out_of_bounds`, audited as a failed row, and never reaches Meta. An ad set whose campaign owns the budget (Advantage campaign budget) or that runs on a lifetime budget is `409 invalid_state`. An ARCHIVED or DELETED ad set, or one whose campaign is, is `409 adset_not_editable` (status read live from Meta) and nothing is written.
+         *
+         *     **Minimum budget:** Atribu refuses below its own floor of 100 minor units (`budget_change_out_of_bounds`). Meta's real per-account minimum is higher in most currencies (in CLP, ~1 000 pesos) and Atribu does not read it, so a budget between the two is attempted and Meta's refusal comes back as `422 validation_error` with Meta's own message (audited as a failed row).
+         *
+         *     **Undo** with `POST /api/v1/conversion-sync/actions/{action_id}/rollback`. It restores this row's PRE-STATE, and only while the ad set still carries the budget this call set: after a later change (yours or a person's in Ads Manager) it answers `not_reversible` with `reason_code: "state_drifted"` — roll back the latest change instead.
+         *
+         *     Unlike `POST /api/v1/conversion-sync/scaling/apply`, which keeps refusing API keys, this is the partner path.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description REQUIRED. One per logical change, scoped to your credential and to THIS route (the same value on `pause` and then `resume` is two changes). Replaying the same key with the same request within 24 hours returns the first response verbatim and does not call Meta — not even to read. The same key with a DIFFERENT request is `409 idempotency_key_conflict`; a retry that arrives while the first is still running is `409 idempotency_key_in_flight` (retry with backoff). Past the 24-hour window, Atribu's action log still recognises an applied key for the same object and answers `outcome: "replayed"`. */
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    /** @description Meta's ad-set id — the `platform_id` of a `GET /api/v1/campaigns?level=ad_set` row. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Target daily budget in the ad account's MINOR units — the unit `GET /api/v1/conversion-sync/scaling` publishes (`minor_per_major` says how many make a major unit; for CLP it is 1).
+                         * @example 12000
+                         */
+                        new_daily_budget_minor: number;
+                        /**
+                         * Format: uuid
+                         * @description Who the change is done for — an `auth.users` id that must be an active owner or admin of this workspace. Omit it on a key minted by the app that PROVISIONED this profile: the change is then attributed to the workspace's (shadow) owner. A signed-in session or an MCP user token is its own actor.
+                         */
+                        applied_by?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Terminal outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @example 120210000000000077 */
+                                ad_set_id: string;
+                                ad_set_name: string | null;
+                                /** @enum {string} */
+                                outcome: "applied" | "no_change" | "replayed";
+                                /** @description The live daily budget before the change, in the ad account's MINOR units. */
+                                previous_daily_budget_minor: number | null;
+                                daily_budget_minor: number | null;
+                                /** @description The `meta_action_log` row. Undo with `POST /api/v1/conversion-sync/actions/{action_id}/rollback`. */
+                                action_id: string | null;
+                                rollback_available: boolean;
+                                applied_by: string;
+                                /**
+                                 * @description How `applied_by` was decided: sent explicitly, the person behind the credential, or resolved as the shadow owner for the provisioning app's key. Also stored on the `meta_action_log` row's `target.applied_by_basis`.
+                                 * @enum {string}
+                                 */
+                                applied_by_basis: "applied_by" | "person" | "app_shadow_owner";
+                                /**
+                                 * @description The guardrail the change was held to: at most ±this fraction of the live budget per call.
+                                 * @example 0.5
+                                 */
+                                max_change_ratio: number;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `Idempotency-Key`, or malformed body / `applied_by` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized, or the Meta token is dead (`reconnect_required: true`) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `campaigns:apply` (`insufficient_scope`); the connection's recorded Meta grant lacks `ads_management` (`meta_write_permission_missing`, audited as a failed log row); `forbidden` — no person can be put on the record for a budget change, an `applied_by` that is not an active owner/admin, a session naming someone else without being an owner/admin itself, or Meta refused the write for a missing permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such object in this profile (a foreign id answers the same) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No usable Meta Ads connection (`meta_connection_required`); the object is in a state the change cannot apply to (`invalid_state` — e.g. pausing or resuming an ARCHIVED or DELETED ad); the profile's attribution Add-on is off (`entitlement_required`); or the `Idempotency-Key` is already used by a different request (`idempotency_key_conflict`) or is still running (`idempotency_key_in_flight`); `adset_not_editable` — the ad set, or its campaign, is ARCHIVED or DELETED on Meta (nothing is written) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `budget_change_out_of_bounds` (more than ±50 % in one step, or below the minimum), or `validation_error` (not a positive integer of minor units) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `rate_limit_exceeded` — Atribu's own per-key limit, or Meta throttled the ad account (codes 17/32/613). Respect `Retry-After`. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta answered with an unclassified error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversions/{id}/journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the visitor timeline behind one conversion
+         * @description The same page `GET /api/v1/customers/{id}/journey` returns — every touch and outcome, oldest first, with the credit overlay under `model` — addressed by a CONVERSION instead of a visitor. `meta.conversion` names what the handle resolved to, including the `customer_profile_id`, so a caller that started from its own event id needs no second call.
+         *
+         *     The visitor is resolved at request time: a conversion ingested anonymously and stitched to a customer since follows the customer.
+         *
+         *     **The scope decides the shape.** `conversions:read` opens the read (so does `customers:read` alone).
+         *
+         *     - **With `customers:read`**: `JourneyEvent` rows and the `meta.conversion` above (`customer_profile_id`, `anonymous_id`). A conversion with no identity at all is `409 invalid_state`.
+         *     - **Without it** — every key of a healthcare-family profile: `JourneyEventProjected` rows, the marketing path only (touch, channel, campaign / ad set / ad, click-id kind, join method, credit). The person, the pages, device, geo, session, `anonymous_id` and `customer_profile_id` are absent. `meta.conversion` carries `customer_key` — your own customer id — instead. A conversion with no identity answers `200` with no rows and `customer_key: null`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description The opaque `pagination.cursor` from the previous page. */
+                    cursor?: string;
+                    /** @description Events per page (default 50, max 100). */
+                    limit?: string;
+                    /** @description The model the credit overlay is computed under. Defaults to `last_touch`. */
+                    model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
+                };
+                header?: never;
+                path: {
+                    /** @description Any of: the `outcome_event_id` a `POST /api/v1/events` response returned; a `conversions.id`; or the ingest's own `event_id` — the `Idempotency-Key` you sent (URL-encode it). All are profile-scoped; another profile's is the same `404` as an unknown one. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One page of the conversion's visitor timeline */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @description `JourneyEvent` rows with `customers:read`, `JourneyEventProjected` rows without it — never mixed in one response. */
+                            data: (components["schemas"]["JourneyEvent"] | components["schemas"]["JourneyEventProjected"])[];
+                            pagination: {
+                                has_next: boolean;
+                                cursor?: string;
+                            };
+                            meta: {
+                                profile_id: string;
+                                conversion: {
+                                    outcome_event_id: string | null;
+                                    /** @description NULL while the conversion has not been extracted from its event yet. */
+                                    conversion_id: string | null;
+                                    customer_profile_id: string | null;
+                                    /** @description Set only when the visitor is anonymous (no customer resolved). */
+                                    anonymous_id: string | null;
+                                    event_type: string | null;
+                                    event_time: string | null;
+                                    credit_model: string;
+                                } | {
+                                    outcome_event_id: string | null;
+                                    /**
+                                     * @description The conversion type — `conversion_definitions[].conversion_key`.
+                                     * @example closed_won
+                                     */
+                                    conversion_key: string | null;
+                                    occurred_at: string | null;
+                                    /**
+                                     * Format: decimal
+                                     * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                     * @example 1234.56
+                                     */
+                                    value_amount: string | null;
+                                    currency: string | null;
+                                    credit_model: string;
+                                    /** @description Your own customer id for this person — the `user_traits.external_id` you ingested (stored as `external_customer_id`). Null when none was ever ingested, or when the conversion is not linked to anyone. After a merge the surviving customer's key is returned. */
+                                    customer_key: string | null;
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Unknown `model` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Neither `conversions:read` nor `customers:read` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `conversion_not_found`: no such conversion in this profile (another profile's is the same answer). A route this deployment does not serve answers `not_found` instead. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description With `customers:read` only: the conversion is not linked to any visitor */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example meta_write_permission_missing */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a campaign's live status and what pausing or resuming it would do
+         * @description Everything a pause/resume consent screen renders, in one call: the campaign's name, its live configured and effective status, how many ads a pause would stop (or a resume would free), its daily budget, its mean daily spend over the last complete days, and — per action — whether it is available and, if not, a `reason`.
+         *
+         *     Never a dead end for a campaign of this profile: a missing connection, a dead token or a Meta outage answers `200` with `status_source: "synced"`, Atribu's last synced status, and both actions unavailable with the reason. Three Meta reads in parallel under one ~5 s deadline (a count that does not answer is `null`, the status stays live); no write, ever.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Meta's campaign id — the `platform_id` of a `GET /api/v1/campaigns` row. Never an internal uuid. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The campaign's status and the two actions' availability */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @example 120210000000000555 */
+                                campaign_id: string;
+                                /** @example Invierno 2026 */
+                                campaign_name: string | null;
+                                /**
+                                 * @description Configured status: ACTIVE | PAUSED | ARCHIVED | DELETED.
+                                 * @example ACTIVE
+                                 */
+                                status: string | null;
+                                /**
+                                 * @description Meta's delivery verdict (ACTIVE, PAUSED, IN_PROCESS, WITH_ISSUES, …). Null when Meta could not be read (`status_source: "synced"`).
+                                 * @example ACTIVE
+                                 */
+                                effective_status: string | null;
+                                /**
+                                 * @description `live` — read from Meta just now. `synced` — Meta was not readable (no connection, dead token, outage); `status` is Atribu's last sync and both actions are unavailable with a `reason`.
+                                 * @enum {string}
+                                 */
+                                status_source: "live" | "synced";
+                                /**
+                                 * @description Ads a pause would stop right now (delivering, or in processing / review / with issues) — the «detiene n anuncios» number. 0 while the campaign is paused; null when unknown.
+                                 * @example 7
+                                 */
+                                delivering_ads_count: number | null;
+                                /**
+                                 * @description The campaign's own daily budget in the ad account's MINOR units (divide by `minor_per_major`). Null when the budgets live on the ad sets.
+                                 * @example 2000000
+                                 */
+                                daily_budget_minor: number | null;
+                                /**
+                                 * @description The campaign's own LIFETIME budget in MINOR units (divide by `minor_per_major`), when it runs on one — then `daily_budget_minor` is null and `budget_level` is `campaign`. Null for a daily-budget or ad-set-budget campaign.
+                                 * @example null
+                                 */
+                                lifetime_budget_minor: number | null;
+                                /**
+                                 * @description Minor units per major unit for `currency` (1 for CLP, 100 for USD).
+                                 * @example 1
+                                 */
+                                minor_per_major: number | null;
+                                /**
+                                 * @description `campaign` — Advantage campaign budget. `ad_set` — each ad set carries its own.
+                                 * @enum {string|null}
+                                 */
+                                budget_level: "campaign" | "ad_set" | null;
+                                /** @example CLP */
+                                currency: string | null;
+                                /**
+                                 * Format: decimal
+                                 * @description Mean daily spend over the last `spend_window_days` complete days, in `currency` MAJOR units, as an exact decimal string — the "~$X al día" a pause would stop. Null when nothing was spent.
+                                 * @example 1234.56
+                                 */
+                                avg_daily_spend: string | null;
+                                /**
+                                 * @description The complete days `avg_daily_spend` was divided by: 7, or fewer for a campaign whose first spend is more recent (a campaign launched 2 days ago is averaged over 2).
+                                 * @example 7
+                                 */
+                                spend_window_days: number;
+                                pause: {
+                                    available: boolean;
+                                    /**
+                                     * @description Why not, when `available` is false: the campaign is already in that state (`already_paused` / `already_active`), ARCHIVED/DELETED (`campaign_not_pausable` / `campaign_not_resumable`), or Atribu cannot write for the advertiser (`meta_connection_missing`, `ads_management_not_granted`, `meta_reconnect_required`, `meta_unavailable`). Null when available.
+                                     * @enum {string|null}
+                                     */
+                                    reason: "already_paused" | "already_active" | "campaign_not_pausable" | "campaign_not_resumable" | "meta_connection_missing" | "ads_management_not_granted" | "meta_reconnect_required" | "meta_unavailable" | null;
+                                    /** @description How many ads this action would stop (pause: delivering, or in processing / review / with issues) or free (resume: held by the campaign pause, `CAMPAIGN_PAUSED`). Null when unknown — a count Meta did not answer in time is null while the status stays live. Caveat: Meta does not document whether a DISAPPROVED ad under a paused campaign reports `CAMPAIGN_PAUSED`; if it does, the resume count includes ads that will not deliver. */
+                                    affected_ads_count: number | null;
+                                };
+                                resume: {
+                                    available: boolean;
+                                    /**
+                                     * @description Why not, when `available` is false: the campaign is already in that state (`already_paused` / `already_active`), ARCHIVED/DELETED (`campaign_not_pausable` / `campaign_not_resumable`), or Atribu cannot write for the advertiser (`meta_connection_missing`, `ads_management_not_granted`, `meta_reconnect_required`, `meta_unavailable`). Null when available.
+                                     * @enum {string|null}
+                                     */
+                                    reason: "already_paused" | "already_active" | "campaign_not_pausable" | "campaign_not_resumable" | "meta_connection_missing" | "ads_management_not_granted" | "meta_reconnect_required" | "meta_unavailable" | null;
+                                    /** @description How many ads this action would stop (pause: delivering, or in processing / review / with issues) or free (resume: held by the campaign pause, `CAMPAIGN_PAUSED`). Null when unknown — a count Meta did not answer in time is null while the status stays live. Caveat: Meta does not document whether a DISAPPROVED ad under a paused campaign reports `CAMPAIGN_PAUSED`; if it does, the resume count includes ads that will not deliver. */
+                                    affected_ads_count: number | null;
+                                };
+                                /** @description The Atribu pause in effect on this campaign — what a resume will undo. Present only while the campaign is PAUSED. */
+                                last_pause: {
+                                    action_id: string;
+                                    applied_at: string | null;
+                                } | null;
+                                /**
+                                 * @description Changes whenever the campaign's status or Atribu's ledger for it changes. Derive a write's `Idempotency-Key` from it (e.g. `pause:{id}:{confirm_token}`): a retry of the same decision reuses the key, while a later toggle — pause, resume, pause on the same day — always gets a new one and can never replay the earlier change.
+                                 * @example 5c1e0b7f2a9d4e3c8b6a1f0e9d8c7b6a
+                                 */
+                                confirm_token: string;
+                                /** @description When this answer was read (ISO 8601). */
+                                as_of: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `campaigns:read` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `campaign_not_found` — no such campaign in this profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause one campaign
+         * @description Pauses one ACTIVE campaign by its Meta id in ONE atomic write — the campaign's own `status`, never a fan-out over its ads. Tier `confirm` (this POST is the confirmation; no person is required), audited on `meta_action_log` with the pre-state a rollback needs. `affected_ads_count` is how many ads were delivering and stopped.
+         *
+         *     Refused BEFORE any Meta write when the campaign is not this profile's (`404`), the profile has no usable Meta Ads connection (`409 meta_connection_required`) or the connection's grant lacks `ads_management` (`403 meta_write_permission_missing`). Pausing a paused campaign is a `200` with `outcome: "no_change"` and no write; an ARCHIVED or DELETED campaign is `409 campaign_not_pausable` and is never written (Meta would un-archive it). A newer pause supersedes older ones, so a resume always undoes the newest.
+         *
+         *     **Undo** with `undo` (`POST /api/v1/campaigns/{id}/resume`). Render the consent screen from `GET /api/v1/campaigns/{id}/status` first.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description REQUIRED. One per logical change, scoped to your credential and to THIS route (the same value on `pause` and then `resume` is two changes). Replaying the same key with the same request within 24 hours returns the first response verbatim and does not call Meta. The same key with a DIFFERENT request is `409 idempotency_key_conflict`; a retry that arrives while the first is still running is `409 idempotency_key_in_flight`. */
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    /** @description Meta's campaign id — the `platform_id` of a `GET /api/v1/campaigns` row. Never an internal uuid. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Who the change is done for — an `auth.users` id that must be an active owner or admin of this workspace. Omit it on a key minted by the app that PROVISIONED this profile: the change is then attributed to the workspace's (shadow) owner. A signed-in session or an MCP user token is its own actor.
+                         */
+                        applied_by?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Terminal outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @example 120210000000000555 */
+                                campaign_id: string;
+                                /** @example Invierno 2026 */
+                                campaign_name: string | null;
+                                /** @enum {string} */
+                                change: "pause" | "resume";
+                                /**
+                                 * @description `applied` — Meta was written (one campaign-level write). `no_change` — the campaign was already in the requested state: paused on a pause, active on a resume (zero Meta writes). `replayed` — this `Idempotency-Key` already answered; the first response is returned with this outcome, and Meta is not called.
+                                 * @enum {string}
+                                 */
+                                outcome: "applied" | "no_change" | "replayed";
+                                /**
+                                 * @description The campaign's configured status after the call.
+                                 * @enum {string}
+                                 */
+                                status: "PAUSED" | "ACTIVE";
+                                /** @example ACTIVE */
+                                previous_status: string | null;
+                                /**
+                                 * @description Pause: the ads the pause stopped — delivering, or in processing / review / pre-approval / billing hold / delivering with issues. Resume: the ads the campaign pause was holding (`CAMPAIGN_PAUSED`), now free to deliver; ads paused on their own stay paused. `0` on `no_change`; `null` when Meta gave no count.
+                                 * @example 7
+                                 */
+                                affected_ads_count: number | null;
+                                /** @description The `meta_action_log` row of THIS change — the ledger id. */
+                                action_id: string | null;
+                                /** @description On a resume that undid a pause Atribu applied: that pause's `action_id` (the pause row is now `rolled_back`). Null otherwise. */
+                                rollback_of: string | null;
+                                /** @description Whether `POST /api/v1/conversion-sync/actions/{action_id}/rollback` can undo it. `undo` is the simpler call and needs only `campaigns:apply`. */
+                                rollback_available: boolean;
+                                /** @description The one call that undoes this change, under the same `campaigns:apply` scope: `resume` after a pause, `pause` after a resume. Send it with a fresh `Idempotency-Key`. */
+                                undo: {
+                                    /** @enum {string} */
+                                    method: "POST";
+                                    /** @example /api/v1/campaigns/120210000000000555/resume */
+                                    path: string;
+                                } | null;
+                                applied_by: string | null;
+                                /**
+                                 * @description How `applied_by` was decided: sent explicitly, the person behind the credential, or resolved as the shadow owner for the provisioning app's key.
+                                 * @enum {string|null}
+                                 */
+                                applied_by_basis: "applied_by" | "person" | "app_shadow_owner" | null;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `Idempotency-Key`, or malformed body / `applied_by` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized, or the Meta token is dead (`reconnect_required: true`, `reason: meta_reconnect_required`) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `campaigns:apply` (`insufficient_scope`); the connection's recorded Meta grant lacks `ads_management` (`meta_write_permission_missing`, audited); an `applied_by` that is not an active owner/admin; or Meta refused for a missing permission (`forbidden`, `reason: meta_permission_denied`) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `campaign_not_found` — no such campaign in this profile (a foreign or malformed id answers the same) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No usable Meta Ads connection (`meta_connection_required`); the campaign is ARCHIVED or DELETED (`campaign_not_pausable` / `campaign_not_resumable`, never written); the attribution Add-on is off (`entitlement_required`); or the `Idempotency-Key` is in use (`idempotency_key_conflict` / `idempotency_key_in_flight`) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta rejected the write as invalid (`reason: meta_refused`; Meta's code is in `message`) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `rate_limit_exceeded` — Atribu's own per-key limit, or Meta throttled the ad account (`reason: meta_rate_limited`). Respect `Retry-After`. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta answered with an unclassified error (`reason: meta_refused`) */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume one paused campaign
+         * @description Resumes one PAUSED campaign by its Meta id in ONE write. When Atribu paused it, the resume IS that pause's undo: the new ledger row carries `rollback_of = <pause action_id>` and the pause row becomes `rolled_back`. The pause row is claimed atomically: of two concurrent resumes only one undoes it; the other re-reads the live status and answers from it (`no_change` once the campaign is active, or it resumes it itself if the first write failed). A campaign paused outside Atribu is resumed as a plain `campaign_resume`.
+         *
+         *     **Ads paused on their own stay paused.** Only the campaign's status is written, so an ad (or ad set) that was paused before the campaign pause does not come back — Meta's own semantics. `affected_ads_count` counts the ads the campaign pause was holding (`effective_status = CAMPAIGN_PAUSED`).
+         *
+         *     Resuming an active campaign is a `200` with `outcome: "no_change"` and no write, like the pause of a paused one; an ARCHIVED or DELETED campaign is `409 campaign_not_resumable`. Delivery resumes at the campaign's existing budgets.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    /** @description REQUIRED. One per logical change, scoped to your credential and to THIS route (the same value on `pause` and then `resume` is two changes). Replaying the same key with the same request within 24 hours returns the first response verbatim and does not call Meta. The same key with a DIFFERENT request is `409 idempotency_key_conflict`; a retry that arrives while the first is still running is `409 idempotency_key_in_flight`. */
+                    "Idempotency-Key": string;
+                };
+                path: {
+                    /** @description Meta's campaign id — the `platform_id` of a `GET /api/v1/campaigns` row. Never an internal uuid. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description Who the change is done for — an `auth.users` id that must be an active owner or admin of this workspace. Omit it on a key minted by the app that PROVISIONED this profile: the change is then attributed to the workspace's (shadow) owner. A signed-in session or an MCP user token is its own actor.
+                         */
+                        applied_by?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Terminal outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @example 120210000000000555 */
+                                campaign_id: string;
+                                /** @example Invierno 2026 */
+                                campaign_name: string | null;
+                                /** @enum {string} */
+                                change: "pause" | "resume";
+                                /**
+                                 * @description `applied` — Meta was written (one campaign-level write). `no_change` — the campaign was already in the requested state: paused on a pause, active on a resume (zero Meta writes). `replayed` — this `Idempotency-Key` already answered; the first response is returned with this outcome, and Meta is not called.
+                                 * @enum {string}
+                                 */
+                                outcome: "applied" | "no_change" | "replayed";
+                                /**
+                                 * @description The campaign's configured status after the call.
+                                 * @enum {string}
+                                 */
+                                status: "PAUSED" | "ACTIVE";
+                                /** @example ACTIVE */
+                                previous_status: string | null;
+                                /**
+                                 * @description Pause: the ads the pause stopped — delivering, or in processing / review / pre-approval / billing hold / delivering with issues. Resume: the ads the campaign pause was holding (`CAMPAIGN_PAUSED`), now free to deliver; ads paused on their own stay paused. `0` on `no_change`; `null` when Meta gave no count.
+                                 * @example 7
+                                 */
+                                affected_ads_count: number | null;
+                                /** @description The `meta_action_log` row of THIS change — the ledger id. */
+                                action_id: string | null;
+                                /** @description On a resume that undid a pause Atribu applied: that pause's `action_id` (the pause row is now `rolled_back`). Null otherwise. */
+                                rollback_of: string | null;
+                                /** @description Whether `POST /api/v1/conversion-sync/actions/{action_id}/rollback` can undo it. `undo` is the simpler call and needs only `campaigns:apply`. */
+                                rollback_available: boolean;
+                                /** @description The one call that undoes this change, under the same `campaigns:apply` scope: `resume` after a pause, `pause` after a resume. Send it with a fresh `Idempotency-Key`. */
+                                undo: {
+                                    /** @enum {string} */
+                                    method: "POST";
+                                    /** @example /api/v1/campaigns/120210000000000555/resume */
+                                    path: string;
+                                } | null;
+                                applied_by: string | null;
+                                /**
+                                 * @description How `applied_by` was decided: sent explicitly, the person behind the credential, or resolved as the shadow owner for the provisioning app's key.
+                                 * @enum {string|null}
+                                 */
+                                applied_by_basis: "applied_by" | "person" | "app_shadow_owner" | null;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `Idempotency-Key`, or malformed body / `applied_by` */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized, or the Meta token is dead (`reconnect_required: true`, `reason: meta_reconnect_required`) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing `campaigns:apply` (`insufficient_scope`); the connection's recorded Meta grant lacks `ads_management` (`meta_write_permission_missing`, audited); an `applied_by` that is not an active owner/admin; or Meta refused for a missing permission (`forbidden`, `reason: meta_permission_denied`) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `campaign_not_found` — no such campaign in this profile (a foreign or malformed id answers the same) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No usable Meta Ads connection (`meta_connection_required`); the campaign is ARCHIVED or DELETED (`campaign_not_pausable` / `campaign_not_resumable`, never written); the attribution Add-on is off (`entitlement_required`); or the `Idempotency-Key` is in use (`idempotency_key_conflict` / `idempotency_key_in_flight`) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta rejected the write as invalid (`reason: meta_refused`; Meta's code is in `message`) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `rate_limit_exceeded` — Atribu's own per-key limit, or Meta throttled the ad account (`reason: meta_rate_limited`). Respect `Retry-After`. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta answered with an unclassified error (`reason: meta_refused`) */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example campaign_not_pausable */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /**
+                                 * @description Refines a SHARED class code only (a refusal specific to the campaign has its own `code`). On these routes: `unauthorized` + `meta_reconnect_required`; `forbidden` + `meta_permission_denied` (Meta refused) or `applied_by_not_allowed` (your `applied_by`); `rate_limit_exceeded` + `meta_rate_limited`; `provider_error` / `invalid_request` / `validation_error` + `meta_refused` (Meta's own code is in `message`).
+                                 * @example meta_permission_denied
+                                 */
+                                reason?: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -57139,6 +64476,851 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calendar/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read current booking-calendar readiness evidence
+         * @description Calendar-scoped Partner key with an exact active grant. Probes metadata only; never activates lifecycle, creates a watch or sends invitations. Readiness expires with actual token, verified watch, full reconciliation and worker observation. It does not authorize a commercial booking or assert host capacity.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    calendar_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Current finite evidence or typed closed gate */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                state: "blocked";
+                                reason: string;
+                                /** Format: date-time */
+                                checked_at: string;
+                            } | {
+                                /** @enum {string} */
+                                state: "ready";
+                                /** Format: date-time */
+                                checked_at: string;
+                                /** Format: date-time */
+                                valid_until: string;
+                                scope: {
+                                    /** Format: uuid */
+                                    connection_id: string;
+                                    calendar_id: string;
+                                    /** Format: uuid */
+                                    workspace_id: string;
+                                    /** Format: uuid */
+                                    profile_id: string;
+                                    /** Format: uuid */
+                                    account_id: string;
+                                };
+                                evidence: {
+                                    partner: {
+                                        /** Format: uuid */
+                                        app_id: string;
+                                        /** Format: uuid */
+                                        grant_id: string;
+                                    };
+                                    lifecycle: {
+                                        /** Format: date-time */
+                                        observed_at: string;
+                                    };
+                                    watch: {
+                                        /** Format: uuid */
+                                        channel_id: string;
+                                        receipt_ref: string;
+                                        /** Format: date-time */
+                                        expires_at: string;
+                                    };
+                                    sync: {
+                                        fence: number;
+                                        generation: number;
+                                        /** Format: date-time */
+                                        completed_at: string;
+                                        completed_pages: number;
+                                    };
+                                    google: {
+                                        /** Format: date-time */
+                                        checked_at: string;
+                                        metadata_ref: string;
+                                        calendar_id: string;
+                                        time_zone: string | null;
+                                        /** @enum {boolean} */
+                                        meet_supported: true;
+                                        /** @enum {boolean} */
+                                        metadata_readable: true;
+                                        account: {
+                                            sub: string;
+                                            /** Format: email */
+                                            email: string;
+                                            /** Format: date-time */
+                                            verified_at: string;
+                                        };
+                                    };
+                                };
+                            };
+                            meta: {
+                                /** Format: uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Calendar scope denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid scope */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calendar/intents/{intentionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reconcile a booking intention
+         * @description Requires calendar scope. Permanent intention and operation IDs are Profile/connection/calendar scoped. No TTL or automatic mutating retry. Google OAuth remains inside Atribu. Only Atribu-created secondary calendars are supported. An uncertain operation is reconciled by reading the same provider identity before any subsequent mutation. Cancelled intentions are never recreated. Transport confirmation alone is not the partner's commercial booking authority.
+         */
+        get: {
+            parameters: {
+                query: {
+                    connection_id: string;
+                    calendar_id: string;
+                };
+                header?: never;
+                path: {
+                    intentionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Typed confirmed, rejected or uncertain outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                status: "confirmed";
+                                intention_id: string;
+                                event: {
+                                    id: string;
+                                    calendar_id: string;
+                                    ical_uid: string | null;
+                                    meet_link: string | null;
+                                    status: string;
+                                    start: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    end: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    attendees: string[];
+                                    /** Format: email */
+                                    organizer_email: string | null;
+                                    attendee_receipts: {
+                                        /** Format: email */
+                                        email: string;
+                                        /** @enum {string} */
+                                        response_status: "accepted" | "declined" | "tentative" | "needsAction" | "unknown";
+                                    }[];
+                                };
+                                host_receipt?: {
+                                    event_id: string;
+                                    calendar_id: string;
+                                    ical_uid: string;
+                                    /** Format: email */
+                                    attendee_email: string;
+                                    /** @enum {string} */
+                                    response_status: "accepted";
+                                    /** @enum {boolean} */
+                                    candidate_self: true;
+                                    /** Format: uuid */
+                                    original_grant_id: string;
+                                    original_sub: string;
+                                    /** Format: uuid */
+                                    replacement_grant_id: string;
+                                    replacement_sub: string;
+                                    /** Format: date-time */
+                                    verified_at: string;
+                                    replacement_scope: {
+                                        /** Format: uuid */
+                                        connection_id: string;
+                                        calendar_id: string;
+                                        /** Format: uuid */
+                                        workspace_id: string;
+                                        /** Format: uuid */
+                                        profile_id: string;
+                                    };
+                                };
+                            } | {
+                                /** @enum {string} */
+                                status: "rejected";
+                                intention_id: string;
+                                reason: string;
+                            } | {
+                                /** @enum {string} */
+                                status: "uncertain";
+                                intention_id: string;
+                                reason: string;
+                                event_id: string | null;
+                            };
+                            meta: {
+                                /** Format: uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid JSON */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Scope or connection grant denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Connection/calendar outside the caller's Profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Calendar connection is not ready */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid timed booking request */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Durable store unavailable; reconcile before any retry */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a durable Calendar/Meet intention
+         * @description Requires calendar scope. Permanent intention and operation IDs are Profile/connection/calendar scoped. No TTL or automatic mutating retry. Google OAuth remains inside Atribu. Only Atribu-created secondary calendars are supported. An uncertain operation is reconciled by reading the same provider identity before any subsequent mutation. Cancelled intentions are never recreated. Transport confirmation alone is not the partner's commercial booking authority.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    intentionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        calendar_id: string;
+                        operation_id: string;
+                        /** Format: date-time */
+                        not_after?: string;
+                        summary?: string;
+                        start: {
+                            /** Format: date-time */
+                            date_time: string;
+                            time_zone: string;
+                        };
+                        end: {
+                            /** Format: date-time */
+                            date_time: string;
+                            time_zone: string;
+                        };
+                        attendees: {
+                            /** Format: email */
+                            email: string;
+                        }[];
+                        host_change?: {
+                            /** Format: email */
+                            previous_email: string;
+                            /** Format: email */
+                            next_email: string;
+                            replacement: {
+                                /** Format: uuid */
+                                connection_id: string;
+                                calendar_id: string;
+                                /** Format: uuid */
+                                workspace_id: string;
+                                /** Format: uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Typed confirmed, rejected or uncertain outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                status: "confirmed";
+                                intention_id: string;
+                                event: {
+                                    id: string;
+                                    calendar_id: string;
+                                    ical_uid: string | null;
+                                    meet_link: string | null;
+                                    status: string;
+                                    start: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    end: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    attendees: string[];
+                                    /** Format: email */
+                                    organizer_email: string | null;
+                                    attendee_receipts: {
+                                        /** Format: email */
+                                        email: string;
+                                        /** @enum {string} */
+                                        response_status: "accepted" | "declined" | "tentative" | "needsAction" | "unknown";
+                                    }[];
+                                };
+                                host_receipt?: {
+                                    event_id: string;
+                                    calendar_id: string;
+                                    ical_uid: string;
+                                    /** Format: email */
+                                    attendee_email: string;
+                                    /** @enum {string} */
+                                    response_status: "accepted";
+                                    /** @enum {boolean} */
+                                    candidate_self: true;
+                                    /** Format: uuid */
+                                    original_grant_id: string;
+                                    original_sub: string;
+                                    /** Format: uuid */
+                                    replacement_grant_id: string;
+                                    replacement_sub: string;
+                                    /** Format: date-time */
+                                    verified_at: string;
+                                    replacement_scope: {
+                                        /** Format: uuid */
+                                        connection_id: string;
+                                        calendar_id: string;
+                                        /** Format: uuid */
+                                        workspace_id: string;
+                                        /** Format: uuid */
+                                        profile_id: string;
+                                    };
+                                };
+                            } | {
+                                /** @enum {string} */
+                                status: "rejected";
+                                intention_id: string;
+                                reason: string;
+                            } | {
+                                /** @enum {string} */
+                                status: "uncertain";
+                                intention_id: string;
+                                reason: string;
+                                event_id: string | null;
+                            };
+                            meta: {
+                                /** Format: uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid JSON */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Scope or connection grant denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Connection/calendar outside the caller's Profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Calendar connection is not ready */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid timed booking request */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Durable store unavailable; reconcile before any retry */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /**
+         * Cancel the same booking event
+         * @description Requires calendar scope. Permanent intention and operation IDs are Profile/connection/calendar scoped. No TTL or automatic mutating retry. Google OAuth remains inside Atribu. Only Atribu-created secondary calendars are supported. An uncertain operation is reconciled by reading the same provider identity before any subsequent mutation. Cancelled intentions are never recreated. Transport confirmation alone is not the partner's commercial booking authority.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    intentionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        calendar_id: string;
+                        operation_id: string;
+                        /** Format: date-time */
+                        not_after?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Typed confirmed, rejected or uncertain outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                status: "confirmed";
+                                intention_id: string;
+                                event: {
+                                    id: string;
+                                    calendar_id: string;
+                                    ical_uid: string | null;
+                                    meet_link: string | null;
+                                    status: string;
+                                    start: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    end: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    attendees: string[];
+                                    /** Format: email */
+                                    organizer_email: string | null;
+                                    attendee_receipts: {
+                                        /** Format: email */
+                                        email: string;
+                                        /** @enum {string} */
+                                        response_status: "accepted" | "declined" | "tentative" | "needsAction" | "unknown";
+                                    }[];
+                                };
+                                host_receipt?: {
+                                    event_id: string;
+                                    calendar_id: string;
+                                    ical_uid: string;
+                                    /** Format: email */
+                                    attendee_email: string;
+                                    /** @enum {string} */
+                                    response_status: "accepted";
+                                    /** @enum {boolean} */
+                                    candidate_self: true;
+                                    /** Format: uuid */
+                                    original_grant_id: string;
+                                    original_sub: string;
+                                    /** Format: uuid */
+                                    replacement_grant_id: string;
+                                    replacement_sub: string;
+                                    /** Format: date-time */
+                                    verified_at: string;
+                                    replacement_scope: {
+                                        /** Format: uuid */
+                                        connection_id: string;
+                                        calendar_id: string;
+                                        /** Format: uuid */
+                                        workspace_id: string;
+                                        /** Format: uuid */
+                                        profile_id: string;
+                                    };
+                                };
+                            } | {
+                                /** @enum {string} */
+                                status: "rejected";
+                                intention_id: string;
+                                reason: string;
+                            } | {
+                                /** @enum {string} */
+                                status: "uncertain";
+                                intention_id: string;
+                                reason: string;
+                                event_id: string | null;
+                            };
+                            meta: {
+                                /** Format: uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid JSON */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Scope or connection grant denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Connection/calendar outside the caller's Profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Calendar connection is not ready */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid timed booking request */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Durable store unavailable; reconcile before any retry */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Update the same booking event
+         * @description Requires calendar scope. Permanent intention and operation IDs are Profile/connection/calendar scoped. No TTL or automatic mutating retry. Google OAuth remains inside Atribu. Only Atribu-created secondary calendars are supported. An uncertain operation is reconciled by reading the same provider identity before any subsequent mutation. Cancelled intentions are never recreated. Transport confirmation alone is not the partner's commercial booking authority.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    intentionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        connection_id: string;
+                        calendar_id: string;
+                        operation_id: string;
+                        /** Format: date-time */
+                        not_after?: string;
+                        summary?: string;
+                        start?: {
+                            /** Format: date-time */
+                            date_time: string;
+                            time_zone: string;
+                        };
+                        end?: {
+                            /** Format: date-time */
+                            date_time: string;
+                            time_zone: string;
+                        };
+                        attendees?: {
+                            /** Format: email */
+                            email: string;
+                        }[];
+                        host_change?: {
+                            /** Format: email */
+                            previous_email: string;
+                            /** Format: email */
+                            next_email: string;
+                            replacement: {
+                                /** Format: uuid */
+                                connection_id: string;
+                                calendar_id: string;
+                                /** Format: uuid */
+                                workspace_id: string;
+                                /** Format: uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Typed confirmed, rejected or uncertain outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @enum {string} */
+                                status: "confirmed";
+                                intention_id: string;
+                                event: {
+                                    id: string;
+                                    calendar_id: string;
+                                    ical_uid: string | null;
+                                    meet_link: string | null;
+                                    status: string;
+                                    start: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    end: {
+                                        /** Format: date-time */
+                                        date_time: string;
+                                        time_zone: string;
+                                    } | null;
+                                    attendees: string[];
+                                    /** Format: email */
+                                    organizer_email: string | null;
+                                    attendee_receipts: {
+                                        /** Format: email */
+                                        email: string;
+                                        /** @enum {string} */
+                                        response_status: "accepted" | "declined" | "tentative" | "needsAction" | "unknown";
+                                    }[];
+                                };
+                                host_receipt?: {
+                                    event_id: string;
+                                    calendar_id: string;
+                                    ical_uid: string;
+                                    /** Format: email */
+                                    attendee_email: string;
+                                    /** @enum {string} */
+                                    response_status: "accepted";
+                                    /** @enum {boolean} */
+                                    candidate_self: true;
+                                    /** Format: uuid */
+                                    original_grant_id: string;
+                                    original_sub: string;
+                                    /** Format: uuid */
+                                    replacement_grant_id: string;
+                                    replacement_sub: string;
+                                    /** Format: date-time */
+                                    verified_at: string;
+                                    replacement_scope: {
+                                        /** Format: uuid */
+                                        connection_id: string;
+                                        calendar_id: string;
+                                        /** Format: uuid */
+                                        workspace_id: string;
+                                        /** Format: uuid */
+                                        profile_id: string;
+                                    };
+                                };
+                            } | {
+                                /** @enum {string} */
+                                status: "rejected";
+                                intention_id: string;
+                                reason: string;
+                            } | {
+                                /** @enum {string} */
+                                status: "uncertain";
+                                intention_id: string;
+                                reason: string;
+                                event_id: string | null;
+                            };
+                            meta: {
+                                /** Format: uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid JSON */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid credential */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Scope or connection grant denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Connection/calendar outside the caller's Profile */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Calendar connection is not ready */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid timed booking request */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Durable store unavailable; reconcile before any retry */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -57313,10 +65495,10 @@ export interface components {
              * @description Which platform. Required on create; IMMUTABLE — a PATCH that changes it is rejected.
              * @enum {string}
              */
-            destination: "meta_capi" | "google_ads";
+            destination: "meta_capi" | "google_ads" | "tiktok_events_api";
             /**
              * Format: uuid
-             * @description The `data_connections` row this destination ships through. Must belong to this profile and its provider must match the kind (`meta_capi` ⇒ `meta_ads`).
+             * @description The `data_connections` row this destination ships through. Must belong to this profile and its provider must match the kind (`meta_capi` ⇒ `meta_ads`, `google_ads` ⇒ `google_ads`, `tiktok_events_api` ⇒ `tiktok_ads`).
              */
             connection_id: string;
             /** @description Default true on create. */
@@ -57331,6 +65513,11 @@ export interface components {
              * @example customers/123/conversionActions/456
              */
             google_conversion_action?: string | null;
+            /**
+             * @description TikTok pixel code — letters and digits, 8-64 characters. REQUIRED for `tiktok_events_api`. Set `destination_config.test_event_code` to route this destination's events to TikTok Events Manager's test-events tool.
+             * @example CABCDEFGHIJ1234567890
+             */
+            tiktok_pixel_code?: string | null;
             /** @description Free-form destination settings (`signal_quality`, `relay_automatic_events`, …). DEEP-MERGED over the stored object on a PATCH, so keys written by the dataset wizard (`data_source`) and by Platform-Safe provisioning are never blanked by a partial update. */
             destination_config?: {
                 [key: string]: unknown;
@@ -57369,7 +65556,7 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
-             * @description Overrides the event name derived from the definition's source events.
+             * @description Per-destination event-name overrides, keyed by destination kind (`meta_capi`, `google_ads`, `tiktok_events_api`): each a non-empty string. `meta_capi` names the event on the website/pixel lane only. `meta_capi_messaging` names it on the click-to-WhatsApp (`business_messaging`) lane, where Meta accepts only Purchase, LeadSubmitted, InitiateCheckout, AddToCart, ViewContent, OrderCreated, OrderShipped, OrderDelivered, OrderCanceled, OrderReturned, CartAbandoned, QualifiedLead, RatingProvided or ReviewProvided; `null` keeps the rule's events off that lane. Absent, that lane uses Atribu's default map by source event type (e.g. lead_created → LeadSubmitted, appointment_booked → QualifiedLead, payment_received → Purchase) and skips a type with no messaging equivalent.
              * @example {
              *       "meta_capi": "Purchase"
              *     }
@@ -57382,8 +65569,29 @@ export interface components {
              * @example PURCHASE
              */
             meta_custom_event_type: string | null;
-            /** @enum {string} */
-            value_mode: "event_value" | "fixed_value" | "none";
+            /**
+             * @description How the conversion value is chosen. `event_value`: the event's own amount. `fixed_value`: `source_config.fixed_value`. `none`: no value. `cash`: the amount actually COLLECTED — a cash conversion's value, and no value for anything that collected nothing (a gross order, a pipeline deal). `net`: `cash` minus the refunds and disputes Atribu holds for that sale when the export is built, never below 0 (a refund arriving after the send is not re-sent — the platform cannot amend a delivered event). `cash` and `net` wait for the conversion to be extracted (normally minutes) and are not available on pipeline-stage rules.
+             * @example event_value
+             * @enum {string}
+             */
+            value_mode: "event_value" | "fixed_value" | "none" | "cash" | "net";
+            /**
+             * @description When true, a Meta export of this rule for a customer's FIRST cash payment (the same first-payment predicate the dashboard's new-customer ROAS uses) also sends the Meta custom event `NewCustomerPurchase` with the same value, custom data and `event_id` — optimize on it through a Custom Conversion to buy acquisition rather than repeat orders. The rule's own event is unchanged. Not sent in HIPAA privacy mode; Google has no custom-event equivalent and is unaffected. Not available on pipeline-stage rules.
+             * @example false
+             */
+            new_customer_event_enabled: boolean;
+            /**
+             * @description Which conversions each destination platform receives, so two platforms do not both optimise on the same sale. `all` (default): every matching conversion goes to every destination. `attributed_to_platform`: a platform receives a conversion only when its paid touches hold the largest share of the credit under `platform_eligibility_model` (under `last_touch`: the credited touch is that platform's ad); a sale credited to Direct or organic goes to no platform. `any_touch_from_platform`: a platform receives a conversion when the customer's path holds at least one paid click from it. The decision waits for Atribu's attribution to be computed (normally minutes); if it is still not computed 24 hours after the conversion, the export is skipped with `attribution_not_computed`. Top-of-funnel conversions Atribu never attributes (product views, add-to-cart, searches) go to no platform under the two non-`all` modes and are skipped at once with `attribution_not_applicable`. Held exports are recorded as skipped with `platform_not_credited` / `platform_not_in_path`. Not available on pipeline-stage rules.
+             * @example all
+             * @enum {string}
+             */
+            platform_eligibility_mode: "all" | "attributed_to_platform" | "any_touch_from_platform";
+            /**
+             * @description The attribution model `platform_eligibility_mode` reads. Ignored when the mode is `all`. Default `last_touch`.
+             * @example last_touch
+             * @enum {string}
+             */
+            platform_eligibility_model: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
             /**
              * @description What this rule does with a SUBSCRIPTION RENEWAL — a `cash` `payment_received` conversion whose `is_first_payment` is false. `skip` (the default, and what every pre-existing rule was backfilled to) never exports it and records `skip_reason: "recurring_payment"` on the delivery. `custom_event` sends it to Meta as the custom event `SubscriptionRenewal` (Google Ads has no custom-event equivalent, so a Google destination skips with `recurring_payment_google_no_custom_event`). `purchase` is the pre-#1144 behaviour. FIRST payments are unaffected by every mode, as are refunds and every non-cash conversion.
              * @example skip
@@ -57426,12 +65634,31 @@ export interface components {
             destinations?: {
                 [key: string]: unknown;
             };
+            /**
+             * @description Per-destination event-name overrides, keyed by destination kind (`meta_capi`, `google_ads`, `tiktok_events_api`): each a non-empty string. `meta_capi` names the event on the website/pixel lane only. `meta_capi_messaging` names it on the click-to-WhatsApp (`business_messaging`) lane, where Meta accepts only Purchase, LeadSubmitted, InitiateCheckout, AddToCart, ViewContent, OrderCreated, OrderShipped, OrderDelivered, OrderCanceled, OrderReturned, CartAbandoned, QualifiedLead, RatingProvided or ReviewProvided; `null` keeps the rule's events off that lane. Absent, that lane uses Atribu's default map by source event type (e.g. lead_created → LeadSubmitted, appointment_booked → QualifiedLead, payment_received → Purchase) and skips a type with no messaging equivalent.
+             * @example {
+             *       "meta_capi": "Lead",
+             *       "meta_capi_messaging": "QualifiedLead"
+             *     }
+             */
             platform_event_name_overrides?: {
                 [key: string]: unknown;
             };
             meta_custom_event_type?: string | null;
             /** @enum {string} */
-            value_mode?: "event_value" | "fixed_value" | "none";
+            value_mode?: "event_value" | "fixed_value" | "none" | "cash" | "net";
+            /** @description Defaults to `false` on create. See `ExportRule.new_customer_event_enabled`. */
+            new_customer_event_enabled?: boolean;
+            /**
+             * @description Defaults to `all` on create. See `ExportRule.platform_eligibility_mode`.
+             * @enum {string}
+             */
+            platform_eligibility_mode?: "all" | "attributed_to_platform" | "any_touch_from_platform";
+            /**
+             * @description Defaults to `last_touch` on create. See `ExportRule.platform_eligibility_model`.
+             * @enum {string}
+             */
+            platform_eligibility_model?: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
             /**
              * @description Defaults to `skip` on create: a renewal is not a `Purchase`, and Meta cannot unsend one. Set `purchase` only when the business genuinely wants renewals counted as purchases at the platform.
              * @enum {string}
@@ -57509,13 +65736,13 @@ export interface components {
         ExportDestination: {
             id: string;
             /**
-             * @description `meta_capi` or `google_ads`.
+             * @description `meta_capi`, `google_ads` or `tiktok_events_api`.
              * @example meta_capi
              */
             destination: string;
             enabled: boolean;
             /**
-             * @description Whether this destination will actually ship on the next run. `suppressed_platform_safe` means enabled but deliberately silenced: in Platform-Safe mode the provisioned Clean Dataset is the sole Meta feed, so every other meta_capi destination is held back to avoid double-sending and re-contaminating the old dataset.
+             * @description Whether this destination will actually ship on the next run. `suppressed_platform_safe` means enabled but deliberately silenced: in Platform-Safe mode `platform_safe_target` names ONE kind of Meta dataset as the feed and the other is held back, so an outcome never lands on two datasets. Under `existing` (the default) the ordinary meta_capi destinations ship and a leftover Clean Dataset is silenced; under `clean` only the provisioned Clean Dataset ships, so the restricted dataset is neither double-sent to nor re-contaminated.
              * @enum {string}
              */
             routing: "active" | "disabled" | "suppressed_platform_safe";
@@ -57529,6 +65756,11 @@ export interface components {
             /** @description The Clean Dataset id, when Platform-Safe provisioning stamped this destination. */
             clean_dataset_id: string | null;
             google_conversion_action: string | null;
+            /**
+             * @description TikTok pixel code (the Events API `event_source_id`). Null on every non-TikTok destination.
+             * @example CABCDEFGHIJ1234567890
+             */
+            tiktok_pixel_code: string | null;
             /** @description The provider connection this destination ships through. Its `status` is the usual reason a healthy-looking destination stops delivering. No credential is ever included. */
             connection: {
                 id: string;
@@ -57554,6 +65786,12 @@ export interface components {
              * @example standard
              */
             privacy_mode: string;
+            /**
+             * @description Where a Platform-Safe profile's scrubbed Meta events go (#1669): `existing` — the ordinary Meta CAPI destination(s), the dataset the live ad sets already optimize on (default); `clean` — only the provisioned Clean Dataset, the remediation once Meta restricts the existing dataset. Reported in every mode; decides routing only when `privacy_mode` is `platform_safe`.
+             * @example existing
+             * @enum {string}
+             */
+            platform_safe_target: "existing" | "clean";
             export_meta_enabled: boolean;
             export_google_enabled: boolean;
             destinations: components["schemas"]["ExportDestination"][];
@@ -57603,7 +65841,7 @@ export interface components {
              * @description Restrict to one destination kind. Omitted ⇒ every enabled destination.
              * @enum {string}
              */
-            destination?: "meta_capi" | "google_ads";
+            destination?: "meta_capi" | "google_ads" | "tiktok_events_api";
             /**
              * @description Inclusive lower bound on the SOURCE conversion's event time.
              * @example 2026-08-18
@@ -57637,6 +65875,11 @@ export interface components {
             skip_reason: string | null;
             /** @example Purchase */
             platform_event_name: string | null;
+            /**
+             * @description The Meta `action_source` this delivery carried (or would have carried), read off the stored payload: the value declared on `POST /api/v1/events` when there was one, else Atribu's inference. NULL for a non-Meta delivery or a row skipped before a payload was built.
+             * @example physical_store
+             */
+            action_source: string | null;
             /** @description The platform `event_id` this delivery carries — the booking cluster's canonical id. Two ingestion paths for one real conversion share it, which is both how Pixel↔CAPI deduplication works and how 'already delivered' is decided. */
             canonical_event_id: string | null;
             cluster_id: string | null;
@@ -58363,6 +66606,57 @@ export interface components {
             /** @description Email and phone only, primary first. The identity graph also holds anonymous ids and provider keys; those are plumbing, not identity, and are deliberately not published here. Empty for an anonymous visitor. */
             identifiers: components["schemas"]["CustomerIdentifier"][];
         };
+        /** @description One row of the KEY-ONLY journey projection — what a key without `customers:read` receives from `GET /api/v1/conversions/{id}/journey` and `GET /api/v1/customers/journey`. The marketing path only: the person, the pages, device, geo, session, `anonymous_id` and `customer_profile_id` are ABSENT (not null). */
+        JourneyEventProjected: {
+            /** @description The touch id, or the outcome-event id on an `outcome` row. Stable, and the second half of the keyset the cursor encodes. */
+            touch_id: string;
+            /**
+             * @description `web_touch` a visit to the site; `synthetic` an off-site ad touch Atribu built from a click id or an ad referral; `organic_interaction` an organic social interaction; `inherited` credit carried from a lead to its sale; `proxy_click` a tracked redirect click; `outcome` one of the person's own outcomes.
+             * @enum {string}
+             */
+            kind: "web_touch" | "synthetic" | "organic_interaction" | "inherited" | "proxy_click" | "outcome";
+            /** @example 2026-09-20T14:02:11Z */
+            at: string;
+            /** @example Paid Social */
+            channel: string | null;
+            source: string | null;
+            medium: string | null;
+            /** @description Null when the touch names no campaign. */
+            campaign: {
+                /** @description The ad platform's own id (Meta / Google / TikTok) — join against `GET /api/v1/campaigns`. */
+                external_id: string | null;
+                name: string | null;
+            } | null;
+            ad_set: {
+                /** @description The ad platform's own id (Meta / Google / TikTok) — join against `GET /api/v1/campaigns`. */
+                external_id: string | null;
+                name: string | null;
+            } | null;
+            ad: {
+                /** @description The ad platform's own id (Meta / Google / TikTok) — join against `GET /api/v1/campaigns`. */
+                external_id: string | null;
+                name: string | null;
+                creative_thumbnail_url: string | null;
+            } | null;
+            /**
+             * @description The KIND of ad click id the touch carried — a key of the click-id registry (`gclid`, `gbraid`, `wbraid`, `fbclid`, `ttclid`, `msclkid`, …) or `ctwa_clid`. The value never crosses.
+             * @example fbclid
+             */
+            click_id_kind: string | null;
+            /**
+             * @description How the touch is tied to the person: `ctwa_referral` a click-to-WhatsApp / Instagram ad referral; `click_id` an off-site touch built from a click id the outcome carried; `link_token` a visit whose browser an `atb_t` link token bound to the person; `anonymous_id` a visit joined through the browser's anonymous id. Null when none of these is proven, and on every outcome row.
+             * @enum {string|null}
+             */
+            join_method: "ctwa_referral" | "click_id" | "link_token" | "anonymous_id" | null;
+            /** @description Whether this touch received credit under `credit_model`, across the person's conversions. NULL on an outcome row. */
+            is_credited: boolean | null;
+            /** @description Mean credit weight (0..1) across the conversions this touch was credited in. */
+            credit_share: number | null;
+            /** @example last_touch */
+            credit_model: string | null;
+            /** @description True when the touch is on the attribution path (inside the lookback window, zero-weight positions included) of THIS conversion on `/conversions/{id}/journey`, or of any of the person's conversions on `/customers/journey`, under `credit_model`. Null on an outcome row. */
+            in_window: boolean | null;
+        };
         DmAdsDailyPoint: {
             /** @example 2026-03-25 */
             date: string;
@@ -58739,6 +67033,11 @@ export interface components {
                  */
                 required_scopes?: string[];
                 /**
+                 * @description #1776 — a stable, machine-readable refinement of a SHARED class code that cannot be renamed (`forbidden`, `unauthorized`, `rate_limit_exceeded`, `provider_error`, `invalid_request`, `invalid_state`): which case of that class this is (e.g. `forbidden` + `meta_permission_denied` vs `forbidden` + `applied_by_not_allowed`). THE RULE: a refusal specific to one resource gets its OWN `code` (`campaign_not_found`, `campaign_not_pausable`), never a generic code plus a reason — branch on `code` first, and use `reason` only to pick copy within a shared class. Absent when the refusal has one case.
+                 * @example meta_permission_denied
+                 */
+                reason?: string;
+                /**
                  * @description Present + true when the connection's token was revoked and the user must re-authorize.
                  * @example true
                  */
@@ -58757,6 +67056,41 @@ export interface components {
                      * @example starter
                      */
                     plan: string;
+                };
+                /**
+                 * @description #1653 — present when an upstream provider refused the request and Atribu is passing its verdict through (today: email sends — `gmail` | `outlook`).
+                 * @example outlook
+                 */
+                provider?: string;
+                /**
+                 * @description The provider's own HTTP status, when it answered at all (`null` for a grant that died during token refresh, or a provider that could not be reached). Present with `provider`.
+                 * @example 403
+                 */
+                provider_status?: number | null;
+                /**
+                 * @description The provider's own error code, verbatim (Microsoft Graph `error.code`, Gmail `error.errors[0].reason`). For logs and support — branch on `code`, which is Atribu's stable classification. Present with `provider`.
+                 * @example ErrorAccountSuspend
+                 */
+                provider_code?: string | null;
+                /**
+                 * @description The provider's own message, verbatim — what the mailbox owner needs to read (for a suspended Outlook.com account, the instructions to verify it). Present with `provider`.
+                 * @example Account suspended. Follow the instructions in your Inbox to verify your account., WASCL UserAction verdict is not None. Actual verdict is Suspend.
+                 */
+                provider_message?: string;
+                /**
+                 * Format: uuid
+                 * @description Present on `destination_conflict` (409): the id of the export destination that already holds this kind + connection + pixel / conversion action. Update or re-enable that destination instead. Absent when it could not be read back.
+                 * @example 3f1c2b7e-8a4d-4e2f-9b1a-6c5d4e3f2a10
+                 */
+                conflicting_destination_id?: string;
+                /** @description #306 — present on `consent_required`: the current duplicate-and-swap consent text version and the SHA-256 of each locale's text. Render that text verbatim, have a person accept it, and re-send with `consent`. */
+                consent?: {
+                    /** @example 2026-09-23.duplicate-swap.v1 */
+                    version: string;
+                    text_hashes: {
+                        en: string;
+                        es: string;
+                    };
                 };
             };
         };
@@ -59125,10 +67459,15 @@ export interface components {
              */
             timezone?: string;
             /**
-             * @description ISO-4217 reporting currency. Defaults to USD.
+             * @description ISO-4217. The PROFILE's currency: conversions and attribution are stored in it. Defaults to USD. When `reporting_currency` is omitted it also becomes the new workspace's reporting currency.
              * @example CLP
              */
             currency?: string;
+            /**
+             * @description ISO-4217. The new WORKSPACE's reporting currency — what totals across its profiles are converted into. Omitted ⇒ `currency`; both omitted ⇒ the currency of the first ad account connected to the workspace (Meta and TikTok at connect, Google Ads at its first sync). Applied only on the call that creates the dealer; a replay leaves the workspace as it is — change it later with `PATCH /api/v1/workspaces/{workspaceId}/reporting-currency`.
+             * @example CLP
+             */
+            reporting_currency?: string;
             /**
              * @description The dealer's own website. Send it however you hold it — a bare host, a full URL, mixed case — and it is stored as one normal form: a lowercase hostname with no scheme, port or path (at most 253 characters), which is what `GET /api/v1/profile` returns as `site_domain`. `www.` is preserved, because `www.example.cl` and `example.cl` are different hosts. Rejected with a 400: IP addresses, single-label hosts, and URLs carrying credentials.
              *
@@ -59149,6 +67488,14 @@ export interface components {
              *     ]
              */
             scopes?: string[];
+            /**
+             * @description The profile's signal privacy mode (#1782): `standard`, `platform_safe` or `hipaa`. Omit it to leave the stored mode unchanged. Your app sets the mode on a `standard` profile, or re-sends the mode already stored; any other change (a downgrade, a switch between healthcare modes, anything away from `custom`) answers `409 invalid_state` and writes nothing, because it is the merchant owner's call in the conversion-sync catalog.
+             *
+             *     Send `platform_safe` for a healthcare business (a clinic). Policy S5 reads this mode when a key is minted, and Atribu writes it BEFORE it touches your grant, so the first key minted after the attribution grant widens never carries `customers:read` or `visitors:read`. When the profile is healthcare-family after the write, Atribu also revokes any live key your app (or another app) holds on it that carries either scope; `revoked_keys` counts them. Revoked keys stop authenticating within about 10 seconds. `custom` is not accepted here: it needs a `privacy_config` only the conversion-sync catalog composes. If the mode cannot be written the call answers `503` and nothing changes; if the revocation fails after the mode was stored, it answers `503` with the mode kept and the grant untouched. Retry either way: the call is idempotent and the retry revokes again.
+             * @example platform_safe
+             * @enum {string}
+             */
+            privacy_mode?: "standard" | "platform_safe" | "hipaa";
         };
         ProvisionedProfile: {
             /** @example uuid */
@@ -59169,6 +67516,17 @@ export interface components {
              *     ]
              */
             scopes: string[];
+            /**
+             * @description Present only when the request carried `privacy_mode`: the mode now stored (#1782).
+             * @example platform_safe
+             * @enum {string}
+             */
+            privacy_mode?: "standard" | "platform_safe" | "hipaa";
+            /**
+             * @description Present with `privacy_mode`: how many live keys on this profile carrying `customers:read` or `visitors:read` this call revoked because the profile is healthcare-family (#1782).
+             * @example 0
+             */
+            revoked_keys?: number;
         };
         SessionProvisionProfileRequest: {
             /**
@@ -59229,6 +67587,16 @@ export interface components {
              *     ]
              */
             scopes?: string[];
+            /**
+             * @description ISO-4217. The profile's currency — conversions and attribution are stored in it. Applied on every call that sends it. A change converts amounts already stored (re-queued for FX at each conversion's own date), settles rows without an amount, and queues the recompute; `recompute_enqueued` reports it. While the workspace has no decided reporting currency, it takes this one too.
+             * @example CLP
+             */
+            currency?: string;
+            /**
+             * @description IANA time zone for the profile. Applied when sent; an unknown zone is a 400.
+             * @example America/Santiago
+             */
+            timezone?: string;
         };
         AdoptedProfile: {
             /** @example uuid */
@@ -59242,6 +67610,12 @@ export interface components {
             grant_id: string;
             /** @description True on the call that stamped `external_ref` (HTTP 201). False on every replay — the same ref already stamped, or a call that only changed `scopes` (HTTP 200). */
             created: boolean;
+            /** @description Present when the request carried `currency`: the profile's stored currency. */
+            currency?: string;
+            /** @description Present when the request carried `timezone`: the profile's stored zone. */
+            timezone?: string;
+            /** @description Present with `currency`: whether a recompute was queued to carry the change through (false when nothing needed to move). */
+            recompute_enqueued?: boolean;
             /**
              * @description The scopes the grant now carries.
              * @example [
@@ -59661,7 +68035,7 @@ export interface components {
              *       "view:attribution"
              *     ]
              */
-            permissions: ("view:dashboard" | "view:attribution" | "view:ads-explorer" | "view:ads-lab" | "view:calendar" | "view:journey" | "view:signals" | "view:data-quality" | "view:reports" | "view:messaging-attribution" | "view:settings" | "view:integrations" | "view:members" | "manage:reports" | "manage:ads-lab" | "manage:signals" | "manage:rules" | "manage:integrations" | "manage:settings" | "manage:members")[];
+            permissions: ("view:dashboard" | "view:attribution" | "view:ads-explorer" | "view:calendar" | "view:journey" | "view:signals" | "view:data-quality" | "view:reports" | "view:messaging-attribution" | "view:settings" | "view:integrations" | "view:members" | "manage:reports" | "manage:recommendations" | "manage:signals" | "manage:rules" | "manage:integrations" | "manage:settings" | "manage:members")[];
             plan: components["schemas"]["ProfilePlan"] & (Record<string, never> | null);
             /** @description #1069 — this profile was seeded by `POST /api/v1/profiles/demo`. The attribution engine runs on its rows for real, so every profile-scoped read here returns real numbers computed by the real pipeline. What the flag changes is everything OUTSIDE the profile: it is excluded from workspace-grain aggregates (pacing, Top Performers cohorts, the agency Reports hub, alert digests, the ML passes), it does not consume an `active_profiles` plan seat, and its conversion exports are RECORDED — the `conversion_exports` row carries the exact payload Meta would have received, with `status: "skipped"` and `skip_reason: "demo_profile_recorded"` — never sent. */
             is_demo: boolean;
@@ -59908,6 +68282,11 @@ export interface components {
              * @enum {string}
              */
             locale?: "en" | "es";
+            /**
+             * @description ISO-4217. The workspace's reporting currency — what totals across its profiles are converted into. Omitted ⇒ the currency of the first ad account connected to the workspace (Meta and TikTok at connect, Google Ads at its first sync), never a default.
+             * @example CLP
+             */
+            reporting_currency?: string;
         };
         SessionWorkspaceRequest: {
             /** @example My Agency */
@@ -60030,6 +68409,362 @@ export interface components {
             media_objects_deleted: number;
             /** @description Non-fatal problems. The erasure itself has already committed when these arise, so they are reported rather than raised — a 500 would tell you to retry something that succeeded. */
             warnings?: string[];
+        };
+        /** @description Names ONE existing customer. The first selector present wins, in the order `customer_profile_id` → `customer_key` → `email` → `phone` → `identifier_type`/`identifier_value`. A selector that is present but malformed makes the row `invalid`; it never falls through to the next one. */
+        LinkTokenSelector: {
+            /**
+             * Format: uuid
+             * @description The customer's Atribu id, from `GET /api/v1/customers`.
+             */
+            customer_profile_id?: string;
+            /**
+             * @description Your own id for the customer: the `user_traits.external_id` you sent to `POST /api/v1/events` (or `external_id` on the customer import). The same as `identifier_type: "external_customer_id"`. The way a partner app names a customer without ever holding Atribu's `customer_profile_id`.
+             * @example c9d2e8f1-cust-8841
+             */
+            customer_key?: string;
+            /**
+             * @description Matched case-insensitively against the e-mails already in the identity graph.
+             * @example cliente@example.com
+             */
+            email?: string;
+            /**
+             * @description Normalised to E.164 (use `country` for numbers without a `+` prefix), then matched exactly.
+             * @example +56912345678
+             */
+            phone?: string;
+            /**
+             * @description With `identifier_value`, an exact match on another identifier the graph holds: your own key (`external_customer_id`), a GoHighLevel contact id (`ghl_contact_id`), a Shopify customer id (`shopify_customer_id`), a Stripe customer id (`stripe_customer_id`) or a Chilean RUT (`national_id`, any common formatting). Both fields together. Any other type answers the row `invalid` with reason `unknown_identifier_type`.
+             * @example ghl_contact_id
+             * @enum {string}
+             */
+            identifier_type?: "external_customer_id" | "ghl_contact_id" | "shopify_customer_id" | "stripe_customer_id" | "national_id";
+            identifier_value?: string;
+        };
+        LinkTokenMintRequest: {
+            /** @description Up to 500 customers. Results come back in the same order. */
+            customers: components["schemas"]["LinkTokenSelector"][];
+            /**
+             * @description How long each token stays valid. Default **90**. Pick the life of the campaign or sequence the links go into: a token stored on a contact is re-used by every message that references it.
+             * @example 90
+             */
+            expires_in_days?: number;
+            /**
+             * @description ISO 3166-1 alpha-2 default for phone numbers written without a `+` country code.
+             * @example CL
+             */
+            country?: string;
+        };
+        LinkTokenMintResult: {
+            /** @description Position in the request's `customers` array. */
+            index: number;
+            /**
+             * @description `minted` — a token was issued. `not_found` — no existing customer in this profile matches; nothing is created. `invalid` — the row cannot match anyone as written. Check `reason` on the last two. These are per-row results inside a `200`, not HTTP error codes.
+             * @enum {string}
+             */
+            status: "minted" | "not_found" | "invalid";
+            /**
+             * @description Your key for this customer. On a `minted` row, the key the customer holds (after a merge, the surviving customer's key; the key you sent if the survivor has none). On any other row, the key you sent, or null when the row did not name one.
+             * @example c9d2e8f1-cust-8841
+             */
+            customer_key: string | null;
+            /**
+             * @description Present unless `minted`. `not_found`: `no_match` (nobody in this profile carries that selector) or `erased` (the customer was erased; said only for a `customer_profile_id` you sent or a `customer_key` you erased through `POST /api/v1/customers/erasures`, never for an e-mail or phone). `invalid`: `no_selector`, `unknown_identifier_type`, or `malformed_selector` (a `customer_profile_id` that is not a uuid, or an e-mail, phone or RUT that does not parse).
+             * @enum {string}
+             */
+            reason?: "no_match" | "erased" | "no_selector" | "unknown_identifier_type" | "malformed_selector";
+            /**
+             * @description Present unless `minted`: an English sentence for `reason`. Branch on `reason`, not on this text.
+             * @example No customer in this profile matches this row. Nothing was created.
+             */
+            message?: string;
+            /**
+             * Format: uuid
+             * @description Present on a `minted` row only when the key holds `customers:read`: Atribu's id for the customer the token binds to (the merge survivor, if they were merged). A key without `customers:read` (every healthcare-family partner key) never receives it; use `customer_key`.
+             */
+            customer_profile_id?: string;
+            /**
+             * @description Present when `minted`. Put it on your links as `?atb_t=<token>`.
+             * @example AZ3kq0sV1mN8x4Lr7cTzYbQw2eJp6uHf9gDk5aSx0vWn3oIm8tRc1yUe4hGj7lKb2zXq6pNs9dMf0wVa3rTy5uIo8eQ
+             */
+            token?: string;
+            /** @example 2026-12-23T12:00:00.000Z */
+            expires_at?: string;
+        };
+        LinkTokenRecipe: {
+            /**
+             * @description `partner_page` is for an app that renders the landing page itself (a quote to accept, a booking to confirm) and mints by `customer_key` when it builds the message.
+             * @enum {string}
+             */
+            channel: "gohighlevel" | "klaviyo" | "whatsapp" | "partner_page";
+            /** @description Where to save each customer's token in that tool. */
+            store_token_in: string;
+            /**
+             * @description Paste this after your link; `{url}` is your own landing page.
+             * @example {url}?atb_t={{contact.atribu_link_token}}
+             */
+            link_template: string;
+            /** @example {{contact.atribu_link_token}} */
+            merge_tag: string;
+            /** @description What the landing page must do for the token to link the browser. */
+            requires: string;
+        };
+        LinkTokenMintResponse: {
+            /** @enum {string} */
+            param: "atb_t";
+            minted: number;
+            not_found: number;
+            invalid: number;
+            results: components["schemas"]["LinkTokenMintResult"][];
+            recipes: components["schemas"]["LinkTokenRecipe"][];
+        };
+        PartnerCustomerErasureRequest: {
+            /**
+             * @description Required. Your own idempotency key for this erasure, unique per profile: letters, digits and `. _ : -`, up to 200. Sending the same `request_ref` again for the same customer answers `200` with the original receipt and erases nothing; reusing it for a different customer is `400`. Never put personal data in it; it is stored.
+             * @example crm:contact-archive:8f1a2c
+             */
+            request_ref: string;
+            /**
+             * @description Your own id for the customer, the `user_traits.external_id` you send to `POST /api/v1/events`. Name the customer with exactly ONE of `customer_key`, `email`, `phone` or `identifier_type` + `identifier_value`.
+             * @example c9d2e8f1-cust-8841
+             */
+            customer_key?: string;
+            /** @example paciente@example.com */
+            email?: string;
+            /**
+             * @description Normalised to E.164 (use `country` for a number without a `+` prefix).
+             * @example +56912345678
+             */
+            phone?: string;
+            /**
+             * @description With `identifier_value`. `external_customer_id` is the same as `customer_key`.
+             * @enum {string}
+             */
+            identifier_type?: "external_customer_id" | "ghl_contact_id" | "shopify_customer_id" | "stripe_customer_id" | "national_id";
+            identifier_value?: string;
+            /**
+             * @description ISO 3166-1 alpha-2 default for a phone without `+` and for `national_id`.
+             * @example CL
+             */
+            country?: string;
+            /**
+             * @description Why the customer is being erased. Default `data_subject_request`. Recorded on the receipt.
+             * @enum {string}
+             */
+            reason?: "data_subject_request" | "account_closed" | "other";
+        };
+        /** @description Never carries Atribu's `customer_profile_id`, for any key. */
+        PartnerCustomerErasureReceipt: {
+            /**
+             * Format: uuid
+             * @description Keep it: `GET /api/v1/customers/erasures/{erasure_id}` reads the receipt.
+             */
+            erasure_id: string;
+            /** @example crm:contact-archive:8f1a2c */
+            request_ref: string;
+            /**
+             * @description `done` once every store has been erased. `queued` while part of the erasure is still being completed in the background; read the receipt again later. Either way the customer is already unreachable by your key.
+             * @enum {string}
+             */
+            status: "queued" | "done";
+            /**
+             * @description The key you sent, or the one the customer held when you named them by e-mail, phone or another identifier. Null when they had none. Every key the customer held (after a merge, several) is recorded as erased, so a later request or link-token mint by any of them answers accordingly.
+             * @example c9d2e8f1-cust-8841
+             */
+            customer_key: string | null;
+            /** @enum {string} */
+            reason: "data_subject_request" | "account_closed" | "other";
+            /** @example 2026-09-25T18:04:11.201Z */
+            requested_at: string;
+            /** @example 2026-09-25T18:04:11.201Z */
+            completed_at: string | null;
+        };
+        EventRetractionRequest: {
+            /**
+             * @description The key the event was ingested with: the `Idempotency-Key` header or `idempotency_key` field you sent to `POST /api/v1/events`. Matched exactly, without trimming.
+             * @example deal_88213
+             */
+            idempotency_key: string;
+            /**
+             * @description Why, for the audit record. Up to 500 characters. Never put personal data in it; it is stored.
+             * @example Backfill credited the payment to the wrong contact
+             */
+            reason?: string;
+        };
+        EventRetraction: {
+            /** @example deal_88213 */
+            idempotency_key: string;
+            /**
+             * @description `retracted`: deleted by this call. `already_retracted`: an earlier call retracted this key and nothing is left to delete; every count is 0.
+             * @enum {string}
+             */
+            status: "retracted" | "already_retracted";
+            /**
+             * Format: uuid
+             * @description The audit record of the retraction (the earlier one, on `already_retracted`).
+             */
+            retraction_id: string | null;
+            /** @description Rows deleted, by store. Every key is always present. */
+            removed: {
+                /** @description The ingested event (0 or 1). */
+                outcome_events: number;
+                /** @description Conversions extracted from it. */
+                conversions: number;
+                /** @description Attribution credit rows of those conversions, across every model. */
+                attribution_touchpoints: number;
+                /** @description Stored conversion paths. */
+                paths_to_conversion: number;
+                /** @description Modeled-attribution credit rows. */
+                attribution_modeled_credits: number;
+                /** @description Its membership in a cross-path dedup cluster. */
+                booking_cluster_members: number;
+                /** @description Dedup clusters left empty and deleted. */
+                booking_clusters: number;
+                /** @description Touches minted from the event's own UTMs that nothing else credits. */
+                synthetic_touches: number;
+                /** @description Order-level client signals lifted from it. */
+                order_client_signals: number;
+                /** @description Instagram automatic-event rows derived from it. */
+                instagram_automatic_events: number;
+            };
+            /** @description Rows changed but kept. Every key is always present. */
+            updated: {
+                /** @description Conversions of the affected customer whose first-payment flag changed (a second payment becomes the first). */
+                first_payment_flags: number;
+                /** @description Touches minted from the event's UTMs that another conversion still credits, kept as that conversion's evidence. */
+                synthetic_touches_kept: number;
+                /** @description Declared-source answers that named the event; the answer is kept. */
+                declared_source_answers_detached: number;
+                /** @description Orders that pointed at a deleted conversion. */
+                orders_unlinked: number;
+            };
+        };
+        DeclaredSourceChannelCell: {
+            /**
+             * @description The credited touch's channel.
+             * @example Paid Social
+             */
+            channel: string;
+            answers: number;
+            /** @description Whether this channel is one a buyer giving this answer would plausibly show up as in click attribution. */
+            agrees: boolean;
+        };
+        DeclaredSourceAnswerSummary: {
+            /**
+             * @description Normalized answer: facebook, instagram, tiktok, youtube, google, other_social, influencer, friend_family, email, whatsapp, podcast, tv_radio, print_outdoor, store_event, walk_in, press_blog, ai_assistant, other. The vocabulary grows; treat an unknown key as its own bucket.
+             * @example instagram
+             */
+            answer_key: string;
+            /** @example meta */
+            channel_family: string;
+            answers: number;
+            /** @description Share of all answers in the window, 0..1. */
+            share: number;
+            /**
+             * Format: decimal
+             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+             * @example 1234.56
+             */
+            cash_value: string;
+            /** @description Where click attribution put these orders, largest first. */
+            attributed_channels: components["schemas"]["DeclaredSourceChannelCell"][];
+            /** @description Orders Atribu ingested that click attribution could not place. */
+            not_attributed: number;
+            /** @description Answers whose order has not been ingested (yet) — not the same as "no ad". */
+            order_unlinked: number;
+        };
+        DeclaredSourceBreakdown: {
+            /** @example last_touch */
+            model: string;
+            total_answers: number;
+            attributed_answers: number;
+            /** @description Of the answers whose order click attribution could place, the share where the credited channel agrees with the answer. Null when there are none. A diagnostic — it changes no credit. */
+            agreement_rate: number | null;
+            not_attributed: number;
+            order_unlinked: number;
+            /**
+             * Format: decimal
+             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+             * @example 1234.56
+             */
+            cash_value: string;
+            reporting_currency: string | null;
+            answers: components["schemas"]["DeclaredSourceAnswerSummary"][];
+        };
+        PartnerCustomerListAudienceStatus: {
+            /** @description Whether this profile can have the customer-list audience right now. This read is the capability check. */
+            available: boolean;
+            /**
+             * @description Why it is not available, `null` when it is. In the order checked: `not_enabled` (not switched on for this profile — it is enabled per profile by Atribu, and every profile starts off), `not_platform_safe_eligible` (the profile is not in Platform-Safe mode), `dpa_not_accepted` (the Platform-Safe DPA is not accepted), `meta_write_not_granted` (no connected Meta Ads connection with `ads_management`), `meta_connection_ambiguous` (more than one live Meta Ads connection), `no_ad_account` (the connection names no ad account).
+             * @enum {string|null}
+             */
+            reason: "not_enabled" | "not_platform_safe_eligible" | "dpa_not_accepted" | "meta_write_not_granted" | "meta_connection_ambiguous" | "no_ad_account" | null;
+            audience: {
+                /** Format: uuid */
+                id: string;
+                meta_audience_id: string | null;
+                /** @description `creating`, `synced`, `refreshing`, `stale` (the last nightly refresh failed), `error` or `deleted`. */
+                status: string;
+                /** @description Meta's own lower bound for the matched size. Null while Meta is still matching. */
+                approximate_count_lower: number | null;
+                approximate_count_upper: number | null;
+                /** @description When the members were last replaced. */
+                last_refreshed_at: string | null;
+                /** @description A stable error code, never a message. */
+                last_error: string | null;
+            } | null;
+            lookalike: {
+                /** Format: uuid */
+                id: string;
+                meta_audience_id: string | null;
+                /** @description `synced`, `waiting_size` (the list is below Meta's ~100-person floor; it is created by the nightly refresh once the list grows), `error` or `deleted`. */
+                status: string;
+                ratio: number | null;
+                country: string | null;
+            } | null;
+        };
+        OwnedOAuthApp: {
+            /** Format: uuid */
+            app_id: string;
+            /** @example vitrina */
+            client_id: string;
+            /** @example Vitrina */
+            name: string;
+            logo_url: string | null;
+            /** @example active */
+            status: string;
+            /**
+             * @description The app-level Data Processing Agreement. `accepted`: every profile this app provisioned — and every one it provisions later — carries `dpa_status = accepted` by inheritance. `withdrawn`: those inherited acceptances were returned to `withdrawn`; a profile whose own owner accepted directly keeps its acceptance.
+             * @enum {string}
+             */
+            dpa_status: "not_accepted" | "accepted" | "withdrawn";
+            /** @example 2026-07-20-v1 */
+            dpa_version: string | null;
+            /** @description When it was accepted. Kept after a withdrawal as the record of the last acceptance. */
+            dpa_accepted_at: string | null;
+            /**
+             * Format: uuid
+             * @description The Atribu user (an owner or admin of this workspace) who accepted it.
+             */
+            dpa_accepted_by: string | null;
+            /** @description Live (not archived) profiles this app provisioned. */
+            profiles_provisioned: number;
+            /** @description Profiles whose DPA is currently accepted by inheritance from this app. A profile accepted directly by its own owner is not counted here. */
+            profiles_covered: number;
+        };
+        OAuthAppDpaDecision: {
+            /** Format: uuid */
+            app_id: string;
+            client_id: string;
+            /** @enum {string} */
+            dpa_status: "not_accepted" | "accepted" | "withdrawn";
+            dpa_version: string | null;
+            dpa_accepted_at: string | null;
+            /** Format: uuid */
+            dpa_accepted_by: string | null;
+            /** @description FALSE when the app was already in the requested state and nothing was written — accepting twice never records a second signature or moves `dpa_accepted_at`. */
+            changed: boolean;
+            /** @description Profile compliance rows this call changed. The write-through runs on every call, so a repeated accept also repairs any provisioned profile that had missed it. */
+            profiles_updated: number;
         };
         AppWorkspaceMemberProfileAccess: {
             /**
@@ -60201,72 +68936,23 @@ export interface components {
             primary_incremental_conversions: number | null;
             primary_incremental_conversions_low: number | null;
             primary_incremental_conversions_high: number | null;
-            /** @description Confidence level the interval was computed at (e.g. 80, 90, 95). */
+            /** @description Meta's own confidence that the lift is real, from 0 to 1 (`conversions_confidence`). Not a percentage. */
             primary_confidence: number | null;
             /** @description From the best `split_comparison` result — a DIFFERENT result row than the incremental estimate. A study can carry one without the other; they are not two views of one number. */
             primary_winner_cell_name: string | null;
-        };
-        WorkspaceTestRoadmapGap: {
-            profile_id: string;
-            profile_name: string | null;
-            profile_scored_ad_count: number;
-            /**
-             * Format: decimal
-             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
-             * @example 1234.56
-             */
-            profile_attributed_revenue: string | null;
-            /**
-             * Format: decimal
-             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
-             * @example 1234.56
-             */
-            profile_spend: string | null;
-            /** @example cohort */
-            kind: string;
-            target_dimension: string;
-            target_value: string;
-            /** @description The stable key a decision is recorded against — `(workspace, profile, score_window, test_key)`. Never the exemplar ad, which rotates on every rebuild. */
-            test_key: string;
-            sample_n: number;
-            winner_n: number;
-            /** @description `winner_n / sample_n`. Meaningless without the baseline below. */
-            win_rate: number | null;
-            /** @description The workspace's OWN win rate over the same window — the honest comparator. A 40% win rate is excellent against a 20% baseline and poor against a 60% one. */
-            workspace_baseline_win_rate: number | null;
-            /** @description `win_rate / workspace_baseline_win_rate`. An ASSOCIATION, never a cause, and never to be rendered without the interval below. */
-            lift_vs_workspace: number | null;
-            confidence_interval_low: number | null;
-            /** @description Wilson 95% interval on `win_rate`. NULL when `sample_n` is 0. */
-            confidence_interval_high: number | null;
-            exemplar_profile_id: string;
-            exemplar_profile_name: string | null;
-            /** @description The concrete ad the evidence came from, so the suggestion can be checked. */
-            exemplar_ad_external_id: string;
-            /** @description The exemplar's ROAS — a ratio over attributed cash. NULL when it has none. */
-            exemplar_roas: number | null;
-            /** @description The exemplar's rule-blend score (0–100). NOT a probability and NOT cash — a separate field from `exemplar_roas` for the same reason the leaderboard keeps its three measures apart. */
-            exemplar_composite_score: number | null;
-            exemplar_creative_format: string | null;
-            exemplar_cohort_objective: string | null;
-            exemplar_hook_type: string | null;
-            exemplar_claim_style: string | null;
-            exemplar_cta_type: string | null;
-            exemplar_primary_angle: string | null;
-            /** @description `dismissed` | `drafted`, or null when nobody has decided yet. */
-            queued_status: string | null;
-            drafted_run_id: string | null;
-            snapshot_date: string;
-            score_window: string;
-        };
-        WorkspaceTestRoadmapCoverage: {
-            profile_id: string;
-            profile_name: string | null;
-            scored_ad_count: number;
-        };
-        WorkspaceTestRoadmap: {
-            gaps: components["schemas"]["WorkspaceTestRoadmapGap"][];
-            coverage: components["schemas"]["WorkspaceTestRoadmapCoverage"][];
+            /** @description The test cell the primary estimate belongs to. The primary estimate is the study's PRIMARY objective when Meta marks one, judged on each cell's latest read. */
+            primary_cell_name: string | null;
+            primary_objective_name: string | null;
+            /** @description Conversions Meta observed in the test group. A count (Meta scales it). */
+            primary_conversions_test: number | null;
+            /** @description Control-group conversions scaled to the test group's size. A count; the incremental estimate is test minus this. */
+            primary_conversions_control: number | null;
+            /** @description Relative lift — incremental conversions divided by scaled control conversions (`0.25` = +25%). NULL when the control group converted zero times. */
+            primary_lift_rate: number | null;
+            /** @description Meta's cost per incremental conversion (`conversions_CPiC`), in the ad account's currency. Meta's causal number — it is not Atribu's CAC and not derived from ROAS. */
+            primary_cost_per_incremental_conversion: number | null;
+            /** @description Meta's frequentist p-value for the lift. */
+            primary_p_value: number | null;
         };
         WorkspaceTopPerformersBrief: {
             top_performer_count: number;
@@ -60394,7 +69080,9 @@ export interface components {
                 [key: string]: unknown;
             };
             target: {
+                /** @description Meta's own ad id — the same `platform_id` a `GET /api/v1/campaigns?level=ad` row and `ad_external_id` on top-performers carry, and the `{id}` `POST /api/v1/ads/{id}/pause` takes. Never an internal uuid. */
                 ad_id: string | null;
+                /** @description Meta's own ad-set id — the `{id}` `POST /api/v1/adsets/{id}/budget` takes. Never an internal uuid. */
                 adset_id: string | null;
                 external_action_url: string | null;
             };
@@ -60426,85 +69114,6 @@ export interface components {
             calibration_eval_window_end: string | null;
             /** @description What evidence the recommendation rests on — `cash` / `outcomes` / `engagement` / `meta_only` / `none`. The same ladder `truth_grade` walks for a leaderboard row. */
             data_quality_tier: string | null;
-        };
-        WorkspaceReplicateRun: {
-            id: string;
-            workspace_id: string;
-            source_profile_id: string;
-            target_profile_id: string;
-            source_ad_external_id: string;
-            source_ad_name: string | null;
-            /** @example review */
-            status: string;
-            current_phase: string;
-            error_code: string | null;
-            error_phase: string | null;
-            fit: {
-                [key: string]: unknown;
-            } | null;
-            brief: {
-                [key: string]: unknown;
-            } | null;
-            variants: unknown[] | null;
-            scene_rail: unknown[] | null;
-            expected_band: {
-                [key: string]: unknown;
-            } | null;
-            brand_guard: {
-                [key: string]: unknown;
-            } | null;
-            hook_candidates: unknown[] | null;
-            extract_payload: {
-                [key: string]: unknown;
-            } | null;
-            research_payload: {
-                [key: string]: unknown;
-            } | null;
-            input_tokens: number;
-            output_tokens: number;
-            /**
-             * Format: decimal
-             * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
-             * @example 1234.56
-             */
-            total_cost_usd: string;
-            stream_id: string | null;
-            stream_status: string;
-            stream_started_at: string | null;
-            /** @description Set once the run has been handed to Ads Lab; the handoff is idempotent on it. */
-            ads_lab_session_id: string | null;
-            created_by: string;
-            created_at: string;
-            updated_at: string;
-        };
-        WorkspaceReplicateHandoff: {
-            run_id: string;
-            /** @description The status now on the run — `sent` after a handoff lands. */
-            status: string;
-            /** @description The session the run is bound to. On a repeat handoff this is the FIRST one, not the id you just sent — see `already_handed_off`. */
-            ads_lab_session_id: string;
-            /** @description TRUE when the run already carried a session and this call changed nothing. Your `ads_lab_session_id` was NOT stored; open the one in this response instead. */
-            already_handed_off: boolean;
-        };
-        CreativeTestDecision: {
-            test_key: string;
-            profile_id: string;
-            score_window: string;
-            /** @description What is now recorded — on a re-decide, the NEW value. */
-            status: string;
-        };
-        AdExperimentPromotion: {
-            /** @description Stable for `(workspace, profile, ad)`. Re-posting returns the SAME id rather than minting a second promotion. */
-            promotion_id: string;
-            profile_id: string;
-            ad_external_id: string;
-            /** @description The status now on the row — NOT necessarily the one you asked for. See `advanced_beyond_write`. */
-            status: string;
-            created: boolean;
-            /** @description TRUE when the row had already advanced past the status you wrote (the reconciliation sync moved it to `live` or `linked`), so YOUR DRAFT WAS NOT STORED and the existing promotion was left untouched. A client that ignores this shows an operator a draft that was never saved. */
-            advanced_beyond_write: boolean;
-            /** @description Whether a direct-create job was queued. Gated by a server flag and by the profile having a Meta ad account; the enqueue is non-fatal, so `false` here does not mean the promotion failed. */
-            create_job_enqueued: boolean;
         };
         MeUser: {
             /** @example uuid */
@@ -61117,6 +69726,115 @@ export interface components {
             stale: boolean;
             /** @description The cache TTL the `stale` flag is computed against, in milliseconds. */
             ttl_ms: number;
+            /** @description #306/#1669 — the profile-level Platform-Safe check. NULL unless `privacy_mode` is `platform_safe`. `results` holds only the feed destinations' rows. Under `target: clean` a row remediation of `wire_optimization` becomes `recreate_ad_set` (with `target` and `ad_set_ids`, null on a cached read) — an in-place re-point is what Meta refuses on a published ad set. Under `target: existing` rows keep their own remediation: nothing is provisioned or recreated. */
+            platform_safe: {
+                /**
+                 * @description #1669 — where the scrubbed feed goes. `existing` (default): the ordinary Meta CAPI destination(s), no recreation. `clean`: only the Clean Dataset.
+                 * @enum {string}
+                 */
+                target: "existing" | "clean";
+                /** @description The enabled destinations that receive the Platform-Safe feed. */
+                target_destination_ids: string[];
+                /**
+                 * @description Whether a Clean Dataset exists. Under `target: clean`, `missing` means the profile sends Meta nothing; under `existing` it is informational.
+                 * @enum {string}
+                 */
+                platform_safe_dataset: "provisioned" | "missing";
+                clean_dataset_id: string | null;
+                clean_destination_id: string | null;
+                /** @description Enabled Meta CAPI destinations Atribu deliberately sends nothing to: the ordinary ones under `clean`, a leftover Clean Dataset under `existing`. Their verdicts are left out of `results`. */
+                suppressed_destination_ids: string[];
+                /**
+                 * @description Every Platform-Safe export is held at the legal gate until a PERSON accepts the DPA, provisioned dataset or not. An API key cannot accept it; `sign_dpa` names the hand-off.
+                 * @enum {string}
+                 */
+                dpa_status: "accepted" | "not_accepted";
+                /** @description `provision_platform_safe_dataset` under `target: clean` when `platform_safe_dataset` is `missing`; `sign_dpa` (`POST /api/v1/legal/dpa/handoff`) when `dpa_status` is `not_accepted`; `switch_to_clean_dataset` (`POST /api/v1/conversion-sync/platform-safe/target` with `{target: "clean"}`) always under `target: existing` — the step to take when Events Manager shows Meta blocking Lead / Schedule / Purchase on the existing dataset. */
+                remediation: {
+                    /** @enum {string} */
+                    kind: "provision_platform_safe_dataset" | "sign_dpa" | "switch_to_clean_dataset";
+                    /** @enum {string} */
+                    method: "POST";
+                    /** @example /api/v1/conversion-sync/platform-safe/target */
+                    path: string;
+                    /** @description The request body to send, when the call needs one — `{target: "clean"}` on `switch_to_clean_dataset`. */
+                    body?: {
+                        /** @enum {string} */
+                        target: "clean";
+                    };
+                }[];
+                /** @description #1669 — the event name each rule sends to each feed destination, with the 7-day double-count check against the dataset's own counts. */
+                event_mapping: {
+                    rule_id: string;
+                    destination_id: string;
+                    dataset_id: string | null;
+                    /**
+                     * @description The event name Atribu sends for this rule: the rule's own override (`platform_event_name_overrides`), else the standard event of its conversion's category. Under `target: existing` it must be the name the live ad sets optimize on — change it on the rule, or disable the rule.
+                     * @example Schedule
+                     */
+                    meta_event_name: string;
+                    is_standard_event: boolean;
+                    /** @description Atribu's sends of this name to this destination in the last 7 days. Null when not read. */
+                    atribu_sent_7d: number | null;
+                    /** @description Events of this name the dataset counted BEYOND Atribu's in the last 7 days (the advertiser's pixel, a CRM). Null when Meta's counts have not been polled for this dataset. */
+                    other_sources_7d: number | null;
+                    /** @description True when another source fires the SAME event name on the SAME dataset, so Atribu's copy counts twice (flagged at max(2, 10% of Atribu's sends) foreign events). Pick a name the pixel does not send, or disable the rule. Null = unknown. */
+                    double_count_risk: boolean | null;
+                }[];
+                categorization: {
+                    /** @description What to check by hand in Meta Events Manager (data source categories, blocked events) — Meta exposes no API field for a dataset's category. */
+                    checklist: string[];
+                    help_url: string;
+                    /** @description The zero-accepted-events heuristic: an open `platform_safe_events_not_accepted` alert means Atribu sent Lead / Schedule / Purchase on at least 3 of the last 7 days and Meta counted none — the dataset may be restricted. Null when alerts could not be read. */
+                    events_not_accepted: {
+                        open: boolean;
+                        dataset_ids: string[];
+                        raised_at: string | null;
+                    } | null;
+                };
+                /** @description Live ad sets still optimizing on the old dataset, each with its recreate steps. Read only under `target: clean`, on `force=1` and on `POST /wiring/recheck` (it costs Meta reads); NULL on a cached read, under `existing` (nothing moves), or when the read failed (see `ad_sets_error`). `[]` means read, and nothing to move. */
+                ad_sets_to_move: {
+                    ad_set_id: string;
+                    ad_set_name: string;
+                    campaign_id: string;
+                    campaign_name: string;
+                    effective_status: string;
+                    current_event_type: string | null;
+                    /** @description Null when the Clean Dataset has no conversion this ad set can safely move to. */
+                    target: {
+                        /** @description The Clean Dataset. */
+                        dataset_id: string;
+                        /** @description The neutral Clean Dataset custom conversion the new ad set must optimize for. */
+                        custom_conversion_id: string;
+                        /** @example Schedule */
+                        meta_event_name: string;
+                        /** @example Atribu · Schedule */
+                        neutral_name: string;
+                        /**
+                         * @description #1669 — what the new ad set optimizes on. `standard_event`: the Clean Dataset and the standard event `meta_event_name` (category `custom_event_type`) — no custom conversion, so nothing depends on a custom parameter Meta's Core Setup strips. `custom_conversion`: the neutral custom conversion, only for an event that is not a standard Meta event.
+                         * @enum {string}
+                         */
+                        optimize_on: "standard_event" | "custom_conversion";
+                        /**
+                         * @description The standard category when `optimize_on` is `standard_event`.
+                         * @example SCHEDULE
+                         */
+                        custom_event_type: string | null;
+                    } | null;
+                    unmappable_reason: string | null;
+                    remediation: {
+                        /** @enum {string} */
+                        kind: "recreate_ad_set";
+                        help_url: string;
+                        /** @description Guided-manual recreate in Ads Manager: duplicate the ad set, set the Clean Dataset conversion BEFORE publishing the copy, publish, then pause the original. */
+                        steps: string[];
+                    } | null;
+                }[] | null;
+                ad_sets_checked_at: string | null;
+                ad_sets_error: string | null;
+                /** @description What no API call can do about a Clean Dataset move (#306): Meta freezes a published ad set's dataset and conversion (subcode 3260011), an API copy inherits the freeze, and a new ad set restarts learning with a new id. `[]` under `target: existing`. */
+                cannot_automate: string[];
+            } | null;
         };
         ConversionSyncCandidateAdSet: {
             ad_set_id: string;
@@ -61197,7 +69915,19 @@ export interface components {
             results: {
                 [key: string]: unknown;
             }[];
+            /** @description #306 — the consequences of every ad set this call rebuilt: new ad set ids, Meta's learning reset and any double-spend window. Empty when nothing was rebuilt. Show them to the merchant. */
+            warnings: components["schemas"]["DuplicateSwapWarning"][];
             checked_at: string;
+        };
+        DuplicateSwapWarning: {
+            /**
+             * @description `new_ad_set_ids` and `learning_reset` accompany every rebuild. `double_spend_window`: the copy went live before the original was paused. `double_spend_risk`: Meta refused the pause, both are spending now. `budget_doubled`: run-both was chosen.
+             * @enum {string}
+             */
+            code: "new_ad_set_ids" | "learning_reset" | "double_spend_window" | "double_spend_risk" | "budget_doubled";
+            message: string;
+            /** @description The ORIGINAL ad set ids this warning is about. */
+            ad_set_ids: string[];
         };
         ConversionSyncCustomConversionResponse: {
             custom_conversion: {
@@ -61285,8 +70015,11 @@ export interface components {
         };
         /** @description TWO shapes at 200, discriminated by `status`. `action_required` is NOT a failure: Atribu asked Meta and the answer was that a human has to do this part — the token lacks `ads_management`, or the ad account's single self-created-pixel slot is already held by the advertiser's own pixel and a Clean Dataset must have zero restriction history. Neither is fixable by a retry, which is why neither is a 4xx. */
         PlatformSafeProvisionResponse: {
-            /** @enum {string} */
-            status: "provisioned";
+            /**
+             * @description `provisioned` — this call created (or resumed) the dataset and/or registered conversions. `already_provisioned` — a Clean Dataset already covers every tracked outcome type, so nothing was sent to Meta and nothing was written. A partner may call this on every setup run.
+             * @enum {string}
+             */
+            status: "provisioned" | "already_provisioned";
             dataset_id: string;
             conversions: {
                 /** @description The Atribu outcome-event type this conversion is registered under. */
@@ -61304,14 +70037,72 @@ export interface components {
             }[];
             /** @description The `tracking_export_destinations` row the Clean Dataset now lives on. */
             destination_id: string | null;
+            /** @description What the provision checked before it answered (#306). */
+            checks: {
+                /** @example platform_safe */
+                privacy_mode: string;
+                /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                meta_connection_id: string | null;
+                /**
+                 * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                 * @enum {string}
+                 */
+                ads_management: "granted" | "missing" | "not_checked";
+                /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                outcome_types_tracked: number;
+                /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                outcome_types_mapped: number;
+                /**
+                 * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                 * @enum {string}
+                 */
+                dpa_status: "accepted" | "not_accepted";
+                /**
+                 * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                 * @enum {string}
+                 */
+                platform_safe_target: "existing" | "clean";
+            };
         } | {
             /** @enum {string} */
             status: "action_required";
             /** @enum {string} */
             reason: "ads_management_missing" | "pixel_slot_taken";
+            /**
+             * @description The Meta permissions the advertiser must grant on reconnect — `ads_management` when `reason` is `ads_management_missing`; empty for `pixel_slot_taken`.
+             * @example [
+             *       "ads_management"
+             *     ]
+             */
             missing_permissions: string[];
             /** @description The plan the advertiser must carry out by hand in Events Manager. */
             manual_steps: string[];
+            /** @description What the provision checked before it answered (#306). */
+            checks: {
+                /** @example platform_safe */
+                privacy_mode: string;
+                /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                meta_connection_id: string | null;
+                /**
+                 * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                 * @enum {string}
+                 */
+                ads_management: "granted" | "missing" | "not_checked";
+                /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                outcome_types_tracked: number;
+                /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                outcome_types_mapped: number;
+                /**
+                 * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                 * @enum {string}
+                 */
+                dpa_status: "accepted" | "not_accepted";
+                /**
+                 * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                 * @enum {string}
+                 */
+                platform_safe_target: "existing" | "clean";
+            };
         };
         PlatformSafeRepointPreviewResponse: {
             clean_dataset_id: string;
@@ -61327,7 +70118,7 @@ export interface components {
                 /** @description The event the ad set actually NAMES, when it names one (an inline `pixel_rule` or a `custom_event_str`). Display only: go-live maps on the CATEGORY, and when this disagrees with it there is no safe mapping at all. */
                 current_event_name: string | null;
                 from_pixel_id: string | null;
-                /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`), passed through rather than re-described, so it cannot drift from its producer. */
+                /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`, `optimization`), passed through rather than re-described, so it cannot drift from its producer. `optimization` (#1669) is what the move writes: `{kind: "standard_event", pixelId, eventName, customEventType}` whenever the conversion is a standard Meta event — the ad set then optimizes on the Clean Dataset's standard event and depends on no custom parameter (Core Setup strips them) — or `{kind: "custom_conversion", customConversionId}` only for an event that is not a standard one. */
                 target: {
                     [key: string]: unknown;
                 } | null;
@@ -61356,7 +70147,7 @@ export interface components {
                 /** @description The event the ad set actually NAMES, when it names one (an inline `pixel_rule` or a `custom_event_str`). Display only: go-live maps on the CATEGORY, and when this disagrees with it there is no safe mapping at all. */
                 current_event_name: string | null;
                 from_pixel_id: string | null;
-                /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`), passed through rather than re-described, so it cannot drift from its producer. */
+                /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`, `optimization`), passed through rather than re-described, so it cannot drift from its producer. `optimization` (#1669) is what the move writes: `{kind: "standard_event", pixelId, eventName, customEventType}` whenever the conversion is a standard Meta event — the ad set then optimizes on the Clean Dataset's standard event and depends on no custom parameter (Core Setup strips them) — or `{kind: "custom_conversion", customConversionId}` only for an event that is not a standard one. */
                 target: {
                     [key: string]: unknown;
                 } | null;
@@ -61400,7 +70191,142 @@ export interface components {
                 code: string;
                 message: string;
             }[];
+            /** @description #306 — the consequences of every ad set this call rebuilt: new ad set ids, Meta's learning reset and any double-spend window. Empty when nothing was rebuilt. Show them to the merchant. */
+            warnings: components["schemas"]["DuplicateSwapWarning"][];
             checked_at: string;
+        };
+        PlatformSafeTargetResponse: {
+            /**
+             * @description The target in force after this call.
+             * @enum {string}
+             */
+            target: "existing" | "clean";
+            /** @enum {string} */
+            previous_target: "existing" | "clean";
+            /** @description Whether this call changed the target. */
+            switched: boolean;
+            /** @description `clean` only: the provision this switch ran. `action_required` means nothing could be created automatically — the target did NOT flip. */
+            provision: {
+                /**
+                 * @description `provisioned` — this call created (or resumed) the dataset and/or registered conversions. `already_provisioned` — a Clean Dataset already covers every tracked outcome type, so nothing was sent to Meta and nothing was written. A partner may call this on every setup run.
+                 * @enum {string}
+                 */
+                status: "provisioned" | "already_provisioned";
+                dataset_id: string;
+                conversions: {
+                    /** @description The Atribu outcome-event type this conversion is registered under. */
+                    outcome_type: string;
+                    /**
+                     * @description The NEUTRAL Meta event name the rule matches — never a health term.
+                     * @example Schedule
+                     */
+                    meta_event_name: string;
+                    /** @example SCHEDULE */
+                    custom_event_type: string;
+                    /** @example Atribu · Schedule */
+                    neutral_name: string;
+                    conversion_id: string;
+                }[];
+                /** @description The `tracking_export_destinations` row the Clean Dataset now lives on. */
+                destination_id: string | null;
+                /** @description What the provision checked before it answered (#306). */
+                checks: {
+                    /** @example platform_safe */
+                    privacy_mode: string;
+                    /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                    meta_connection_id: string | null;
+                    /**
+                     * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                     * @enum {string}
+                     */
+                    ads_management: "granted" | "missing" | "not_checked";
+                    /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                    outcome_types_tracked: number;
+                    /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                    outcome_types_mapped: number;
+                    /**
+                     * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                     * @enum {string}
+                     */
+                    dpa_status: "accepted" | "not_accepted";
+                    /**
+                     * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                     * @enum {string}
+                     */
+                    platform_safe_target: "existing" | "clean";
+                };
+            } | {
+                /** @enum {string} */
+                status: "action_required";
+                /** @enum {string} */
+                reason: "ads_management_missing" | "pixel_slot_taken";
+                /**
+                 * @description The Meta permissions the advertiser must grant on reconnect — `ads_management` when `reason` is `ads_management_missing`; empty for `pixel_slot_taken`.
+                 * @example [
+                 *       "ads_management"
+                 *     ]
+                 */
+                missing_permissions: string[];
+                /** @description The plan the advertiser must carry out by hand in Events Manager. */
+                manual_steps: string[];
+                /** @description What the provision checked before it answered (#306). */
+                checks: {
+                    /** @example platform_safe */
+                    privacy_mode: string;
+                    /** @description The Meta Ads connection the Clean Dataset lives on, when one was resolved. */
+                    meta_connection_id: string | null;
+                    /**
+                     * @description Whether the connection's Meta token carries `ads_management`, the one Meta permission provisioning needs. `not_checked` on `already_provisioned`: nothing was written, so Meta was not asked.
+                     * @enum {string}
+                     */
+                    ads_management: "granted" | "missing" | "not_checked";
+                    /** @description Distinct tracked outcome types the Clean Dataset must carry a conversion for. */
+                    outcome_types_tracked: number;
+                    /** @description How many of them the Clean Dataset's persisted mapping covers after this call. */
+                    outcome_types_mapped: number;
+                    /**
+                     * @description A provisioned Clean Dataset still receives nothing until a PERSON accepts the DPA (the export legal gate). An API key cannot accept it: mint a hand-off with `POST /api/v1/legal/dpa/handoff`.
+                     * @enum {string}
+                     */
+                    dpa_status: "accepted" | "not_accepted";
+                    /**
+                     * @description #1669 — the profile's `platform_safe_target` AFTER this call. A Clean Dataset that exists (`provisioned` / `already_provisioned`) sets it to `clean`: provisioning is choosing the Clean Dataset. On `action_required` nothing was created and it is unchanged.
+                     * @enum {string}
+                     */
+                    platform_safe_target: "existing" | "clean";
+                };
+            } | null;
+            /** @description `clean` only: live ad sets still optimizing on the old dataset, each with its Clean Dataset target. Each one must be recreated (new id, learning reset); apply with `POST /api/v1/conversion-sync/platform-safe/repoint`. Null when not read — see `ad_sets_error`. */
+            ad_sets_to_recreate: {
+                ad_set_id: string;
+                ad_set_name: string;
+                campaign_id: string;
+                campaign_name: string;
+                campaign_objective: string;
+                effective_status: string;
+                current_optimization_goal: string;
+                current_event_type: string | null;
+                /** @description The event the ad set actually NAMES, when it names one (an inline `pixel_rule` or a `custom_event_str`). Display only: go-live maps on the CATEGORY, and when this disagrees with it there is no safe mapping at all. */
+                current_event_name: string | null;
+                from_pixel_id: string | null;
+                /** @description The Clean Dataset conversion this ad set would move to — the shared resolver's own shape (`cleanDatasetId`, `cleanCcId`, `metaEventName`, `eventType`, `neutralName`, `optimization`), passed through rather than re-described, so it cannot drift from its producer. `optimization` (#1669) is what the move writes: `{kind: "standard_event", pixelId, eventName, customEventType}` whenever the conversion is a standard Meta event — the ad set then optimizes on the Clean Dataset's standard event and depends on no custom parameter (Core Setup strips them) — or `{kind: "custom_conversion", customConversionId}` only for an event that is not a standard one. */
+                target: {
+                    [key: string]: unknown;
+                } | null;
+                /**
+                 * @description Why `target` is null. `event_diverges_from_category` means the ad set optimizes for a specific event its category does not stand for, so mapping on the category would change what it optimizes for — 25 ad sets on one prod account are in exactly that state (2026-09-09).
+                 * @enum {string|null}
+                 */
+                unmappable_reason: "no_clean_conversion" | "event_diverges_from_category" | null;
+            }[] | null;
+            ad_sets_error: string | null;
+            /** @description `existing` only: Clean Dataset ad sets that were still delivering when the switch was confirmed. Null when there was no Clean Dataset to check or Meta could not be read. */
+            live_clean_ad_sets: {
+                ad_set_id: string;
+                ad_set_name: string;
+                campaign_name: string | null;
+                effective_status: string;
+            }[] | null;
         };
         ConversionSyncReplayResponse: {
             /** @description Rows reset to `pending`. */
@@ -61598,6 +70524,130 @@ export interface components {
             /** @description TRUE when the Graph read failed, so every `ad_sets.count` is 0 because we COULD NOT ASK — not because no ad set uses the event. A renderer must say "couldn't check" rather than printing the zero; that exact conflation is the bug this table exists to end. */
             ad_sets_unavailable: boolean;
         };
+        ConversionSyncDataSources: {
+            /**
+             * @description `automatic` — a profile created in Atribu: the WhatsApp dataset is created the moment Meta Ads and WhatsApp are both connected. `on_request` — a profile a consumer app provisioned: connecting only REPORTS `ready`; the dataset is created by `POST /api/v1/conversion-sync/data-sources/whatsapp/ensure` and nothing else.
+             * @enum {string}
+             */
+            creation: "automatic" | "on_request";
+            prerequisites: {
+                meta_ads: {
+                    connected: boolean;
+                    connection_id: string | null;
+                    ad_account_id: string | null;
+                };
+                whatsapp: {
+                    connected: boolean;
+                    waba_id: string | null;
+                };
+                /** @description The Instagram professional account the Instagram dataset is created on (2026-10-07). */
+                instagram: {
+                    connected: boolean;
+                    ig_account_id: string | null;
+                };
+                /**
+                 * @description An app-provisioned profile exports nothing without the `atribu_attribution` entitlement; `missing` makes ensure answer `409 entitlement_required`.
+                 * @enum {string}
+                 */
+                attribution_entitlement: "entitled" | "missing" | "not_required";
+            };
+            data_sources: components["schemas"]["ConversionSyncDataSourceStatus"][];
+            /** @description The pixels on the connected Meta ad account — what `POST …/website/ensure` accepts as `dataset_id`. A live Graph read of the account's pixels. `null` (never `[]`) when Meta Ads is not connected or Meta could not be read; see `selectable_pixels_error`. */
+            selectable_pixels: {
+                id: string;
+                name: string | null;
+                last_fired_time: string | null;
+            }[] | null;
+            selectable_pixels_error: string | null;
+            /** @description What would be exported once the WhatsApp dataset is on, over the last 30 days. Read from Atribu's own tables; nothing is sent. */
+            export_preview: {
+                window_days: number;
+                /** @description Enabled signal rules sending a conversion definition to Meta. ZERO means nothing is exported at all, whatever the destinations — create a rule (`POST /api/v1/exports/rules`). */
+                enabled_meta_rules: number;
+                /** @description Enabled pipeline-stage rules targeting Meta; not included in the counts. */
+                enabled_meta_stage_rules: number;
+                /** @description Every outcome event of the window, by the lane it would take. */
+                events: {
+                    total: number;
+                    /** @description Events carrying a click-to-WhatsApp click id (`ctwa_clid`, the event's own or the customer's) that declare `business_messaging` or nothing. */
+                    whatsapp_lane: number;
+                    /** @description Everything else: no `ctwa_clid`, or a declared non-messaging `action_source`. */
+                    website_lane: number;
+                };
+                /** @description The subset an enabled Meta rule matches — an upper bound on the candidates, before per-event gates (consent, staleness, value pre-flight, privacy). */
+                rule_matched: {
+                    total: number;
+                    /** @description Events carrying a click-to-WhatsApp click id (`ctwa_clid`, the event's own or the customer's) that declare `business_messaging` or nothing. */
+                    whatsapp_lane: number;
+                    /** @description Everything else: no `ctwa_clid`, or a declared non-messaging `action_source`. */
+                    website_lane: number;
+                };
+                whatsapp_lane: {
+                    /** @enum {string|null} */
+                    destination: "whatsapp_dataset" | null;
+                    /** @enum {string} */
+                    action_source: "business_messaging";
+                };
+                website_lane: {
+                    /**
+                     * @description Null when the profile has no website pixel destination. Such events are then NOT sent to Meta — never to the WhatsApp dataset — and the export ledger records each as `skipped` with `skip_reason: no_website_destination`. When a pixel exists they go there with a non-messaging `action_source` (the declared one, or `system_generated`; never `business_messaging` or `chat`).
+                     * @enum {string|null}
+                     */
+                    destination: "website_pixel" | null;
+                    /** @enum {string|null} */
+                    not_sent_reason: "no_website_destination" | null;
+                    /** @description The window's website-lane events by the `action_source` they would carry: a declared non-messaging value verbatim (`physical_store`, `system_generated`, `website`, …); a declared `business_messaging`/`chat` without a click id → `system_generated`; nothing declared → `inferred` (`website` with browser signals, else `system_generated`, decided per event at send time). */
+                    by_action_source: {
+                        [key: string]: number;
+                    };
+                };
+                truncated: boolean;
+                sampled_events: number;
+            };
+        };
+        ConversionSyncDataSourceStatus: {
+            /**
+             * @description `instagram` (2026-10-07): the dataset linked to the profile's Instagram professional account, for business-messaging conversions from Instagram-ad threads.
+             * @enum {string}
+             */
+            kind: "whatsapp" | "website" | "instagram";
+            /**
+             * @description `active` — an enabled Conversions API destination exists. `ready` — every prerequisite holds and `POST …/{kind}/ensure` would create it (or re-enable a disabled one). `blocked` — `reason_code` says what is missing. `not_configured` — the website pixel is not wired; nothing on this surface creates one.
+             * @enum {string}
+             */
+            state: "active" | "ready" | "blocked" | "not_configured";
+            /** @enum {string|null} */
+            reason_code: "meta_ads_not_connected" | "whatsapp_not_connected" | "instagram_not_connected" | "instagram_facebook_login_required" | "duplicate_kind" | "entitlement_required" | "destination_disabled" | "no_website_destination" | "no_selectable_pixel" | "pixels_unavailable" | null;
+            /** @description One sentence a person can act on. */
+            reason: string | null;
+            /** @description The WhatsApp Business Account id (`whatsapp`), the ad account (`website`) or the Instagram professional account id (`instagram`). */
+            asset_id: string | null;
+            dataset_id: string | null;
+            destination_id: string | null;
+            destination_enabled: boolean | null;
+            /** @description The activation watermark (ISO timestamp): a destination created through ensure exports only what happens from this moment on — never history. */
+            export_from: string | null;
+            /** @description Whether Atribu's system user was granted UPLOAD on the messaging dataset. Null when unknown or not applicable. */
+            access_granted: boolean | null;
+            /** @description True exactly when `POST …/{kind}/ensure` would act right now. */
+            can_ensure: boolean;
+            /** @description Whether ANOTHER Atribu profile already holds an enabled Meta Conversions API destination on the same ad account or the same dataset id — the same people may then reach Meta twice, under different event ids. A report only: it never blocks the ensure. `null` when the check could not run. */
+            shared: boolean | null;
+            /** @description How many other profiles (in any workspace). `null` when the check could not run. */
+            shared_count: number | null;
+            /** @description The ids of those profiles that are in THIS workspace. A profile in another workspace is counted in `shared_count` and never named. */
+            shared_with_profiles: string[];
+            /**
+             * @description `meta_destination_shared` exactly when `shared` is true.
+             * @enum {string|null}
+             */
+            warning: "meta_destination_shared" | null;
+        };
+        ConversionSyncDataSourceEnsure: {
+            /** @enum {string} */
+            outcome: "created" | "already_present";
+            data_source: components["schemas"]["ConversionSyncDataSourceStatus"];
+        };
         BlueprintContextResponse: {
             /** @description Non-null ⇒ this profile cannot reach Meta yet, and every list in the response is empty for THAT reason rather than because nothing exists. */
             blocked: {
@@ -61748,6 +70798,17 @@ export interface components {
                     /** @description Always `true`. A structural reminder that this is a DIRECTIONAL read of traceable ROAS and fatigue — never a causal or incrementality claim. Consumers must label it as such. */
                     is_directional: boolean;
                     basis?: string[];
+                    /** @description The rule behind a rule-based verdict: `id` (render it with its dictionary sentence), the `thresholds` it compares against, and this verdict's measured `inputs`. A rule, not a model. */
+                    rule: {
+                        /** @enum {string} */
+                        id: "composite_score" | "creative_degradation" | "scale_guidance" | "funnel_diagnosis" | "gap_direction" | "cockpit_tier" | "intent_band" | "lead_quality" | "experiment_grade" | "house_model_split";
+                        thresholds: {
+                            [key: string]: number;
+                        };
+                        inputs: {
+                            [key: string]: number | string | boolean | null;
+                        };
+                    };
                 } & {
                     [key: string]: unknown;
                 };
@@ -61761,8 +70822,45 @@ export interface components {
                 recent_spend: string;
                 cash_outcomes_28d: number;
                 fatigue: {
-                    risk_tier: string | null;
-                    hazard_30d_pause: number | null;
+                    /** @description Cox wear-out tier of the ad set's riskiest ad. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                    risk_tier: {
+                        /** @enum {string} */
+                        status: "served";
+                        /** @enum {string} */
+                        value: "low" | "medium" | "high" | "critical";
+                        reason: null;
+                    } | {
+                        /** @enum {string} */
+                        status: "withheld";
+                        value: null;
+                        /** @enum {string} */
+                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                    } | {
+                        /** @enum {string} */
+                        status: "not_applicable";
+                        value: null;
+                        /** @enum {string} */
+                        reason: "rules_fallback" | "not_scored";
+                    };
+                    /** @description Highest Cox 30-day pause probability among the ad set's ads. A learned value. `status` = `served` (a model that cleared the out-of-time serving gate scored this row; `value` is set) | `withheld` (the model has not demonstrated skill out of time — no value, show «no evaluado», never 0) | `not_applicable` (the model serves, but not this row). Read `value` only after checking `status === 'served'`. */
+                    hazard_30d_pause: {
+                        /** @enum {string} */
+                        status: "served";
+                        value: number;
+                        reason: null;
+                    } | {
+                        /** @enum {string} */
+                        status: "withheld";
+                        value: null;
+                        /** @enum {string} */
+                        reason: "no_active_model" | "no_metrics" | "unmeasured" | "malformed_measurement" | "ci_lower_bound_not_above_chance";
+                    } | {
+                        /** @enum {string} */
+                        status: "not_applicable";
+                        value: null;
+                        /** @enum {string} */
+                        reason: "rules_fallback" | "not_scored";
+                    };
                 } | null;
                 series: {
                     day: string;
@@ -61895,6 +70993,8 @@ export interface components {
                 enabled: boolean;
                 meta_pixel_id: string | null;
                 google_conversion_action: string | null;
+                /** @description TikTok pixel code (Events API `event_source_id`). Null on every non-TikTok destination. */
+                tiktok_pixel_code: string | null;
                 /** @description The destination's own stored configuration — provider-shaped, including the Platform-Safe `mode`/`dataset_id`/`outcome_conversion_mappings` block when this is a Clean Dataset. */
                 destination_config?: unknown;
                 created_at: string | null;
@@ -61903,7 +71003,7 @@ export interface components {
                     ready: boolean;
                     /** @enum {string} */
                     state: "inactive" | "ready" | "missing_setup" | "failed_recently";
-                    /** @description `destination_disabled`, `missing_connection`, `connection_<status>`, `missing_meta_pixel_id`, `missing_google_conversion_action`. `destination_disabled` is excluded from the readiness test: a destination that is merely switched off is `inactive`, not misconfigured. */
+                    /** @description `destination_disabled`, `missing_connection`, `connection_<status>`, `missing_meta_pixel_id`, `missing_google_conversion_action`, `missing_tiktok_pixel_code`. `destination_disabled` is excluded from the readiness test: a destination that is merely switched off is `inactive`, not misconfigured. */
                     issues: string[];
                     /** @example connected */
                     connection_status: string;
@@ -61933,10 +71033,15 @@ export interface components {
             }[];
             settings: {
                 /**
-                 * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload from a NEW (Clean) dataset, so health or other sensitive context cannot reach the ad platform.
+                 * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload (default-deny `custom_data`, origin-only URL, neutral names), so health or other sensitive context cannot reach the ad platform. Which dataset receives it is `platform_safe_target`.
                  * @enum {string}
                  */
                 privacy_mode: "standard" | "hipaa" | "custom" | "platform_safe";
+                /**
+                 * @description #1669 — where a `platform_safe` profile's scrubbed Meta events go. `existing` (default): the profile's ordinary Meta CAPI destination(s), the dataset its live ad sets already optimize on — no new ad sets, no learning reset. `clean`: only the provisioned Clean Dataset, the remediation once Meta restricts the existing dataset. Read-only here: change it with `POST /api/v1/conversion-sync/platform-safe/target`. Ignored in every other privacy mode.
+                 * @enum {string}
+                 */
+                platform_safe_target: "existing" | "clean";
                 /** @description The profile's privacy filters: `url_sanitization`, `url_allowlist`, `event_blocklist_paths`, `parameter_allowlist`, `parameter_blocklist`, the `strip_*` booleans, `enable_ldu`, and `healthcare_export_allowlist`. Every field is optional and the object is validated STRICTLY on write — an unrecognized key is refused rather than dropped, because silently accepting a misspelled privacy control would report success for a filter that was never applied. */
                 privacy_config: {
                     [key: string]: unknown;
@@ -61975,10 +71080,15 @@ export interface components {
         };
         ConversionSyncCatalogSettings: {
             /**
-             * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload from a NEW (Clean) dataset, so health or other sensitive context cannot reach the ad platform.
+             * @description FOUR values, matching the database's own CHECK. `platform_safe` means the profile sends Meta a deliberately narrowed payload (default-deny `custom_data`, origin-only URL, neutral names), so health or other sensitive context cannot reach the ad platform. Which dataset receives it is `platform_safe_target`.
              * @enum {string}
              */
             privacy_mode: "standard" | "hipaa" | "custom" | "platform_safe";
+            /**
+             * @description #1669 — where a `platform_safe` profile's scrubbed Meta events go. `existing` (default): the profile's ordinary Meta CAPI destination(s), the dataset its live ad sets already optimize on — no new ad sets, no learning reset. `clean`: only the provisioned Clean Dataset, the remediation once Meta restricts the existing dataset. Read-only here: change it with `POST /api/v1/conversion-sync/platform-safe/target`. Ignored in every other privacy mode.
+             * @enum {string}
+             */
+            platform_safe_target: "existing" | "clean";
             /** @description The profile's privacy filters: `url_sanitization`, `url_allowlist`, `event_blocklist_paths`, `parameter_allowlist`, `parameter_blocklist`, the `strip_*` booleans, `enable_ldu`, and `healthcare_export_allowlist`. Every field is optional and the object is validated STRICTLY on write — an unrecognized key is refused rather than dropped, because silently accepting a misspelled privacy control would report success for a filter that was never applied. */
             privacy_config: {
                 [key: string]: unknown;
@@ -62128,6 +71238,8 @@ export interface components {
             event_count: number | null;
             /** @description True when the answer came from the stored summary rather than a model call. */
             cached: boolean;
+            /** @description False on a healthcare-family profile (its workspace is a healthcare agency, or the profile runs in `platform_safe` / `hipaa` privacy mode) and on one whose status cannot be read: a patient's journey is never sent to a model there, `POST` answers `403`, and `GET` returns no stored summary. */
+            generation_available: boolean;
         };
         ProfileInvitation: {
             /** Format: uuid */
@@ -62224,7 +71336,7 @@ export interface components {
             /** Format: uuid */
             data_connection_id: string | null;
             /** @enum {string|null} */
-            provider: "whatsapp" | "instagram" | null;
+            provider: "whatsapp" | "instagram" | "messenger" | null;
             external_account_name: string | null;
             scopes: string[];
             created_at: string;
@@ -62451,6 +71563,13 @@ export interface components {
             meta_bridge_pageview_enabled: boolean;
             /** @description Per-profile kill switch for pre-submit identity capture (email/phone read at input blur). Default on. */
             early_identity_capture_enabled: boolean;
+            /**
+             * @description Visitor consent enforcement (#1704). `off` (default): the tracker withholds nothing until the site calls `setConsent()`; Google Consent Mode v2 / IAB TCF signals are recorded on every event (and forwarded as Google's `ad_user_data` / `ad_personalization`) but not enforced. `required`: no persisted identifier, `_fbc`/`_fbp`, stored click id or Meta/gtag bridge until `setConsent()`, Consent Mode or TCF grants it, and browser events without an ad grant are never exported to Meta / Google / TikTok (`consent_denied`). The tracker snippet carries the mode, so re-install it after changing this. An event whose own consent says ads were denied is never exported in either mode.
+             * @enum {string}
+             */
+            consent_mode: "off" | "required";
+            /** @description Opt-in (default off): the tracker reads the email/phone/name a scheduler (Calendly, GoHighLevel, Acuity) adds to a thank-you redirect, sends them as one identify in the request body and strips them from the URL. The snippet sets `window.ATRIBU_ENABLE_SCHEDULER_IDENTITY` only while this is on, and collect drops a scheduler identify from a profile where it is off. */
+            scheduler_identity_capture_enabled: boolean;
         };
         TrackingSettingsUpdateRequest: {
             session_timeout_minutes?: number;
@@ -62462,6 +71581,9 @@ export interface components {
             intercept_meta_fbq_enabled?: boolean;
             meta_bridge_pageview_enabled?: boolean;
             early_identity_capture_enabled?: boolean;
+            /** @enum {string} */
+            consent_mode?: "off" | "required";
+            scheduler_identity_capture_enabled?: boolean;
         };
         TrackingSettingsWriteResult: components["schemas"]["TrackingSettings"] & {
             /** @description True when this save enqueued a full-profile attribution replay. */
@@ -62719,6 +71841,15 @@ export interface components {
             /** @enum {string} */
             status: "verified" | "failed";
             message: string;
+            /** @description A specific diagnosis for a failed check, or null. `doubled_zone`: the CNAME exists under `<domain>.<zone>` because the full host was typed into the DNS provider's Name field and the provider appended the zone; `host` is what belongs in that field. */
+            hint: {
+                /** @enum {string} */
+                code: "doubled_zone";
+                /** @example trk.example.com.example.com */
+                recorded_as: string;
+                /** @example trk */
+                host: string;
+            } | null;
         };
         DeletedTrackingDomain: {
             id: string;
@@ -62802,6 +71933,14 @@ export interface components {
              * @example 2026-09-15T12:04:11.000Z
              */
             occurred_at?: string;
+            /**
+             * @description The profile's signal privacy mode (#1782): `standard`, `platform_safe` or `hipaa`. Omit it to leave the stored mode unchanged. Your app sets the mode on a `standard` profile, or re-sends the mode already stored; any other change (a downgrade, a switch between healthcare modes, anything away from `custom`) answers `409 invalid_state` and writes nothing, because it is the merchant owner's call in the conversion-sync catalog.
+             *
+             *     Send `platform_safe` for a healthcare business (a clinic). Policy S5 reads this mode when a key is minted, and Atribu writes it BEFORE it touches your grant, so the first key minted after the attribution grant widens never carries `customers:read` or `visitors:read`. When the profile is healthcare-family after the write, Atribu also revokes any live key your app (or another app) holds on it that carries either scope; `grant.revoked_keys` counts them. Revoked keys stop authenticating within about 10 seconds. `custom` is not accepted here: it needs a `privacy_config` only the conversion-sync catalog composes. If the mode cannot be written the call answers `503` and nothing changes; if the revocation fails after the mode was stored, it answers `503` with the mode kept and the grant untouched. Retry either way: the call is idempotent and the retry revokes again. A delivery discarded as stale (`ignored_stale: true`) writes no mode either.
+             * @example platform_safe
+             * @enum {string}
+             */
+            privacy_mode?: "standard" | "platform_safe" | "hipaa";
         };
         ProfileEntitlementResult: {
             /** @example uuid */
@@ -62829,7 +71968,7 @@ export interface components {
                  */
                 scopes: string[];
                 /**
-                 * @description How many API keys this call revoked. Non-zero only on an `enabled: false` that found the grant actually carrying `attribution`; those keys stop authenticating within ~10 seconds. A repeated `enabled: false` reports 0 and revokes nothing, so a retry cannot kill the core key you minted after the first one — and a grant that never carried `attribution` (an older delegation such as `["analytics", "attribution_write"]`) is left exactly as it is, keys included: turning off an add-on only undoes what turning it on did.
+                 * @description How many API keys this call revoked. Non-zero on an `enabled: false` that found the grant actually carrying `attribution`, or when `privacy_mode` left the profile healthcare-family while keys carrying `customers:read` / `visitors:read` were live on it (#1782); those keys stop authenticating within ~10 seconds. A repeated `enabled: false` reports 0 and revokes nothing, so a retry cannot kill the core key you minted after the first one — and a grant that never carried `attribution` (an older delegation such as `["analytics", "attribution_write"]`) is left exactly as it is, keys included: turning off an add-on only undoes what turning it on did.
                  * @example 0
                  */
                 revoked_keys: number;
@@ -62839,6 +71978,12 @@ export interface components {
                  */
                 revoked: boolean;
             };
+            /**
+             * @description Present only when the request carried `privacy_mode` and was not discarded as stale: the mode now stored (#1782).
+             * @example platform_safe
+             * @enum {string}
+             */
+            privacy_mode?: "standard" | "platform_safe" | "hipaa";
             /**
              * @description True when this delivery was DISCARDED because its `occurred_at` is strictly older than the decision time already recorded — an out-of-order outbox retry. Nothing was written: no entitlement change, no grant change, no key revocation, no audit event. `enabled` then reports the value Atribu currently holds, not the one you sent. Treat it as success and stop retrying that delivery.
              * @example false
@@ -63047,7 +72192,7 @@ export interface components {
          */
         limit: string;
         /**
-         * @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct
+         * @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct, atribu (the house model, read only when named)
          * @example last_touch
          */
         model: string;
@@ -63492,73 +72637,6 @@ export interface components {
         CommentaryAssist: {
             html: string;
         };
-        KnowledgeBaseDocumentListItem: {
-            /** @example 8f14e45f-ceea-467e-adde-3f4694a483fb */
-            id: string;
-            /** @example Return policy */
-            title: string;
-            source_url: string | null;
-            /** @enum {string|null} */
-            source_type: "markdown" | "pdf" | "html" | "text" | "faq" | null;
-            /**
-             * @example [
-             *       "returns",
-             *       "policy"
-             *     ]
-             */
-            tags: string[];
-            /** @description Approximate token count of the document's raw content. */
-            token_count: number | null;
-            /**
-             * @description `pending`/`processing` while the async chunk+embed pipeline runs after a POST or a content-changing PATCH; `ready` once the document is searchable; `failed` with `processing_error` set if the pipeline errored.
-             * @enum {string}
-             */
-            processing_status: "pending" | "processing" | "ready" | "failed";
-            processing_error: string | null;
-            last_processed_at: string | null;
-            /** @description False once soft-deleted (`DELETE`). Inactive documents are excluded from search. */
-            active: boolean;
-            created_at: string;
-            updated_at: string;
-        };
-        KnowledgeBaseDocumentQueuedResult: {
-            /** @enum {string} */
-            status: "queued";
-            title: string;
-        };
-        KnowledgeBaseDocumentDetail: {
-            id: string;
-            workspace_id: string;
-            profile_id: string;
-            title: string;
-            content: string;
-            /** @description sha256 of `content` — how the pipeline detects an unchanged PATCH. */
-            content_hash: string;
-            source_url: string | null;
-            /** @enum {string|null} */
-            source_type: "markdown" | "pdf" | "html" | "text" | "faq" | null;
-            tags: string[];
-            token_count: number | null;
-            /** @enum {string} */
-            processing_status: "pending" | "processing" | "ready" | "failed";
-            processing_error: string | null;
-            last_processed_at: string | null;
-            active: boolean;
-            created_by: string | null;
-            created_at: string;
-            updated_at: string;
-        };
-        KnowledgeBaseDocumentUpdateResult: {
-            /**
-             * @description `reprocessing` when `content` changed and the async chunk+embed pipeline was re-queued; `updated` for a metadata-only change (title/tags/active), applied synchronously.
-             * @enum {string}
-             */
-            status: "reprocessing" | "updated";
-        };
-        KnowledgeBaseDocumentDeleteResult: {
-            /** @enum {string} */
-            status: "deleted";
-        };
         AdsLevelCounts: {
             /** @example 12 */
             campaign: number;
@@ -63584,6 +72662,21 @@ export interface components {
              * @example 2110
              */
             outcome_value_first_payment: string;
+            /**
+             * @description Conversions of every kind (leads, DMs, appointments, cash…) credited under `model` to a touch with no id at `level`, refunds excluded — the remainder of the ranking rows' own `attributed_outcome_count`. Not cash.
+             * @example 116
+             */
+            attributed_outcome_count: number;
+            /**
+             * @description `attributed_outcome_count` split by conversion type — the per-kind remainder of the ranking rows' own `attributed_outcomes_by_type`.
+             * @example {
+             *       "dm_started": 115,
+             *       "payment_received": 1
+             *     }
+             */
+            attributed_outcomes_by_type: {
+                [key: string]: number;
+            };
         };
         AdTrendPoint: {
             /** @example 120210000000000042 */
@@ -63598,6 +72691,11 @@ export interface components {
             spend: string;
             /** @example 88 */
             clicks: number;
+            /**
+             * @description Meta's OWN reported messaging conversations started that day (`onsite_conversion.messaging_conversation_started_7d`), from the delivery sync. A platform-reported count, not an Atribu measurement; 0 where the platform reports none.
+             * @example 12
+             */
+            messaging_conversations_started_7d: number;
         };
         /**
          * @description A strict superset of the row `GET /api/v1/campaigns?level=` returns, with the fields the list shape drops: the first-payment metric pair, the creative copy, the video funnel and the messaging funnel.
@@ -63625,6 +72723,16 @@ export interface components {
              * @example 1234.56
              */
             daily_budget: string | null;
+            /**
+             * @description `level=ad_set` only: Meta's `learning_stage_info.status` for the ad set — `LEARNING`, `SUCCESS` or `FAIL` — as of the last nightly structure sync (read from Atribu's synced copy, never live from Meta). Null at every other level, for a non-Meta ad group, and when Meta reported none.
+             * @example LEARNING
+             */
+            learning_stage_status: string | null;
+            /**
+             * @description `level=ad_set` only: the parent campaign's `objective`, as of the last structure sync. `objective` is the entity's OWN, which Meta keeps on the campaign, so on an ad set it is null. Null at every other level and for a campaign without an objective.
+             * @example OUTCOME_SALES
+             */
+            campaign_objective: string | null;
             /**
              * Format: decimal
              * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
@@ -63657,6 +72765,19 @@ export interface components {
             outcome_value_first_payment: string;
             roas_first_payment: number;
             cac_first_payment: number;
+            /** @description Conversions of EVERY kind credited to this entity under `model` — leads, DMs started, appointments, quotes, closed deals and cash payments; refunds/chargebacks excluded. NOT cash: never divide spend by it for ROAS or CAC — `outcome_count` is the cash-only count those use. Credited means credit weight > 0 under `model`, so under a single-credit model the rows plus `GET /api/v1/campaigns/unattributed` add up to the profile total. Comparable only within one `model`; never sum it across models. */
+            attributed_outcome_count: number;
+            /**
+             * @description `attributed_outcome_count` split by conversion type, e.g. `{"dm_started": 89, "lead_created": 88, "appointment_booked": 4}`. Keys are the profile's conversion types; values sum to `attributed_outcome_count`; a kind with nothing credited is absent rather than 0. Not cash.
+             * @example {
+             *       "dm_started": 89,
+             *       "lead_created": 88,
+             *       "appointment_booked": 4
+             *     }
+             */
+            attributed_outcomes_by_type: {
+                [key: string]: number;
+            };
             creative_thumbnail_url: string | null;
             creative_body: string | null;
             creative_title: string | null;
@@ -63726,6 +72847,19 @@ export interface components {
         UtmHealthRefreshRequest: {
             /** @description Scan even when the cached summary is inside the 10-minute idempotency window. */
             force?: boolean;
+        };
+        /** @description What the caller may do to this resource, computed once by the API from the caller's scopes (an API key's grant, or the scopes a person's workspace role and permissions derive). Render a disabled control with its reason when a flag is false, instead of letting the write 403. */
+        Capabilities: {
+            /** @description True when THIS caller may apply (execute the action / generate or send / test send). False also when the verb does not exist for this resource. */
+            can_apply: boolean;
+            /** @description True when THIS caller may roll back an applied action. False also when the verb does not exist for this resource. */
+            can_rollback: boolean;
+            /** @description True when THIS caller may dismiss or delete. False also when the verb does not exist for this resource. */
+            can_dismiss: boolean;
+            /** @description True when THIS caller may export / download. False also when the verb does not exist for this resource. */
+            can_export: boolean;
+            /** @description True when THIS caller may create or edit (rules, destinations, templates, schedules, audiences). False also when the verb does not exist for this resource. */
+            can_edit: boolean;
         };
         PendingConnection: {
             /**
@@ -63808,10 +72942,10 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            channel: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc";
-            /** @description Connection status: 'connected'|'syncing'|'error'|'disconnected' for every channel. Email connections additionally re-derive 'connected'/'syncing' into 'degraded' when the provider watch/subscription has expired AND no message has been processed in the last 24h, and Stripe connections do the same when disputes are unreadable on this account (missing Connect application permission) while payments and refunds keep syncing normally — see `status_reason` for either case. */
+            channel: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc" | "tiktok_ads" | "messenger";
+            /** @description Connection status: 'connected'|'syncing'|'error'|'disconnected' for every channel. Email connections additionally re-derive 'connected'/'syncing' into 'degraded' when the provider watch/subscription has expired AND no message has been processed in the last 24h, and Stripe connections do the same when disputes are unreadable on this account (missing Connect application permission) while payments and refunds keep syncing normally — see `status_reason` for either case. An email connection whose mailbox the provider refused at send time for a reason only its owner can fix (account suspended, mailbox disabled, mailbox quota exceeded) reports 'needs_action' until a send succeeds again — sends are still accepted, and the first one the provider accepts clears it. A revoked or expired mailbox grant reports 'reconnect_required' until the mailbox is reconnected. A Messenger, Instagram or WhatsApp connection whose app access was revoked reports 'revoked': its token was deleted, webhook ingestion and sends are stopped (sends answer `409 connection_revoked`), and its conversations are kept — reconnect it through the connect hand-off to restore it. */
             status: string;
-            /** @description Human-readable reason for a non-nominal `status`. Populated for email connections when the provider watch/subscription has expired and no message has been processed recently (`degraded`), and for Stripe connections when disputes are unreadable on this account for lack of a Connect application permission (`degraded`; payments and refunds are unaffected). `null` when `status` needs no explanation. */
+            /** @description Human-readable reason for a non-nominal `status`. Populated for email connections when the provider watch/subscription has expired and no message has been processed recently (`degraded`), and for Stripe connections when disputes are unreadable on this account for lack of a Connect application permission (`degraded`; payments and refunds are unaffected), and for email connections in `needs_action`, as `<code>: <the provider's own message>` (e.g. `account_suspended: Account suspended. Follow the instructions in your Inbox to verify your account.…`) — show it to the mailbox owner. `null` when `status` needs no explanation. */
             status_reason: string | null;
             /** @description Human-readable connection label (WA: phone number; IG: @username; email: mailbox address; calendar: Google account email; everything else: the ad account / store / property / location name the connect recorded). */
             display_name: string | null;
@@ -64626,6 +73760,11 @@ export interface components {
              */
             url: string | null;
             /**
+             * @description `connect` hand-offs only (#1800): the provider's own consent start, which redirects STRAIGHT to the provider's consent screen with no page in between. Send a partner app's user here; `url` is the fallback for a human with no app behind them. Same capability and same lifetime as `url` — present only while `status` is `pending`, dead the moment the hand-off settles, and null for every other kind.
+             * @example https://www.atribu.app/api/integrations/lhg/oauth/start?handoff_handle=9tQ2mB1x…
+             */
+            start_url: string | null;
+            /**
              * @description When the URL stops working. 45 minutes from the mint unless the kind says otherwise — the same budget Atribu's consumer connect detour ships against.
              * @example 2026-09-05T10:45:00.000Z
              */
@@ -64638,6 +73777,135 @@ export interface components {
             result: {
                 [key: string]: unknown;
             } | null;
+        };
+        StageMapping: {
+            /** @enum {string} */
+            provider: "gohighlevel";
+            /** @enum {string} */
+            locale: "es" | "en";
+            /**
+             * @description `not_connected`: no live connection for this provider on the profile. `reconnect_required`: a connection needs re-authorization — its last-synced stages are still listed and their mappings still editable, but offer the reconnect first. `awaiting_sync`: connected, but Atribu has not read its pipelines yet. `ready`: `stages` lists every stage. Whatever is not `ready` comes with a `next_step`.
+             * @enum {string}
+             */
+            status: "ready" | "awaiting_sync" | "reconnect_required" | "not_connected";
+            /** @description When the pipelines were last read from the CRM. */
+            synced_at: string | null;
+            /** @description Whether this credential can write the mapping: it holds `goals:write` and the profile has the `atribu_attribution` entitlement. `false` ⇒ every PATCH would be refused. */
+            can_write: boolean;
+            /**
+             * @description Why `can_write` is false, one value per fix: `insufficient_scope` (re-mint the key under the `attribution` grant) or `entitlement_required` (the app enables `PUT /api/v1/profiles/{profileId}/entitlements/atribu_attribution`). `null` when writable.
+             * @enum {string|null}
+             */
+            write_blocked_reason: "insufficient_scope" | "entitlement_required" | null;
+            write_blocked_label: string | null;
+            /** @description The call that moves the sheet forward, with the same credential: `sync_pipelines` (`POST /api/v1/connections/sync {provider:"gohighlevel", resource:"pipelines"}`, then poll `GET /api/v1/connections/sync/status?provider=gohighlevel` and read this again), `reconnect` / `connect` (`POST /api/v1/connections/gohighlevel/handoff`). `null` when `ready` and every stage is stored. */
+            next_step: {
+                /** @enum {string} */
+                action: "sync_pipelines" | "reconnect" | "connect";
+                /** @enum {string} */
+                method: "POST";
+                /** @example /api/v1/connections/sync */
+                path: string;
+                /** @description JSON body to send, or `null` for none (the hand-off takes an optional one). */
+                body: {
+                    /** @enum {string} */
+                    provider: "gohighlevel";
+                    /** @enum {string} */
+                    resource: "pipelines";
+                } | null;
+                label: string;
+            } | null;
+            connections: {
+                id: string;
+                /** @example connected */
+                status: string;
+                location_id: string | null;
+                location_name: string | null;
+                synced_at: string | null;
+            }[];
+            /** @description Every outcome a stage can map to, in picker order, with its label in `locale`. */
+            outcomes: components["schemas"]["StageMappingOutcome"][];
+            /** @description Every stage of every pipeline of every connected location, in CRM order. */
+            stages: components["schemas"]["StageMappingStage"][];
+            summary: {
+                connections: number;
+                pipelines: number;
+                stages: number;
+                suggested: number;
+                without_suggestion: number;
+                mapped: number;
+                differs_from_suggestion: number;
+                awaiting_sync: number;
+                engine_default: number;
+                unmapped: number;
+            };
+        };
+        StageMappingOutcome: {
+            /**
+             * @example appointment_booked
+             * @enum {string}
+             */
+            key: "lead_created" | "contacted" | "follow_up" | "appointment_booked" | "no_show" | "showed" | "qualified" | "disqualified" | "closed_lost" | "closed_won" | "ignored";
+            /** @example Cita agendada */
+            label: string;
+        };
+        StageMappingStage: {
+            /** @description The CRM's own stage id. */
+            stage_id: string;
+            /** @example AGENDADO */
+            stage_name: string;
+            /** @description The stage's position in its pipeline (CRM order). */
+            position: number;
+            pipeline_id: string;
+            /** @example Pipeline */
+            pipeline_name: string;
+            /** @description The GoHighLevel sub-account (location) id. */
+            location_id: string | null;
+            location_name: string | null;
+            /** @description The connection the stage was read through. */
+            connection_id: string;
+            /** @description What Atribu suggests this stage means, from its name. Deterministic (no model call): the same stage name always gets the same suggestion. `null` when the name does not point to an outcome — `no_suggestion_reason` says why. */
+            suggested: {
+                /**
+                 * @example appointment_booked
+                 * @enum {string}
+                 */
+                outcome: "lead_created" | "contacted" | "follow_up" | "appointment_booked" | "no_show" | "showed" | "qualified" | "disqualified" | "closed_lost" | "closed_won" | "ignored";
+                /** @example Cita agendada */
+                label: string;
+                /** @enum {string} */
+                confidence: "high" | "medium" | "low";
+            } | null;
+            /** @enum {string|null} */
+            no_suggestion_reason: "no_keyword_match" | "blank_stage_name" | null;
+            /** @description `no_suggestion_reason` as a sentence in the requested `locale`, ready to show. */
+            no_suggestion_label: string | null;
+            /** @description The mapping in force — what ingestion uses today. `null` until the stage is stored. */
+            current: {
+                /**
+                 * @description The mapped outcome key: one of `outcomes[].key`, or `unmapped` — a stage Atribu found with no suggestion; it counts as NO outcome (no conversion, no attribution) until someone maps it. `unmapped` is never written by a caller (pick an outcome or `ignored`).
+                 * @example appointment_booked
+                 */
+                outcome: string;
+                label: string;
+                /**
+                 * @description Where the mapping came from. `unmapped` is always `engine_default`. Otherwise this is BEST-EFFORT, derived from the row: `suggested` = it equals the suggestion; `user` = it differs and the row was updated after Atribu created it; `engine_default` = it differs and was never updated (an older silent default nobody chose — treat it as unset). Known misreads: an engine-side rename of the stage makes an untouched row read `user`, and a mapping saved by a full-family replace reads `engine_default`. Before overwriting a `user` row, ask.
+                 * @enum {string}
+                 */
+                source: "suggested" | "user" | "engine_default";
+            } | null;
+            matches_suggestion: boolean;
+            /** @description The row `PATCH /api/v1/outcome-definitions/{id}` writes. `null` until Atribu has stored the stage (the next pipelines sync after the CRM connects, or after a stage is added). */
+            outcome_definition_id: string | null;
+            /** @description Whether THIS credential can write this row now. */
+            writable: boolean;
+            /**
+             * @description `awaiting_sync`: Atribu has not stored the stage yet (see `next_step`). `insufficient_scope`: the credential lacks `goals:write`. `entitlement_required`: it has `goals:write` but the profile lacks the `atribu_attribution` entitlement (the PATCH answers 409).
+             * @enum {string|null}
+             */
+            not_writable_reason: "awaiting_sync" | "insufficient_scope" | "entitlement_required" | null;
+            /** @description `not_writable_reason` as a sentence in the requested `locale`, ready to show. */
+            not_writable_label: string | null;
         };
         LegalAcceptance: {
             /**
@@ -65073,6 +74341,15 @@ export interface components {
             enabled: boolean;
             last_synced_at: string | null;
         };
+        AvailableMetaPage: {
+            page_id: string;
+            name: string;
+            picture_url: string | null;
+            ig_business_account_id: string | null;
+            ig_username: string | null;
+            /** @description True when this profile already tracks the Page. */
+            connected: boolean;
+        };
         WhatsAppAutomaticEventsAccounts: {
             accounts: {
                 /** Format: uuid */
@@ -65083,6 +74360,122 @@ export interface components {
                 automatic_events_opt_in: boolean;
                 automatic_events_opted_in_at: string | null;
             }[];
+        };
+        WhatsAppDeclaredSourcePrompt: {
+            accounts: {
+                /** Format: uuid */
+                id: string;
+                waba_id: string;
+                phone_number: string | null;
+                display_name: string | null;
+                declared_source_prompt_enabled: boolean;
+                declared_source_prompt_enabled_at: string | null;
+            }[];
+            spec: components["schemas"]["WhatsAppDeclaredSourcePromptSpec"];
+        };
+        WhatsAppDeclaredSourcePromptSpec: {
+            /** @example atb_ds. */
+            payload_prefix: string;
+            question: {
+                es: string;
+                en: string;
+            };
+            options: {
+                /** @example instagram */
+                answer_key: string;
+                /** @example atb_ds.instagram */
+                payload: string;
+                labels: {
+                    es: string;
+                    en: string;
+                };
+            }[];
+            interactive_list: {
+                es: {
+                    /** @enum {string} */
+                    type: "list";
+                    body: {
+                        text: string;
+                    };
+                    action: {
+                        button: string;
+                        sections: {
+                            title: string;
+                            rows: {
+                                id: string;
+                                title: string;
+                            }[];
+                        }[];
+                    };
+                };
+                en: {
+                    /** @enum {string} */
+                    type: "list";
+                    body: {
+                        text: string;
+                    };
+                    action: {
+                        button: string;
+                        sections: {
+                            title: string;
+                            rows: {
+                                id: string;
+                                title: string;
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            template: {
+                es: {
+                    suggestedName: string;
+                    /** @enum {string} */
+                    category: "MARKETING";
+                    /** @enum {string} */
+                    language: "es" | "en";
+                    body: string;
+                    quickReplies: {
+                        text: string;
+                        payload: string;
+                    }[];
+                    sendComponents: {
+                        /** @enum {string} */
+                        type: "button";
+                        /** @enum {string} */
+                        sub_type: "quick_reply";
+                        index: string;
+                        parameters: {
+                            /** @enum {string} */
+                            type: "payload";
+                            payload: string;
+                        }[];
+                    }[];
+                };
+                en: {
+                    suggestedName: string;
+                    /** @enum {string} */
+                    category: "MARKETING";
+                    /** @enum {string} */
+                    language: "es" | "en";
+                    body: string;
+                    quickReplies: {
+                        text: string;
+                        payload: string;
+                    }[];
+                    sendComponents: {
+                        /** @enum {string} */
+                        type: "button";
+                        /** @enum {string} */
+                        sub_type: "quick_reply";
+                        index: string;
+                        parameters: {
+                            /** @enum {string} */
+                            type: "payload";
+                            payload: string;
+                        }[];
+                    }[];
+                };
+            };
         };
         WhatsAppLabels: {
             /** Format: uuid */
@@ -65141,8 +74534,9 @@ export interface components {
             customer: {
                 /** Format: uuid */
                 id: string;
-                /** @description `first_name` + `last_name`, either alone, or null when neither is known. */
+                /** @description `first_name` + `last_name`, either alone, or null when neither is known. Always null in a write's response when the caller lacks `customers:read`. */
                 name: string | null;
+                /** @description Always null in a write's response when the caller lacks `customers:read`. */
                 email: string | null;
             } | null;
             /** @description Whether a merchant assignment (`PUT .../payer`) exists for this payment. */
@@ -65169,6 +74563,488 @@ export interface components {
                 note: string | null;
                 refunded_at: string;
             } | null;
+        };
+        AdIdCoverage: {
+            date_from: string;
+            date_to: string;
+            paid_touches: number;
+            with_ad_id: number;
+            coverage_pct: number | null;
+            platforms: components["schemas"]["AdIdCoveragePlatform"][];
+            ads: {
+                /** @description Effectively-active Meta ads (ad, ad set and campaign all ACTIVE). */
+                active_total: number;
+                /** @description How many of those were examined — the busiest 500. */
+                examined: number;
+                ok: number;
+                missing_macro_total: number;
+                /** @description Ads whose clicks never reach a website (WhatsApp, instant forms, …). */
+                not_website: number;
+                /** @description Ads whose template the nightly sync has not read yet — no verdict. */
+                not_synced: number;
+                missing_macro: components["schemas"]["AdMissingAdIdMacro"][];
+            };
+            /** @description Atribu's canonical Meta URL-parameters template. */
+            template: string;
+        };
+        AdIdCoveragePlatform: {
+            /**
+             * @description `meta` | `google` | `tiktok` | `microsoft` | `other`.
+             * @example meta
+             */
+            platform: string;
+            /** @description Paid browser Touches (Paid Social / Paid Search clicks) in the window. */
+            paid_touches: number;
+            /** @description Of those, the ones whose ad the pipeline resolved. */
+            with_ad_id: number;
+            /** @description `with_ad_id / paid_touches × 100`, one decimal. Null when there were no paid Touches. */
+            coverage_pct: number | null;
+            /** @description The platform's own click count for the window, from synced delivery. Meta reports ALL clicks (likes and profile taps included), so this is context, not a denominator. Null when the platform has no delivery rows. */
+            platform_clicks: number | null;
+            missing: components["schemas"]["AdIdMissingCounts"];
+            /**
+             * @description The reason with the most misses; null when nothing is missing.
+             * @enum {string|null}
+             */
+            top_reason: "unrendered_macro" | "ad_id_not_in_catalog" | "ad_name_not_matched" | "no_ad_parameter" | "click_id_only" | "no_tracking_parameters" | null;
+        };
+        /** @description Paid Touches without an ad id, by reason (every key always present). `unrendered_macro`: a UTM still contains `{{` — the link was opened outside the platform's substitution. `ad_id_not_in_catalog`: utm_content is an ad id no synced ad has (an unconnected ad account, or a deleted ad). `ad_name_not_matched`: utm_content is an ad NAME that could not be matched (renamed or duplicated ads). `no_ad_parameter`: campaign/ad-set parameters but no utm_content. `click_id_only`: no UTM parameters at all — only the platform click id. `no_tracking_parameters`: nothing in the URL; classified paid from the referrer or a channel rule. */
+        AdIdMissingCounts: {
+            unrendered_macro: number;
+            ad_id_not_in_catalog: number;
+            ad_name_not_matched: number;
+            no_ad_parameter: number;
+            click_id_only: number;
+            no_tracking_parameters: number;
+        };
+        AdMissingAdIdMacro: {
+            ad_id: string;
+            ad_name: string | null;
+            ad_set_name: string | null;
+            campaign_name: string | null;
+            /** @description Meta-reported clicks in the window — how much traffic the fix affects. */
+            clicks: number;
+            /**
+             * @description `ad_id_in_unread_param`: {{ad.id}} rides a parameter Atribu does not read. `ad_name_only`: the ad is named by {{ad.name}} only. `no_ad_macro`: URL parameters exist but none names the ad. `no_url_parameters`: the ad has none.
+             * @enum {string}
+             */
+            status: "ok" | "ad_id_in_unread_param" | "ad_name_only" | "no_ad_macro" | "no_url_parameters" | "not_website" | "not_synced";
+            /** @description The parameter carrying {{ad.id}}, for `ad_id_in_unread_param`. */
+            ad_id_param: string | null;
+            /** @description The ad's current Meta URL parameters, verbatim. */
+            url_tags: string | null;
+            /** @description The ad's own parameters with Atribu's canonical ones applied — what to paste into the ad's URL parameters. */
+            suggested_url_tags: string | null;
+        };
+        ItpExposure: {
+            requested_from: string;
+            requested_to: string;
+            /** @description Applied start: the last 90 days of the requested range. */
+            date_from: string;
+            date_to: string;
+            /** @description True when the applied window is shorter than the requested one. */
+            narrowed: boolean;
+            touches: {
+                /** @description Browser Touches in the applied window. */
+                total: number;
+                /** @description Of those, with a classified user agent — the denominator of every share. */
+                classified: number;
+                by_class: components["schemas"]["ItpTouchesByClass"];
+            };
+            shares: {
+                /** @description Share of classified Touches Safari's 7-day storage cap applies to (`webkit_browser` + `in_app_webkit`). */
+                itp_capped_pct: number | null;
+                /** @description Share inside an app's embedded browser, any OS. */
+                in_app_pct: number | null;
+                webkit_browser_pct: number | null;
+                in_app_webkit_pct: number | null;
+                in_app_other_pct: number | null;
+                other_pct: number | null;
+            };
+            evidence: {
+                returning_after_7d: components["schemas"]["ItpComparison"];
+                multiple_visitor_ids: components["schemas"]["ItpComparison"] & unknown;
+            };
+            collector: {
+                /**
+                 * @description `same_origin_proxy`: a verified collector on the site's own domain — the only mode Safari does not cap. `cname_not_itp_proof`: a verified custom tracking domain (CNAME), which Safari still caps. `default`: Atribu's own collect endpoint.
+                 * @enum {string}
+                 */
+                mode: "same_origin_proxy" | "cname_not_itp_proof" | "default";
+                itp_proof: boolean;
+                /** @description A same-origin collector address is saved (it may not have passed its check). */
+                configured: boolean;
+                verified_at: string | null;
+                custom_domain_verified: boolean;
+            };
+            /** @description The last 7 days of the collector's traffic; null when no collector secret exists. */
+            proxy_traffic: {
+                window_days: number;
+                events: number;
+                /** @description Events that arrived through this profile's authenticated collector. */
+                proxied_events: number;
+                /** @description Of those, from browsers that sent the server-set visitor cookie back. */
+                with_server_cookie: number;
+                proxied_pct: number | null;
+                server_cookie_pct: number | null;
+                last_proxied_at: string | null;
+            } | null;
+            /** @enum {string} */
+            status: "protected" | "protected_no_traffic" | "at_risk" | "low_exposure" | "no_traffic";
+            /**
+             * @description `install_same_origin_collector` / `replace_cname_with_same_origin`: enough traffic is capped to be worth the install. `finish_collector_check`: a collector is saved but has not passed its check. `route_tracker_through_collector`: verified, but no events reached it in 7 days. `none`: nothing to do.
+             * @enum {string}
+             */
+            recommendation: "none" | "install_same_origin_collector" | "replace_cname_with_same_origin" | "finish_collector_check" | "route_tracker_through_collector";
+            /** @description The same-origin collector install guide. */
+            docs_url: string;
+        };
+        /** @description Every class, zero-filled. `webkit_browser`: Safari on any Apple device and every other iPhone/iPad browser. `in_app_webkit`: an app's embedded browser (Instagram, Facebook, TikTok, …) on iPhone/iPad. `in_app_other`: an app's embedded browser elsewhere (Android). `other`: every other browser. `unknown`: no user agent. */
+        ItpTouchesByClass: {
+            webkit_browser: number;
+            in_app_webkit: number;
+            in_app_other: number;
+            other: number;
+            unknown: number;
+        };
+        /** @description Visitors (by the browser of their first visit) whose first visit is at least 14 days before the window ends, and how many came back more than 7 days later under the same visitor id. Safari forgets ids after 7 days, so a lower rate on WebKit is the cap made visible. */
+        ItpComparison: {
+            webkit: components["schemas"]["ItpRate"];
+            other: components["schemas"]["ItpRate"] & unknown;
+            /** @description Both groups are large enough for the comparison to mean anything. */
+            sufficient: boolean;
+        };
+        /** @description Standalone WebKit: Safari on any Apple device and every iPhone/iPad browser. */
+        ItpRate: {
+            base: number;
+            count: number;
+            /** @description `count / base × 100`, one decimal; null when `base` is 0. */
+            pct: number | null;
+        };
+        PlatformComparison: {
+            date_from: string;
+            date_to: string;
+            /** @enum {string} */
+            model: "last_touch" | "first_touch" | "linear" | "time_decay" | "last_non_direct" | "atribu";
+            /** @enum {string} */
+            level: "campaign" | "ad_set" | "ad";
+            /** @description The profile's reporting currency. */
+            currency: string | null;
+            /** @description Atribu's own attribution windows for the profile. */
+            atribu_windows: {
+                click_window_days: number;
+                view_window_hours: number;
+            };
+            platforms: components["schemas"]["PlatformComparisonPlatform"][];
+            rows: components["schemas"]["PlatformComparisonRow"][];
+            /** @description Entities in the window at `level`. */
+            rows_total: number;
+            /** @description True when `rows` holds only the first 2,000 by spend. */
+            rows_truncated: boolean;
+        };
+        PlatformComparisonPlatform: {
+            /**
+             * @description `meta` | `google` | `tiktok` | `microsoft` | `other`.
+             * @example meta
+             */
+            platform: string;
+            /**
+             * @description What `platform_conversions` counts. `meta_standard_events`: Meta's standard-event rollups (purchase, lead, registration, schedule, contact, …) + messaging conversations started, under each ad set's attribution setting (default 7-day click + 1-day view — view-through and modeled conversions included). `google_conversions`: `metrics.conversions` (actions included in conversions, dated to the ad interaction). `tiktok_conversions`: TikTok's `conversion` metric. Null when no sync reports conversions for the platform.
+             * @enum {string|null}
+             */
+            reported_basis: "meta_standard_events" | "google_conversions" | "tiktok_conversions" | null;
+            /** @description Atribu holds this platform's campaigns — an ad account is or was connected. */
+            in_catalog: boolean;
+            /** @description Delivery (spend) was synced for this platform in the window. */
+            has_delivery: boolean;
+            /** @description Last day with synced delivery in the window. */
+            delivery_through: string | null;
+            /** @description Delivery rows whose conversion value could not be converted to the reporting currency (left out). */
+            value_unconverted_rows: number;
+            /** @description Atribu conversions on this platform's paid clicks that name no entity at `level` (no ad id — see `GET /api/v1/quality/ad-ids`). Included in the platform totals, in no row. */
+            unassigned_conversions: number;
+            /**
+             * Format: decimal
+             * @description The cash of `unassigned_conversions`.
+             * @example 1234.56
+             */
+            unassigned_cash_revenue: string;
+            /**
+             * Format: decimal
+             * @description Spend on the reporting currency. Null when the platform delivered nothing in the window.
+             * @example 1234.56
+             */
+            spend: string | null;
+            /** @description The PLATFORM's own conversion count — its attribution, its windows, its dating. Null when the platform reports none (or delivered nothing). Can be fractional for Google (data-driven credit). */
+            platform_conversions: number | null;
+            /**
+             * Format: decimal
+             * @description The PLATFORM's own conversion value, converted to the reporting currency with the same FX as spend. Null when the platform reports no value (TikTok) or delivered nothing.
+             * @example 1234.56
+             */
+            platform_conversion_value: string | null;
+            /** @description Meta only: the purchase subset of `platform_conversions`. */
+            platform_purchases: number | null;
+            /** @description Google only: view-through conversions, which `platform_conversions` does NOT include. */
+            platform_view_through_conversions: number | null;
+            /** @description Conversions Atribu credited here under `model` (every conversion type; reversals and late-sibling suppressions excluded). Under a multi-touch model one conversion can count on several rows. */
+            atribu_conversions: number;
+            /** @description …of which cash (payments). */
+            atribu_cash_conversions: number;
+            /**
+             * Format: decimal
+             * @description Cash Atribu credited here under `model`, refunds' negative credit included. Only cash counts for ROAS.
+             * @example 1234.56
+             */
+            atribu_cash_revenue: string;
+            /** @description `atribu_conversions − platform_conversions`. Negative: the platform claims more than Atribu can trace. */
+            conversion_gap: number | null;
+            /** @description `conversion_gap / platform_conversions × 100`, one decimal. Null when the platform reported 0 or nothing. */
+            conversion_gap_pct: number | null;
+            /**
+             * Format: decimal
+             * @description `atribu_cash_revenue − platform_conversion_value`, exact. Null when the platform reports no value.
+             * @example 1234.56
+             */
+            value_gap: string | null;
+            /** @description `platform_conversion_value / spend` — the ROAS the platform shows. Null without spend or value. */
+            platform_roas: number | null;
+            /** @description `atribu_cash_revenue / spend` — cash ROAS by Atribu's attribution. Null without spend. */
+            atribu_roas: number | null;
+        };
+        PlatformComparisonRow: {
+            /** @example meta */
+            platform: string;
+            /** @enum {string} */
+            level: "campaign" | "ad_set" | "ad";
+            /** @description The platform's own id for the campaign / ad set / ad. */
+            entity_id: string;
+            name: string | null;
+            status: string | null;
+            /** @description Parent campaign (ad-set and ad rows). */
+            campaign_id: string | null;
+            campaign_name: string | null;
+            /** @description Parent ad set (ad rows). */
+            ad_set_id: string | null;
+            ad_set_name: string | null;
+            /** @description The platform delivered this entity in the window. False: only Atribu credited it (e.g. a paused ad's late conversions). */
+            has_delivery: boolean;
+            /**
+             * Format: decimal
+             * @description Spend on the reporting currency. Null when the platform delivered nothing in the window.
+             * @example 1234.56
+             */
+            spend: string | null;
+            /** @description The PLATFORM's own conversion count — its attribution, its windows, its dating. Null when the platform reports none (or delivered nothing). Can be fractional for Google (data-driven credit). */
+            platform_conversions: number | null;
+            /**
+             * Format: decimal
+             * @description The PLATFORM's own conversion value, converted to the reporting currency with the same FX as spend. Null when the platform reports no value (TikTok) or delivered nothing.
+             * @example 1234.56
+             */
+            platform_conversion_value: string | null;
+            /** @description Meta only: the purchase subset of `platform_conversions`. */
+            platform_purchases: number | null;
+            /** @description Google only: view-through conversions, which `platform_conversions` does NOT include. */
+            platform_view_through_conversions: number | null;
+            /** @description Conversions Atribu credited here under `model` (every conversion type; reversals and late-sibling suppressions excluded). Under a multi-touch model one conversion can count on several rows. */
+            atribu_conversions: number;
+            /** @description …of which cash (payments). */
+            atribu_cash_conversions: number;
+            /**
+             * Format: decimal
+             * @description Cash Atribu credited here under `model`, refunds' negative credit included. Only cash counts for ROAS.
+             * @example 1234.56
+             */
+            atribu_cash_revenue: string;
+            /** @description `atribu_conversions − platform_conversions`. Negative: the platform claims more than Atribu can trace. */
+            conversion_gap: number | null;
+            /** @description `conversion_gap / platform_conversions × 100`, one decimal. Null when the platform reported 0 or nothing. */
+            conversion_gap_pct: number | null;
+            /**
+             * Format: decimal
+             * @description `atribu_cash_revenue − platform_conversion_value`, exact. Null when the platform reports no value.
+             * @example 1234.56
+             */
+            value_gap: string | null;
+            /** @description `platform_conversion_value / spend` — the ROAS the platform shows. Null without spend or value. */
+            platform_roas: number | null;
+            /** @description `atribu_cash_revenue / spend` — cash ROAS by Atribu's attribution. Null without spend. */
+            atribu_roas: number | null;
+        };
+        /** @description A provider outcome recorded on an app-provisioned profile. For a healthcare-family profile only the app that provisioned it receives it. The `outcome.recorded` webhook body is this object plus `app_id` and `connection_id` (always `null`). */
+        OutcomeRecordedEvent: {
+            /**
+             * @description Stable per (profile, provider outcome): the same outcome always carries the same id, on the webhook, on every retry and on this replay. An attribution recompute or a re-sync never produces a second one. De-dupe on it.
+             * @example 00000000-0000-4000-8000-00000000000a
+             */
+            id: string;
+            /** @enum {string} */
+            type: "outcome.recorded";
+            occurred_at: string;
+            /**
+             * @description Always `atribu` (the platform provider every lifecycle event carries). The source is `data.provider`.
+             * @enum {string}
+             */
+            provider: "atribu";
+            data: components["schemas"]["OutcomeRecordedData"];
+        };
+        OutcomeRecordedData: {
+            /** @example 00000000-0000-4000-8000-000000000001 */
+            profile_id: string;
+            /**
+             * @description The connection the outcome came from.
+             * @enum {string}
+             */
+            provider: "gohighlevel" | "mercadopago";
+            /**
+             * @description The outcome key: for GoHighLevel the stage mapping in force (`lead_created`, `appointment_booked`, `showed`, `qualified`, `closed_won`, `closed_lost`, …); for MercadoPago `payment_received`, `payment_refunded`, `payment_disputed`, ….
+             * @example lead_created
+             */
+            outcome_type: string;
+            /** @description When the outcome happened at the provider (ISO 8601). */
+            occurred_at: string;
+            /** @description When Atribu recorded it. A first sync or backfill records old outcomes late, so `recorded_at` can be far after `occurred_at` — filter on `occurred_at` to skip history. */
+            recorded_at: string;
+            /**
+             * @description The provider's own id for this outcome (a GoHighLevel opportunity stage or contact, a MercadoPago payment).
+             * @example opp_<opportunity_id>_<stage_id>
+             */
+            external_id: string | null;
+            /**
+             * @description Atribu's id for this outcome — the `outcome_event_id` `GET /api/v1/campaigns/{id}/conversions` returns for the conversion it produced. Always joins.
+             * @example 00000000-0000-4000-8000-0000000000e1
+             */
+            outcome_event_id: string | null;
+            /**
+             * @description The conversion this outcome produced — the `conversion_id` `GET /api/v1/campaigns/{id}/conversions` returns, so the event joins to the campaign credited for it. Read at delivery / read time: `null` when the outcome produced no conversion, or none yet (conversions are extracted asynchronously, usually within seconds, so an early push can carry `null` where the replay later carries the id). Join on `outcome_event_id` when it is `null`.
+             * @example 00000000-0000-4000-8000-0000000000c1
+             */
+            conversion_id: string | null;
+            /** @description The provider's customer id (GoHighLevel contact id, MercadoPago payer). Only the provider's own opaque id shape rides freely (MercadoPago: digits; GoHighLevel: a letters-and-digits contact id); anything else (an email, any phone notation) is treated as contact data and served only with `customers:read` AND a live person (`contact` non-null), otherwise `null`. */
+            customer_key: string | null;
+            /** @description The outcome's value, when the provider states one (a payment, a won opportunity). */
+            value: {
+                /**
+                 * Format: decimal
+                 * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                 * @example 1234.56
+                 */
+                amount: string;
+                /** @example CLP */
+                currency: string | null;
+            } | null;
+            contact: components["schemas"]["OutcomeRecordedContact"];
+            /** @description `true` when the reader does not hold `customers:read` (webhook: the subscribing app's grant; replay: the calling key), so `contact` is `null` because of scope, not because no person is known. For a healthcare-family profile the replay decides it by the provisioning app's grant (the webhook's rule), since that app's key never carries `customers:read` there. */
+            contact_withheld: boolean;
+        };
+        /** @description The person behind the outcome, read at delivery / read time (a redacted or erased person is `null`). Only with `customers:read`. */
+        OutcomeRecordedContact: {
+            first_name: string | null;
+            last_name: string | null;
+            /** @example person@example.com */
+            email: string | null;
+            /**
+             * @description E.164 when known.
+             * @example +15555550100
+             */
+            phone: string | null;
+        } | null;
+        AdPeople: {
+            date_from: string;
+            date_to: string;
+            /** @enum {string} */
+            group_by: "month" | "day" | "ad";
+            /** @enum {string|null} */
+            channel: "whatsapp" | "instagram" | "messenger" | "web" | "other" | null;
+            first_only: boolean;
+            /**
+             * @description The profile's time zone. Every day and month boundary is in it.
+             * @example America/Santiago
+             */
+            timezone: string;
+            totals: components["schemas"]["AdPeopleMeasures"];
+            /** @description Month and day buckets are dense (every bucket in the window, zeros included) and in calendar order. Ad buckets list every ad with an ad-touch person or Meta delivery in the window, by `ad_people` descending, up to `limit`. */
+            buckets: components["schemas"]["AdPeopleBucket"][];
+            /** @description Buckets before `limit` was applied. */
+            buckets_total: number;
+            /** @description True when `buckets` holds only the first `limit` ads. */
+            buckets_truncated: boolean;
+            /** @description Human labels (English and Spanish) for each `by_origin` key. */
+            origin_labels: {
+                partner_ad_referral: {
+                    label_en: string;
+                    label_es: string;
+                    description: string;
+                };
+                conversation_referral: {
+                    label_en: string;
+                    label_es: string;
+                    description: string;
+                };
+                web: {
+                    label_en: string;
+                    label_es: string;
+                    description: string;
+                };
+                other: {
+                    label_en: string;
+                    label_es: string;
+                    description: string;
+                };
+            };
+        };
+        /** @description The whole window, each person counted once. NOT the sum of the buckets: a person reached in two months is one person here and one in each month. */
+        AdPeopleMeasures: {
+            /** @description Distinct people with at least one ad Touch in the bucket. Counts only: no person is ever returned. */
+            ad_people: number;
+            /** @description Ad Touches in the bucket. With `first_only=true`, equal to `ad_people`. */
+            ad_touches: number;
+            by_origin: components["schemas"]["AdPeopleByOrigin"];
+            /** @description Meta's OWN reported count of messaging conversations started (`onsite_conversion.messaging_conversation_started_7d`) for the same bucket, summed from ad-level delivery by the ad account's own day. Shown so the gap between what Meta reports and the people Atribu can see is visible. Not narrowed by `channel` (Meta does not split it). Null, never 0, when there is no Meta delivery to report: none in the window, or for `group_by=ad`, none for that ad. */
+            meta_messaging_conversations_started: number | null;
+        };
+        /** @description The same people and Touches, split by where each Touch came from. A person reached through two origins counts in both, so the origins' `people` can add up to more than `ad_people`; their `touches` add up to `ad_touches` exactly. */
+        AdPeopleByOrigin: {
+            partner_ad_referral: components["schemas"]["AdPeopleOriginCount"];
+            conversation_referral: components["schemas"]["AdPeopleOriginCount"] & unknown;
+            web: components["schemas"]["AdPeopleOriginCount"] & unknown;
+            other: components["schemas"]["AdPeopleOriginCount"] & unknown;
+        };
+        /** @description Imported from a partner (historical): click-to-message ad referrals a partner handed over through `POST /api/v1/partner/ad-referrals` for conversations Atribu did not see live. */
+        AdPeopleOriginCount: {
+            /** @description Distinct people with at least one Touch of this origin in the bucket. */
+            people: number;
+            /** @description Touches of this origin in the bucket. */
+            touches: number;
+        };
+        AdPeopleBucket: {
+            /**
+             * @description `YYYY-MM` for month, `YYYY-MM-DD` for day, the ad id for ad.
+             * @example 2026-09
+             */
+            key: string;
+            /**
+             * @description First day the bucket covers, clamped to the window.
+             * @example 2026-09-01
+             */
+            start: string;
+            /**
+             * @description Last day the bucket covers, clamped to the window.
+             * @example 2026-09-30
+             */
+            end: string;
+            /** @description `group_by=ad` only; null otherwise. */
+            ad_id: string | null;
+            /** @description `group_by=ad` only: the ad's name from the ad catalog, else from delivery; null otherwise. */
+            ad_name: string | null;
+            /** @description Distinct people with at least one ad Touch in the bucket. Counts only: no person is ever returned. */
+            ad_people: number;
+            /** @description Ad Touches in the bucket. With `first_only=true`, equal to `ad_people`. */
+            ad_touches: number;
+            by_origin: components["schemas"]["AdPeopleByOrigin"];
+            /** @description Meta's OWN reported count of messaging conversations started (`onsite_conversion.messaging_conversation_started_7d`) for the same bucket, summed from ad-level delivery by the ad account's own day. Shown so the gap between what Meta reports and the people Atribu can see is visible. Not narrowed by `channel` (Meta does not split it). Null, never 0, when there is no Meta delivery to report: none in the window, or for `group_by=ad`, none for that ad. */
+            meta_messaging_conversations_started: number | null;
         };
         OverviewResponse: {
             data: components["schemas"]["OverviewTotals"] | components["schemas"]["OverviewDays"];
@@ -65218,7 +75094,7 @@ export interface components {
                  * @example 1234.56
                  */
                 first_payment_revenue: string;
-                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. */
+                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 first_payment_customers: number;
                 /**
                  * Format: decimal
@@ -65226,7 +75102,7 @@ export interface components {
                  * @example 1234.56
                  */
                 recurring_revenue: string;
-                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. */
+                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 recurring_customers: number;
                 /** @description COUNT of refund conversions. */
                 refunds: number;
@@ -65298,7 +75174,7 @@ export interface components {
                  * @example 1234.56
                  */
                 first_payment_revenue: string;
-                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. */
+                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 first_payment_customers: number;
                 /**
                  * Format: decimal
@@ -65306,7 +75182,7 @@ export interface components {
                  * @example 1234.56
                  */
                 recurring_revenue: string;
-                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. */
+                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 recurring_customers: number;
                 /** @description COUNT of refund conversions. */
                 refunds: number;
@@ -65381,7 +75257,7 @@ export interface components {
                  * @example 1234.56
                  */
                 first_payment_revenue: string;
-                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. */
+                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 first_payment_customers: number;
                 /**
                  * Format: decimal
@@ -65389,7 +75265,7 @@ export interface components {
                  * @example 1234.56
                  */
                 recurring_revenue: string;
-                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. */
+                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 recurring_customers: number;
                 /** @description COUNT of refund conversions. */
                 refunds: number;
@@ -65467,7 +75343,7 @@ export interface components {
                  * @example 1234.56
                  */
                 first_payment_revenue: string;
-                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. */
+                /** @description Distinct customers whose first payment landed in this window. A count(DISTINCT), so NOT summable across `grain=day` buckets. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 first_payment_customers: number;
                 /**
                  * Format: decimal
@@ -65475,7 +75351,7 @@ export interface components {
                  * @example 1234.56
                  */
                 recurring_revenue: string;
-                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. */
+                /** @description Distinct repeat payers. count(DISTINCT); see `first_payment_customers`. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject. */
                 recurring_customers: number;
                 /** @description COUNT of refund conversions. */
                 refunds: number;
@@ -65536,10 +75412,11 @@ export interface components {
              */
             total_cash: string;
             total_payments: number;
+            /** @description Distinct customers with a first payment in the window. A customer paying for several subjects (`subject_ref` on POST /api/v1/events) counts once per subject; `top_customers` stays one row per paying customer. */
             unique_customers: number;
             /**
              * Format: decimal
-             * @description total_cash / unique_customers.
+             * @description total_cash / unique_customers (per subject when `subject_ref` is sent).
              * @example 1234.56
              */
             avg_ltv: string;
@@ -65612,6 +75489,10 @@ export interface components {
         CampaignConversionsResponse: {
             data: {
                 conversion_id: string;
+                /** @description The outcome event this conversion was extracted from — the id Atribu returns at ingest (e.g. POST /api/v1/events), so a caller that stored it can join this row back to its own record. `conversion_id` is a different id. Null when the conversion has no outcome event behind it. */
+                outcome_event_id: string | null;
+                /** @description Whether this payment is the customer's first — the flag the first-payment (new-customer) figures use. Null when the conversion is not a payment (`revenue_type` other than `cash`). */
+                is_first_payment: boolean | null;
                 event_type: string;
                 event_time: string;
                 customer_profile_id: string | null;
@@ -65646,6 +75527,12 @@ export interface components {
                 /** @description True when the credit came via a bridged lead→cash touch, not a directly-tracked click — never counted in ROAS. */
                 is_inherited: boolean;
             }[];
+            pagination: {
+                /** @description True when another page exists: request it with `cursor`. */
+                has_next: boolean;
+                /** @description Opaque. Pass it back unchanged as `?cursor=` for the next page. Absent on the last page. */
+                cursor?: string;
+            };
             meta: components["schemas"]["CampaignConversionsMeta"];
         };
         CampaignConversionsMeta: {
@@ -65784,7 +75671,11 @@ export interface components {
              * @example 2026-08-25T14:32:10Z
              */
             timestamp?: string;
-            /** @description Free-form payload, stored verbatim on the outcome event. `value` (or `amount`) and `currency` are read out of it: `value` is the sale amount as a number or numeric string, `currency` an ISO-4217 code (defaults to USD). A `value` that is present but unparseable is a 400, never a silent zero. */
+            /**
+             * @description Free-form payload, stored verbatim on the outcome event. `value` (or `amount`) and `currency` are read out of it: `value` is the sale amount as a number or numeric string, `currency` an ISO-4217 code (defaults to USD). A `value` that is present but unparseable is a 400, never a silent zero.
+             *
+             *     `subject_ref` (optional) is the opaque id of WHO a payment is for, when one customer pays for several — e.g. a parent paying for each child's treatment at a clinic. Send a canonical UUID (8-4-4-4-12 hex — your internal patient uuid) or a short token of up to 32 letters, digits, `_` and `-`. A value is rejected with 400 if it contains an `@`, 7 or more digits in a row once separators (including a single letter between digits) are removed (a RUT/RUN, a phone, a compact date), a date, a name, or a 32/40/64-hex digest. Those checks catch mistakes; they cannot detect every name or a hashed or encoded personal identifier, so `subject_ref` MUST be an opaque id — your obligation under the data-processing agreement. Each distinct `subject_ref` under one customer gets its own first payment — so a second patient's first treatment counts as a new customer, ships to ad platforms as a `Purchase` and is credited to its own ad — but only if every EARLIER payment of that customer carries a different `subject_ref`: an earlier untagged payment makes the new subject a returning one, so turning the field on never inflates new customers. To have past patients counted correctly, re-send their historical payments with the same idempotency key plus `subject_ref` BEFORE sending new ones. A retry that omits `subject_ref` removes it from the stored event and the payment is regrouped as untagged. A household whose earlier payments came from an integration (MercadoPago, Webpay, CSV import, Shopify — sources that cannot carry a subject) keeps the per-customer rule, and an untagged payment after a tagged one is never a first payment, even within the usual 7-day grouping. Omit it entirely and the payment behaves exactly as before. It is used only inside Atribu: it is never sent to Meta, Google or TikTok, never returned by any API, and it is erased with the customer.
+             */
             properties?: {
                 [key: string]: unknown;
             };
@@ -65799,6 +75690,8 @@ export interface components {
                 content?: string;
                 /** @description For Meta, the AD SET's numeric platform id. */
                 term?: string;
+                /** @description `utm_id`. For Meta, the campaign's numeric platform id (`utm_id={{campaign.id}}`). Stored with the other UTMs; when it matches a synced campaign it decides the sale's campaign even if `campaign` is a name shared by several campaigns. */
+                id?: string;
             };
             /**
              * @description Ad-platform click ids captured at the landing page. `fbclid`, `gclid`, `msclkid` and `ttclid` are joined against the click index to recover the originating session for up to 90 days; any other kind is stored for later.
@@ -65809,6 +75702,22 @@ export interface components {
              */
             click_ids?: {
                 [key: string]: string;
+            };
+            /**
+             * @description Where the outcome really happened, in Meta's `action_source` vocabulary. Sent to Meta verbatim on every Conversions API export of this event, whatever the privacy mode. Any value other than `website` ships with NO `event_source_url` (not even the origin), even when the buyer has fbc/fbp browser signals — a sale recorded in a CRM or at a counter is not a website event, and for a health business the domain in the URL is what Meta categorizes a data source by. Pick: `business_messaging` for an outcome born in a WhatsApp/Messenger/Instagram conversation (with `click_ids.ctwa_clid` when the chat came from a click-to-WhatsApp ad, it is exported to the dataset linked to your WhatsApp Business Account; without a WABA-linked dataset or a click id it is sent as `chat`, because Meta rejects a `business_messaging` event that carries no messaging click id); `physical_store` for a payment taken in person; `system_generated` for a fact your system derived (an appointment confirmed, a status change); `website` only for an event that happened on your site. Omit it to keep the previous inference: `business_messaging` on a WhatsApp dataset with a click id, else `website` when browser signals exist, else `system_generated`.
+             * @example physical_store
+             * @enum {string}
+             */
+            action_source?: "website" | "business_messaging" | "physical_store" | "system_generated" | "app" | "phone_call" | "chat" | "email" | "other";
+            /**
+             * @description Per-event export consent. An object, not a single top-level flag, so a later consent dimension (e.g. an analytics-only opt-out) can be added without a breaking change to this endpoint.
+             * @example {
+             *       "marketing": false
+             *     }
+             */
+            consent?: {
+                /** @description `false` marks this event LEDGER ONLY (#1651): it still attributes and counts toward revenue and ROAS exactly like any other event, but it is never exported to Meta CAPI, Google Ads or TikTok — the tracking-exports candidate builder drops it before any outbound call, with the distinct reason `ledger_only_no_export`. Omitted or `true` exports normally, same as before this field existed. Send `false` whenever the buyer opted out of marketing — e.g. a health-restricted profile in `platform_safe` mode where the clinic still needs cash ROAS per campaign but the patient must produce no CAPI event. */
+                marketing?: boolean;
             };
             /**
              * @description The sale's own deal/order id. Retries with the same key land on the same outcome event — `external_id` is `api:<key>`. REQUIRED whenever `properties.value` is set: without it the key defaults to a fresh UUID, so a retried sale would be counted twice, and double-counted cash cannot be undone from the data. Also accepted as the `Idempotency-Key` header.
@@ -65959,6 +75868,16 @@ export interface components {
                  * @example 2026-07-08T04:45:18.000Z
                  */
                 expires_at: string;
+                /**
+                 * @description Meta's SHA-256 (hex) of the media bytes — verify what `url` serves. Null when Meta sent none.
+                 * @example 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+                 */
+                sha256: string | null;
+                /**
+                 * @description Size in bytes (Meta's `file_size`, else the bytes Atribu stored).
+                 * @example 48213
+                 */
+                file_size: number;
             };
             meta: components["schemas"]["Meta"];
         };
@@ -65984,6 +75903,26 @@ export interface components {
                 preview_url?: string;
                 expires_at?: string;
             } | null;
+            /** @description Meta's sendability verdict for the flow, forwarded verbatim: an overall `can_send_message` plus one entry per node a send involves (FLOW, WABA, BUSINESS, APP). The FLOW node is LIMITED while the flow is THROTTLED (10 sends/hour) and BLOCKED while it is BLOCKED, DEPRECATED, or unpublished with a failing publishing check. Changes are also pushed as the `whatsapp.flow.status` / `whatsapp.flow.alert` webhook events. */
+            health_status?: {
+                /** @description AVAILABLE | LIMITED | BLOCKED — the overall verdict (Meta-owned enum). */
+                can_send_message?: string;
+                entities?: {
+                    /** @description FLOW | WABA | BUSINESS | APP (Meta-owned enum). */
+                    entity_type?: string;
+                    id?: string;
+                    /** @description AVAILABLE | LIMITED | BLOCKED. */
+                    can_send_message?: string;
+                    /** @description Present when the node is BLOCKED. */
+                    errors?: {
+                        error_code?: number;
+                        error_description?: string;
+                        possible_solution?: string;
+                    }[];
+                    /** @description Present when the node is LIMITED. */
+                    additional_info?: string[];
+                }[];
+            };
         };
         WhatsAppFlowAsset: {
             name?: string;
@@ -65991,6 +75930,29 @@ export interface components {
             asset_type?: string;
             /** @description Time-limited URL to download the asset bytes. */
             download_url?: string;
+        };
+        WhatsAppFlowEndpoint: {
+            /** @description The URL to set as the flow's `endpoint_uri` (create/update a flow with it). Meta calls it; Atribu verifies Meta's signature, decrypts, and forwards to `data_url`. */
+            endpoint_uri: string;
+            /** @description Partner HTTPS URL Atribu forwards each decrypted Flow request to. */
+            data_url: string;
+            /** @description When false, data requests answer 500 to Meta (pings and error notifications are still answered). */
+            enabled: boolean;
+            /** @description HMAC secret for the `X-Atribu-Signature` header on the data hop (64 hex chars). Present ONLY when it was just minted (first registration) or rotated — store it; it cannot be read again. */
+            signing_secret?: string;
+            key: {
+                /**
+                 * @description Meta's view of Atribu's business public key for the number. Only `VALID` can serve published flows.
+                 * @enum {string}
+                 */
+                status: "VALID" | "MISMATCH" | "MISSING";
+                phone_number_id: string;
+            };
+            /** @description Last Meta health-check ping answered (ISO 8601). */
+            last_ping_at: string | null;
+            /** @description Last key-sync or data-hop failure, if any. Never contains payloads. */
+            last_error: string | null;
+            last_error_at: string | null;
         };
         WhatsAppChannelHealth: {
             connectionId: string;
@@ -66275,7 +76237,9 @@ export interface components {
                 [key: string]: unknown;
             };
             target: {
+                /** @description Meta's own ad id — the same `platform_id` a `GET /api/v1/campaigns?level=ad` row and `ad_external_id` on top-performers carry, and the `{id}` `POST /api/v1/ads/{id}/pause` takes. Never an internal uuid. */
                 ad_id: string | null;
+                /** @description Meta's own ad-set id — the `{id}` `POST /api/v1/adsets/{id}/budget` takes. Never an internal uuid. */
                 adset_id: string | null;
                 external_action_url: string | null;
             };
@@ -66574,6 +76538,296 @@ export interface components {
             /** @description Defaults to false — a dropped field must never mail real clients. */
             send_email?: boolean;
         };
+        PartnerDeclaredSourceResult: {
+            /**
+             * @description `recorded` — this call stored the answer. `already_answered` — this customer already has a WhatsApp answer on this profile (a retry of this call, an earlier message, or Atribu's own capture); nothing changed.
+             * @enum {string}
+             */
+            status: "recorded" | "already_answered";
+            /** Format: uuid */
+            answer_id: string;
+            answer_key: components["schemas"]["DeclaredSourceAnswerKey"];
+            /** Format: uuid */
+            customer_profile_id: string;
+        };
+        /**
+         * @description The STORED answer. On `already_answered` it is the first answer, not this request's.
+         * @enum {string}
+         */
+        DeclaredSourceAnswerKey: "facebook" | "instagram" | "tiktok" | "youtube" | "google" | "other_social" | "influencer" | "friend_family" | "email" | "whatsapp" | "podcast" | "tv_radio" | "print_outdoor" | "store_event" | "walk_in" | "press_blog" | "ai_assistant" | "other";
+        PartnerDeclaredSourceRequest: {
+            /**
+             * @description The merchant number the conversation is on. Digits or E.164. At least one of this and `waba_id`.
+             * @example +56911111111
+             */
+            merchant_phone?: string | null;
+            /**
+             * @description The merchant's WhatsApp Business Account id. When both are sent, one account must match both.
+             * @example 1435251738018078
+             */
+            waba_id?: string | null;
+            customer: components["schemas"]["PartnerDeclaredSourceCustomer"];
+            answer_key: components["schemas"]["DeclaredSourceAnswerKey"] & unknown;
+            /** @description The customer's own words. Stored (trimmed, max 200 characters) only when `answer_key` is `other`; otherwise discarded. */
+            answer_text?: string | null;
+            /**
+             * @description The question as the customer saw it. Defaults to `¿Cómo nos conociste?`.
+             * @example ¿Cómo nos conociste?
+             */
+            question_text?: string | null;
+            /** @description The answer keys you offered, in the order shown. Unknown keys are dropped. */
+            options_shown?: string[] | null;
+            /**
+             * Format: date-time
+             * @description When the question was sent. Must not be after `answered_at`.
+             * @example 2026-09-25T12:00:00-03:00
+             */
+            asked_at?: string | null;
+            /**
+             * Format: date-time
+             * @description The ANSWER message's own timestamp — never the time you relay it.
+             * @example 2026-09-25T12:01:30-03:00
+             */
+            answered_at: string;
+            /**
+             * @description The ANSWER message's wamid. The idempotency key — resend it verbatim on every retry.
+             * @example wamid.HBgLNTY5MjIyMjIyMjIVAgASGBQzQTk4QjE=
+             */
+            wamid: string;
+        };
+        /** @description Exactly one form: `external_ref` (optionally with `email` / `phone`) or `wa_id`. There is no national-id field; `national_id` / `rut` keys are `400`. */
+        PartnerDeclaredSourceCustomer: {
+            /**
+             * @description YOUR customer id — the same `user_traits.external_id` you send on `POST /api/v1/events` and read back as `customer_key`. A ref Atribu knows resolves read-only. An unknown ref is created only from the `email` / `phone` sent with it (and bound, so the ref alone resolves next time); without them it is `422 unknown_customer_ref` and nothing is created. Never a national id (RUT).
+             * @example vitrina-patient-8f2c
+             */
+            external_ref: string;
+            /**
+             * @description The customer's email. On an unknown `external_ref`, Atribu resolves or creates the customer from it (exactly as `POST /api/v1/events` does); on a known one, it is recorded on that customer.
+             * @example paciente@example.cl
+             */
+            email?: string | null;
+            /**
+             * @description The customer's phone, E.164 preferred. Same role as `email`. A RUT-shaped value is `400`.
+             * @example +56944444444
+             */
+            phone?: string | null;
+        } | {
+            /**
+             * @description The customer's WhatsApp id (bare digits, as the Cloud API sends it). Resolves or creates the customer from the phone.
+             * @example 56922222222
+             */
+            wa_id: string;
+        };
+        PartnerAdReferralResult: {
+            /**
+             * @description `recorded` — this call wrote the touch. `already_recorded` — this key's touch existed; nothing new was written.
+             * @enum {string}
+             */
+            status: "recorded" | "already_recorded";
+            /** Format: uuid */
+            customer_profile_id: string;
+            /**
+             * Format: uuid
+             * @description The touch the referral became.
+             */
+            touch_id: string;
+        };
+        PartnerAdReferralRequest: {
+            /**
+             * @description The merchant number the conversations were on. At least one of this and `waba_id`.
+             * @example +56911111111
+             */
+            merchant_phone?: string | null;
+            /**
+             * @description The merchant's WhatsApp Business Account id. When both are sent, one account must match both.
+             * @example 1435251738018078
+             */
+            waba_id?: string | null;
+            customer: components["schemas"]["PartnerAdReferralCustomer"];
+            /**
+             * @description Where the conversation the ad opened took place.
+             * @enum {string}
+             */
+            channel: "whatsapp" | "instagram" | "messenger";
+            /**
+             * @description The Meta ad id the referral named (`referral.source_id`). Numeric only — an ad NAME is `400` — and it must be one of the profile's own ads — in Atribu's Meta ad catalog for the profile, or with delivery (spend) in its synced Meta insights, which covers ads retired before the account was connected. Anything else is `422 unknown_ad`. Atribu resolves the campaign and ad set from that sync.
+             * @example 120212345678900001
+             */
+            ad_id: string;
+            /**
+             * @description Meta's click-to-WhatsApp click id (`referral.ctwa_clid`). WhatsApp only; `400` on another channel.
+             * @example ARAkLkA8rmlFeiCktEJQ
+             */
+            ctwa_clid?: string | null;
+            /**
+             * @description The ad headline the referral carried. Stored with the touch for display.
+             * @example Spring offer: 2 for 1
+             */
+            headline?: string | null;
+            /**
+             * Format: date-time
+             * @description When the customer's first message from the ad arrived — the referral's own time, never the time you send it. Must be in the past. There is no lower bound.
+             * @example 2026-03-14T10:22:05-03:00
+             */
+            occurred_at: string;
+            /**
+             * @description One per referral, stable across retries. The same key with a different customer, channel, ad or `occurred_at` is `409 idempotency_key_conflict`, refused before anything is written; while a first request with the key is still running, another is `409 idempotency_key_in_flight` — for at most 5 minutes, after which a retry takes over a request that never answered.
+             * @example legacy-bot:conversation:8812
+             */
+            idempotency_key: string;
+        };
+        /** @description Exactly one form, with the same rules as `POST /api/v1/partner/declared-source`: `external_ref` (optionally with `email` / `phone`) or `wa_id`. `national_id` / `rut` keys are `400`. */
+        PartnerAdReferralCustomer: {
+            /**
+             * @description YOUR customer id — the same `user_traits.external_id` you send on `POST /api/v1/events`. A ref Atribu knows resolves read-only. An unknown ref is created only from the `email` / `phone` sent with it (and bound, so the ref alone resolves next time); without them it is `422 unknown_customer_ref`. Never a national id (RUT).
+             * @example legacy-bot-contact-8f2c
+             */
+            external_ref: string;
+            /** @example paciente@example.cl */
+            email?: string | null;
+            /**
+             * @description E.164 preferred. A RUT-shaped value is `400`.
+             * @example +56944444444
+             */
+            phone?: string | null;
+        } | {
+            /**
+             * @description The customer's WhatsApp id (bare digits). Resolves or creates the customer from the phone.
+             * @example 56922222222
+             */
+            wa_id: string;
+        };
+        PartnerAdReferralPreview: {
+            referrals: number;
+            /** @description Keys already written — they add nothing. */
+            already_recorded: number;
+            /** @description Referrals whose `ad_id` is not one of the profile's Meta ads. The write refuses each with `422 unknown_ad`, so they are left out of every other number. */
+            unknown_ads: number;
+            /** @description The named customers' existing attribution-eligible conversions examined. */
+            existing_conversions: number;
+            /** @description Of those, how many would gain one of the new touches inside the profile's attribution windows. */
+            conversions_gaining_touch: number;
+            /** @description One row per attribution model: existing conversions whose credited ad (the ad with the largest credit share) would change. */
+            credited_ad_changed: {
+                /** @example last_touch */
+                model: string;
+                conversions: number;
+            }[];
+            windows: {
+                click_window_days: number;
+                view_window_hours: number;
+                first_touch_window_days: number;
+            };
+            /** @description Up to 50 changed (conversion, model) pairs, for review. */
+            samples: {
+                conversion_id: string;
+                conversion_type: string | null;
+                conversion_time: string;
+                model: string;
+                credited_ad_before: string | null;
+                credited_ad_after: string | null;
+            }[];
+        };
+        PartnerAdReferralPreviewRequest: {
+            /**
+             * @description The merchant number the conversations were on. At least one of this and `waba_id`.
+             * @example +56911111111
+             */
+            merchant_phone?: string | null;
+            /**
+             * @description The merchant's WhatsApp Business Account id. When both are sent, one account must match both.
+             * @example 1435251738018078
+             */
+            waba_id?: string | null;
+            /** @description Up to 500 referrals, each exactly as `POST /api/v1/partner/ad-referrals` takes it (without the merchant fields). */
+            referrals: {
+                customer: components["schemas"]["PartnerAdReferralCustomer"];
+                /**
+                 * @description Where the conversation the ad opened took place.
+                 * @enum {string}
+                 */
+                channel: "whatsapp" | "instagram" | "messenger";
+                /**
+                 * @description The Meta ad id the referral named (`referral.source_id`). Numeric only — an ad NAME is `400` — and it must be one of the profile's own ads — in Atribu's Meta ad catalog for the profile, or with delivery (spend) in its synced Meta insights, which covers ads retired before the account was connected. Anything else is `422 unknown_ad`. Atribu resolves the campaign and ad set from that sync.
+                 * @example 120212345678900001
+                 */
+                ad_id: string;
+                /**
+                 * @description Meta's click-to-WhatsApp click id (`referral.ctwa_clid`). WhatsApp only; `400` on another channel.
+                 * @example ARAkLkA8rmlFeiCktEJQ
+                 */
+                ctwa_clid?: string | null;
+                /**
+                 * @description The ad headline the referral carried. Stored with the touch for display.
+                 * @example Spring offer: 2 for 1
+                 */
+                headline?: string | null;
+                /**
+                 * Format: date-time
+                 * @description When the customer's first message from the ad arrived — the referral's own time, never the time you send it. Must be in the past. There is no lower bound.
+                 * @example 2026-03-14T10:22:05-03:00
+                 */
+                occurred_at: string;
+                /**
+                 * @description One per referral, stable across retries. The same key with a different customer, channel, ad or `occurred_at` is `409 idempotency_key_conflict`, refused before anything is written; while a first request with the key is still running, another is `409 idempotency_key_in_flight` — for at most 5 minutes, after which a retry takes over a request that never answered.
+                 * @example legacy-bot:conversation:8812
+                 */
+                idempotency_key: string;
+            }[];
+        };
+        PartnerCustomerListAudienceCreate: {
+            consent: components["schemas"]["PartnerCustomerListConsent"];
+            lookalike?: components["schemas"]["PartnerCustomerListLookalike"];
+        };
+        PartnerCustomerListConsent: {
+            /** @example 2026-10-04.customer-list.v2 */
+            version: string;
+            /** @description SHA-256 (lowercase hex, UTF-8) of the published consent text, in the locale the owner read. */
+            text_hash: string;
+            /** @description Who accepted, in your system. Never personal data of a customer. */
+            accepted_by: string | null;
+            /** @example 2026-09-30T18:04:11.201Z */
+            accepted_at: string;
+        };
+        PartnerCustomerListLookalike: {
+            /**
+             * @description Only the 1 % lookalike is offered.
+             * @enum {number}
+             */
+            ratio: 0.01;
+            /** @example CL */
+            country: string;
+        } | null;
+        AudienceExclusionsResult: {
+            results: {
+                index: number;
+                /** @enum {string} */
+                status: "excluded" | "cleared" | "not_found" | "invalid";
+                customer_key: string | null;
+                /** @description For `invalid`: `no_selector`, `malformed_selector`, `unknown_identifier_type` or `customer_profile_id_not_accepted`. */
+                reason: string | null;
+            }[];
+            excluded: number;
+            cleared: number;
+            not_found: number;
+            invalid: number;
+        };
+        AudienceExclusionsRequest: {
+            customers: components["schemas"]["AudienceExclusionRow"][];
+            /** @description ISO 3166-1 alpha-2 default for a phone without `+`. */
+            country?: string;
+        };
+        AudienceExclusionRow: {
+            /** @description Your own id for the customer (`user_traits.external_id`). */
+            customer_key?: string;
+            email?: string;
+            phone?: string;
+            identifier_type?: string;
+            identifier_value?: string;
+            /** @description The state you want: `true` sets the mark, `false` clears it. */
+            excluded: boolean;
+        };
         MePatch: {
             /** @description The display name. Empty or whitespace-only is a 400, never a silent clear — clearing a name is not something a save button should be able to do by accident. */
             full_name?: string;
@@ -66611,6 +76865,29 @@ export interface components {
             /** @description ISO timestamp. Omit for a key that never expires. */
             expires_at?: string;
         };
+        /** @description #306 — REQUIRED for an API key or MCP user token when `confirm_duplicate_swap` is true. Missing or stale → `409 consent_required`. Ignored for a signed-in session. */
+        SwapConsent: {
+            /**
+             * @description The consent text version the person accepted. Must be the current one.
+             * @example 2026-09-23.duplicate-swap.v1
+             */
+            version: string;
+            /**
+             * @description SHA-256 (lowercase hex, UTF-8) of the consent text exactly as rendered, in one of the published locales (Partners → Automated duplicate-and-swap).
+             * @example 0168f7ab61559b4e1b8d6b8b1456d19cf58f546c7d4a4a6a7be4375a0a1dadff
+             */
+            text_hash: string;
+            /**
+             * @description Your identifier for the person who accepted (your own user id is enough; an email works too). Stored in Atribu's audit trail beside the rebuild.
+             * @example partner-user-8f2c
+             */
+            accepted_by: string;
+            /**
+             * @description ISO 8601 timestamp of the acceptance. Refused when older than 24 hours (`409 consent_required`) or more than 5 minutes in the future (422).
+             * @example 2026-09-23T14:05:00Z
+             */
+            accepted_at: string;
+        };
         ConnectionSyncResult: {
             /** @enum {boolean} */
             queued: true;
@@ -66625,7 +76902,7 @@ export interface components {
              * @example meta_ads
              * @enum {string|null}
              */
-            provider?: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc" | null;
+            provider?: "whatsapp" | "instagram" | "email" | "google_calendar" | "google_calendar_read" | "microsoft_calendar_read" | "meta_ads" | "google_ads" | "google_search_console" | "gohighlevel" | "shopify" | "stripe" | "mercadopago" | "notion" | "manychat" | "fintoc" | "tiktok_ads" | "messenger" | null;
             /**
              * @description GoHighLevel ONLY — the underlying function ignores it for every other connector, so naming it with any other `provider` is a 400 rather than a silently wider sync. Omit it to sync contacts and opportunities (the default set); `pipelines` is opt-in.
              * @example contacts
@@ -66706,7 +76983,7 @@ export interface components {
         date_to: components["schemas"]["date_to"];
         /** @description Max results to return (default 10, max 100) */
         limit: components["schemas"]["limit"];
-        /** @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct */
+        /** @description Attribution model. One of: last_touch, first_touch, linear, time_decay, last_non_direct, atribu (the house model, read only when named) */
         model: components["schemas"]["model"];
     };
     requestBodies: never;

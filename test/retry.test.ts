@@ -69,6 +69,26 @@ describe("deriveRetryHint", () => {
     ).toBe("do_not_retry");
   });
 
+  it("event retraction refusals → do_not_retry despite 409 (no fix makes them pass)", () => {
+    for (const errorCode of ["event_already_exported", "event_linked_to_conversation"]) {
+      expect(deriveRetryHint({ status: 409, retryAfterHeader: null, errorCode }).action).toBe("do_not_retry");
+    }
+    // Any other 409 is still a conflict the caller can fix.
+    expect(deriveRetryHint({ status: 409, retryAfterHeader: null, errorCode: "invalid_state" }).action).toBe(
+      "fix_and_retry",
+    );
+  });
+
+  it("link_tokens_disabled → do_not_retry despite 503 (feature off, not down)", () => {
+    expect(
+      deriveRetryHint({ status: 503, retryAfterHeader: null, errorCode: "link_tokens_disabled" }).action,
+    ).toBe("do_not_retry");
+    // Any other 503 is still an outage and still retried.
+    expect(
+      deriveRetryHint({ status: 503, retryAfterHeader: null, errorCode: "service_unavailable" }).action,
+    ).toBe("retry");
+  });
+
   it("whatsapp_payment_required → fix_and_retry (add a card first)", () => {
     expect(
       deriveRetryHint({

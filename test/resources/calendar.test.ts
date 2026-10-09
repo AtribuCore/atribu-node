@@ -30,6 +30,13 @@ function only(calls: RequestOptions[]): RequestOptions {
 }
 
 describe("calendar resource", () => {
+  it("readiness → GET with explicit connection/calendar, no body or activation",async()=>{
+    const result={state:"blocked",reason:"calendar_lifecycle_paused",checked_at:"2026-09-27T00:00:00Z"};
+    const {http,calls}=fakeHttp(result);
+    expect(await new CalendarResource(http).readiness({connection_id:"connection",calendar_id:"secondary"})).toEqual(result);
+    const call=only(calls);expect(call.method).toBe("GET");expect(call.path).toBe("/api/v1/calendar/readiness");
+    expect(call.query).toEqual({connection_id:"connection",calendar_id:"secondary"});expect(call.body).toBeUndefined();
+  });
   it("createEvent → POST /api/v1/calendar/events with the body, unwraps data", async () => {
     const { http, calls } = fakeHttp({
       id: "evt1",
@@ -196,5 +203,28 @@ describe("calendar booking-calendar management", () => {
     expect(call.path).toBe(
       "/api/v1/calendar/calendars/cal_1/acl/user%3Aa%40b.com?connection_id=c1",
     );
+  });
+});
+
+
+describe("durable booking intention contract", () => {
+  it("turns a transport timeout into uncertainty keyed by the same intention", async () => {
+    const calendar = new CalendarResource({ request: async () => { throw new Error("raw transport secret"); } });
+    expect(await calendar.cancelIntention("opaque", { connection_id: "c", calendar_id: "secondary", operation_id: "cancel" })).toEqual({
+      status: "uncertain", intention_id: "opaque", event_id: null, reason: "transport_outcome_unknown",
+    });
+  });
+  it("uses opaque IDs and prevents SDK blind mutating retries", async () => {
+    const result = { status: "uncertain", intention_id: "opaque/id", event_id: "stable", reason: "provider_outcome_unknown" };
+    const { http, calls } = fakeHttp(result); const calendar = new CalendarResource(http);
+    const scope = { connection_id: "connection", calendar_id: "secondary" };
+    const point = { date_time: "2026-10-01T14:00:00Z", time_zone: "UTC" };
+    expect(await calendar.createIntention("opaque/id", { ...scope, operation_id: "create", start: point, end: point, attendees: [{ email: "guest@example.com" }] })).toEqual(result);
+    await calendar.readIntention("opaque/id", scope);
+    await calendar.updateIntention("opaque/id", { ...scope, operation_id: "update", summary: "Updated" });
+    await calendar.cancelIntention("opaque/id", { ...scope, operation_id: "cancel" });
+    expect(calls.map(c => c.method)).toEqual(["POST", "GET", "PATCH", "DELETE"]);
+    expect(calls.every(c => c.path === "/api/v1/calendar/intents/opaque%2Fid")).toBe(true);
+    expect(calls.filter(c => c.method !== "GET").every(c => c.retryable === false)).toBe(true);
   });
 });

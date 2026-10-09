@@ -87,6 +87,21 @@ export type CustomerImportResponse =
 /** One entry of `CustomerImportInput["rows"]`, named for callers that build rows before they have a full request. */
 export type CustomerImportRow = CustomerImportInput["rows"][number];
 
+/** #1693 — `POST /api/v1/customers/link-tokens`, the `atb_t` bulk mint. */
+export type LinkTokenMintInput = NonNullable<
+  paths["/api/v1/customers/link-tokens"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type LinkTokenMintResponse =
+  paths["/api/v1/customers/link-tokens"]["post"]["responses"][200]["content"]["application/json"];
+
+/** #1770 — `POST /api/v1/customers/erasures`, a partner key's erasure by its own key. */
+export type CustomerErasureInput = NonNullable<
+  paths["/api/v1/customers/erasures"]["post"]["requestBody"]
+>["content"]["application/json"];
+/** The receipt, from the POST (202 or a 200 replay) or from `getCustomerErasure`. */
+export type CustomerErasureReceiptResponse =
+  paths["/api/v1/customers/erasures/{erasure_id}"]["get"]["responses"][200]["content"]["application/json"];
+
 export class IdentityResource {
   constructor(private readonly http: HttpClientLike) {}
 
@@ -312,6 +327,60 @@ export class IdentityResource {
       path: "/api/v1/customers",
       body: input,
       idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Mint `atb_t` link-identity tokens for customers this profile already
+   * knows (#1693), to append to e-mail / WhatsApp / CRM links. Read-only on
+   * the identity graph: a row naming nobody answers `not_found`. The response
+   * carries the GoHighLevel / Klaviyo / WhatsApp merge-tag recipes.
+   *
+   * Requires the `attribution:write` scope.
+   */
+  async mintLinkTokens(
+    input: LinkTokenMintInput,
+    options: WriteExtras = {},
+  ): Promise<LinkTokenMintResponse> {
+    return this.http.request<LinkTokenMintResponse>({
+      method: "POST",
+      path: "/api/v1/customers/link-tokens",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Erase one customer of this profile by your own key (#1770) — for a partner
+   * app cascading its own contact deletion or a data-subject request. TERMINAL.
+   * Idempotent on `request_ref`: the same value again returns the original
+   * receipt. The receipt never carries `customer_profile_id`.
+   *
+   * Requires the `attribution:write` scope.
+   */
+  async eraseCustomer(
+    input: CustomerErasureInput,
+    options: WriteExtras = {},
+  ): Promise<CustomerErasureReceiptResponse> {
+    return this.http.request<CustomerErasureReceiptResponse>({
+      method: "POST",
+      path: "/api/v1/customers/erasures",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Read an erasure receipt: its current `status` and `completed_at` (#1770). */
+  async getCustomerErasure(
+    erasureId: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<CustomerErasureReceiptResponse> {
+    return this.http.request<CustomerErasureReceiptResponse>({
+      method: "GET",
+      path: `/api/v1/customers/erasures/${encodeURIComponent(erasureId)}`,
       signal: options.signal,
     });
   }

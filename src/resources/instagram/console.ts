@@ -277,6 +277,8 @@ type AccountTriggerUpdateResponse =
   paths["/api/v1/instagram/accounts/{account_id}/comment-triggers/{trigger_id}"]["patch"]["responses"][200]["content"]["application/json"];
 type AccountTriggerDeleteResponse =
   paths["/api/v1/instagram/accounts/{account_id}/comment-triggers/{trigger_id}"]["delete"]["responses"][200]["content"]["application/json"];
+type AccountTriggerTestDmResponse =
+  paths["/api/v1/instagram/accounts/{account_id}/comment-triggers/{trigger_id}/test-dm"]["post"]["responses"][200]["content"]["application/json"];
 
 export type IgAccount = AccountsListResponse["data"][number];
 export type IgAccountMediaPage = AccountMediaResponse["data"];
@@ -406,6 +408,26 @@ export class InstagramAccountsResource {
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
     });
+  }
+
+  /**
+   * Send the trigger's opening message to one IGSID as a test DM (HUMAN_AGENT
+   * tag). Meta refuses unless that person messaged the account in the last 7 days.
+   */
+  async testTriggerDm(
+    accountId: string,
+    triggerId: string,
+    recipientIgsid: string,
+    options: WriteExtras = {},
+  ): Promise<AccountTriggerTestDmResponse["data"]> {
+    const res = await this.http.request<AccountTriggerTestDmResponse>({
+      method: "POST",
+      path: `/api/v1/instagram/accounts/${encodeURIComponent(accountId)}/comment-triggers/${encodeURIComponent(triggerId)}/test-dm`,
+      body: { recipient_igsid: recipientIgsid },
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
   }
 }
 

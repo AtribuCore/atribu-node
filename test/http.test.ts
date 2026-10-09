@@ -174,6 +174,43 @@ describe("HttpClient via AtribuClient.messages.send", () => {
     const apiErr = caught as AtribuApiError;
     expect(apiErr.docsUrl).toBeNull();
     expect(apiErr.requiredScopes).toBeNull();
+    expect(apiErr.consent).toBeNull();
+  });
+
+  it("surfaces the current swap consent on consent_required (#306)", async () => {
+    const consent = {
+      version: "2026-09-23.duplicate-swap.v1",
+      text_hashes: { en: "a".repeat(64), es: "b".repeat(64) },
+    };
+    const fetchSpy = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            code: "consent_required",
+            message: "Consent required",
+            status: 409,
+            request_id: "req_xyz",
+            docs_url: "https://www.atribu.app/docs/api/errors#consent_required",
+            consent,
+          },
+        },
+        { status: 409 },
+      ),
+    );
+    const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
+    let caught: unknown;
+    try {
+      await client.conversionSync.applyPlatformSafeRepoint({
+        ad_set_ids: ["120200000000001"],
+        confirm_recreate: true,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(AtribuApiError);
+    const apiErr = caught as AtribuApiError;
+    expect(apiErr.code).toBe("consent_required");
+    expect(apiErr.consent).toEqual(consent);
   });
 
   it("surfaces Retry-After on 429", async () => {

@@ -7,6 +7,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-09
+
+Major because of the first item: it changes the type of fields that exist today. The rest of this section accumulates everything merged since 1.23.0 (1.24.0 and 1.25.0 were never published to npm).
+
+### Breaking
+
+- **Learned fields are `{ value, status, reason }` objects, not bare numbers/strings** (#1918, #1761). Every model-learned read (Top Performers `top_performer_likelihood` and `top_performer_likelihood_calibrated`; fatigue `hazard_30d_pause`, `hazard_30d_degradation`, `fatigue_risk_tier`, `expected_lifespan_days`; the risk-tier fields of the fatigue ranking) is now served through a gate: `status` says whether the model was good enough to serve the value, and `reason` why not. Read `field.value` (null when withheld) and show `field.reason`. Code that did `row.hazard_30d_pause * spend` or compared `fatigue_risk_tier === "high"` must read `.value` first. Rows no longer carry an open `[key: string]: unknown` index.
+- **Removed routes and methods** (#1914): the knowledge-base methods on `profile` (`knowledgeBaseDocuments`, `createKnowledgeBaseDocument`, `getKnowledgeBaseDocument`, `updateKnowledgeBaseDocument`, `deleteKnowledgeBaseDocument`) and the Replicate / promote / roadmap / creative-test methods (`replicateRun`, `recordReplicateHandoff`, `recordCreativeTestDecision`, `recordExperimentPromotion`, `testRoadmap`) are gone with their `/api/v1` routes.
+
+### Added
+
+- **`appointments.list(options)`** — `GET /api/v1/appointments` (#1764): the Calendario read (GoHighLevel calendar, tracked `appointment_booked` outcomes and the profile's Google booking calendars) as one list. Types `Appointment` / `AppointmentsListOptions` / `AppointmentsListResponse`.
+- **Top Performers export** — `workspaces.exportTopPerformers(...)` returns the zip as `BinaryResponse` (`body`, `contentType`, `filename`, `headers`; new `expectBinary` request option), and `exportTopPerformersPrompt(...)` the prompt-only form (`POST /api/v1/workspaces/{workspaceId}/top-performers/export`, #1764).
+- **`instagram.accounts.testTriggerDm(...)`** — `POST /api/v1/instagram/accounts/{account_id}/comment-triggers/{trigger_id}/test-dm` (#1764).
+- **Capability flags** on the profile/workspace reads (#1917) and the permissions enum gains `manage:recommendations` (#1913). Types only.
+- `attribution.adPeople(options)` (`GET /api/v1/attribution/ad-people`), `conversionSync.dataSources()` / `ensureDataSource()`, `integrationConnections.metaPagesAvailable()`, and `ApiErrorCode` gains `destination_conflict` (with `conflictingDestinationId`), `whatsapp_connection_required`, `instagram_connection_required`, `instagram_facebook_login_required`.
+
+
+### Added
+
+- **`OutcomeRecordedEvent.data` gains `outcome_event_id` and `conversion_id`** (`string | null`, #1885) — on the `outcome.recorded` webhook and `webhooks.outcomesRecorded.list()`: the `outcome_event_id` / `conversion_id` `analytics.campaignConversions(id)` returns, to join an event to the campaign credited for it. `conversion_id` is null while the outcome has produced no conversion (extraction is asynchronous). A healthcare-family profile's events now reach the app that provisioned it (and no other); contact rides by that app's grant on the webhook and the replay. Types only.
+- **`whatsapp.templates.create()` accepts `header_media: { format: "IMAGE" | "VIDEO" | "DOCUMENT", url }`** — a template with a media header. Atribu downloads the public https `url` (JPEG/PNG ≤ 5 MB, MP4 ≤ 16 MB, PDF ≤ 100 MB) and uploads it to Meta as the review sample. Mutually exclusive with `header_text` (422). Wrong type or unreachable URL → `422 invalid_content`; too large → `413 payload_too_large`. Send it with `messages.send({ content: { type: "template", components: [{ type: "header", parameters: [{ type: "image", image: { link } }] }, …] } })`. Types only; no method signature changed.
+- **`whatsapp.media.get()` returns `sha256` and `file_size`** — Meta's hash and size of the media bytes, to verify what the signed `url` serves. The route now also resolves the media ids a WhatsApp Flow's `PhotoPicker` / `DocumentPicker` answers carry, refuses media over 100 MB (`413 payload_too_large`), and answers `410 media_expired` for Graph's unknown-object refusal too. Types only; no method signature changed.
+- **WhatsApp Flows health webhooks: `whatsapp.flow.status` and `whatsapp.flow.alert`** — from Meta's `flows` webhook field, provider `whatsapp`. `WEBHOOK_EVENT_TYPES` gains both; `AtribuWebhookEvent` gains `WhatsAppFlowStatusEvent` (a flow's status changed, incl. Meta moving a published flow to `THROTTLED` / `BLOCKED`) and `WhatsAppFlowAlertEvent` (endpoint/client error rate, endpoint latency or availability alert activated/deactivated, or the flow's JSON version about to freeze), both exported from `@atribu/node/webhooks` with `WhatsAppFlowAlert`. Subscribe with `webhooks.subscriptions.create({ events: ["whatsapp.flow.status", "whatsapp.flow.alert"], providers: ["whatsapp"] })`.
+- **`WhatsAppFlowDetail.health_status`** — `whatsapp.flows.get()` now returns Meta's sendability verdict for the flow (`can_send_message` + per-node `entities[]` with `errors[]` / `additional_info[]`). Types only; no method signature changed.
+- **`whatsapp.flows.registerEndpoint(input)` / `getEndpoint({ connectionId })` / `rotateEndpointSecret({ connectionId })`** — `PUT|GET /api/v1/whatsapp/flows/endpoint` and `POST …/endpoint/rotate-secret`: the WhatsApp Flows data endpoint. Atribu holds the number's RSA key (uploaded to Meta) and the Meta-facing `endpoint_uri`, decrypts each Flow request and forwards it to your `data_url` as plain JSON signed with `X-Atribu-Signature` (verify with `verifyWebhook`); `signing_secret` is returned only when minted or rotated. Types `WhatsAppFlowEndpoint` / `WhatsAppFlowEndpointRegisterInput`.
+- **`events.retract({ idempotency_key, reason? })`** — `POST /api/v1/events/retractions`: undo an event you ingested through `events.track` / `events.purchase`, by the key it was sent with. Deletes the event, its conversions and their attribution, recomputes first-payment flags and attribution, and audits the retraction; answers counts only (`removed`, `updated`). Idempotent (`status: "already_retracted"`, zero counts). `ApiErrorCode` gains `event_not_found` (404), `event_already_exported` and `event_linked_to_conversation` (409, both `do_not_retry`). Types `RetractEventInput` / `RetractEventResponse` / `EventRetractionRemoved` / `EventRetractionUpdated`.
+- **`conversionSync.customerListAudience()` / `createCustomerListAudience(input)` / `addCustomerListLookalike(input)` / `deleteCustomerListAudience()`** — `GET|POST|DELETE /api/v1/partner/audiences/customer-list` and `POST …/lookalike`: a Meta customer list of the people who paid in the last 365 days (hashed e-mail + phone only, fixed name) and its 1 % lookalike, for a Platform-Safe profile. Off for every profile until Atribu enables it (`available: false, reason: "not_enabled"`). The create needs the current consent (`CUSTOMER_LIST_AUDIENCE_CONSENT_*` in `@atribu/api-contract`; else `409 consent_required`). Types `PartnerCustomerListAudienceStatusResponse` / `PartnerCustomerListAudienceCreateInput` / `PartnerCustomerListLookalikeInput`.
+- **`ApiErrorCode` gains `platform_safe_audiences_disabled`** (409): `POST /api/v1/conversion-sync/audiences` and `…/{id}/confirm` refuse every Conversion Sync audience on a Platform-Safe profile before any Meta call (they used to be able to create empty audiences there).
+- **`analytics.campaignConversions(id, { limit, cursor })` is paginated** (#1827): `CampaignConversionsOptions` gains `limit` (1–200, default 50; anything else is `400 invalid_parameter`) and `cursor`, and `CampaignConversionsResponse` gains `pagination: { has_next, cursor? }`. The response used to stop at 50 conversions without saying so: loop on `pagination.cursor` while `pagination.has_next` is true (a page can hold fewer than `limit` conversions when paths are long). No method signature changed; a call without `cursor` gets the same first page as before.
+- **`CampaignConversionsResponse` rows gain `is_first_payment`** (`boolean | null`, #1827): whether the payment is the customer's first; `null` for a conversion that is not a payment. Types only.
+- **`attributed_outcome_count` / `attributed_outcomes_by_type`** on the campaign, ad set and ad types (`CampaignDTO`, the `?level=` ranking row, `AdDetail`, `AdsUnattributed`) (#1825): conversions of every kind credited to the entity, and that count split by conversion type. Not cash; `outcome_count` stays the ROAS/CAC denominator. Types only; no method signature changed.
+- **`CampaignConversionsResponse` rows gain `outcome_event_id`** (`string | null`, #1824) — `analytics.campaignConversions(id)`: the `outcome_events.id` Atribu returned at ingest, distinct from `conversion_id` (`conversions.id`). Types only; no method signature changed.
+- **`webhooks.outcomesRecorded.list({ cursor, limit })`** — `GET /api/v1/outcomes/recorded` (#1800 A3): replay the `outcome.recorded` webhook — same events, same ids, same order — from an opaque cursor (90-day window; `conversions:read` or `customers:read`). Returns the whole page; store `pagination.cursor` and pass it back. Types `OutcomesRecordedPage` / `OutcomesRecordedOptions`.
+- **`ApiErrorCode` gains `adset_not_editable`** (409): `POST /api/v1/adsets/{id}/budget` refuses an ad set that is ARCHIVED or DELETED on Meta, or whose campaign is.
+- **`whatsapp.console.recordAdReferral(input)` / `whatsapp.console.previewAdReferrals(input)`** — `POST /api/v1/partner/ad-referrals` and its read-only `/preview`: record the Meta ad a PAST click-to-message conversation came from (a business moving to Atribu from another WhatsApp bot), and preview a batch's effect on existing conversions' credited ad per model before applying it. Customer rules as `recordDeclaredSourceAnswer`; idempotent on `idempotency_key`. `ApiErrorCode` gains `unknown_ad`. Types `RecordAdReferralInput` / `AdReferralRecord` / `PreviewAdReferralsInput` / `AdReferralImpactPreview`.
+- **`properties.subject_ref`** on `events.track` / `POST /api/v1/events`, and **`subjectRef`** on `events.purchase` (household credit): the opaque id of WHO a payment is for when one customer pays for several (a parent paying for each child's treatment). Accepted: a canonical UUID (8-4-4-4-12 hex) or a short token `[A-Za-z0-9_-]{1,32}`; a value with an `@`, 7+ consecutive digits once separators — including a single letter between digits — are removed (RUT/RUN, phone, compact date), a date, a name or a 32/40/64-hex digest is a `400 invalid_parameter`. It must be an opaque id: the checks cannot catch every name (`JuanPerez`) or a hashed identifier. Each distinct `subject_ref` under one customer gets its own first payment, but only if every earlier payment of that customer carries a different `subject_ref` (untagged history makes a new subject a returning one — backfill historical payments with the same idempotency key first). Omit it and nothing changes. Never sent to ad platforms, never returned by any API, erased with the customer.
+- `calendar.createIntention/readIntention/updateIntention/cancelIntention`: permanent opaque Calendar/Meet intention and operation identities, typed confirmed/rejected/uncertain results, and no automatic mutating retry.
+
+- **`identity.eraseCustomer(input)` / `identity.getCustomerErasure(erasureId)`** — `POST /api/v1/customers/erasures` and its receipt (#1770): erase one customer of the key's profile by `customer_key` (or e-mail / phone / pinned identifier), idempotent on `request_ref`. `attribution:write`. Types `CustomerErasureInput`, `CustomerErasureReceiptResponse`. `ApiErrorCode` gains `link_tokens_disabled`, `api_key_required`, `customer_not_found`, `erasure_not_found`, `conversion_not_found` (the last two journey reads by key now 404 with `customer_not_found` / `conversion_not_found`, #1767/#1768).
+- **`identity.mintLinkTokens` by your own key** (#1771): `LinkTokenSelector` gains `customer_key`; each result row gains `customer_key`, and non-minted rows `reason` / `message`; recipes gain `partner_page` and `requires`. `identifier_type` is typed as its five accepted values. A key without `customers:read` no longer receives `customer_profile_id` on result rows. No method signature changed. The retry policy treats `503 link_tokens_disabled` as `do_not_retry` (the feature is off on that deployment; retrying cannot help).
+- **`analytics.campaignPause(id)` / `analytics.campaignResume(id)`** — `POST /api/v1/campaigns/{id}/pause|resume` (#1776): pause or resume one campaign by its Meta id in ONE write (`campaigns:apply`, pass `idempotencyKey` — derive it from `campaignStatus().data.confirm_token`). The response carries `affected_ads_count`, the ledger `action_id`, `rollback_of` (a resume that undid an Atribu pause) and `undo: { method, path }`; the campaign already in the requested state is `outcome: "no_change"`. Types `CampaignStatusChangeInput` / `CampaignStatusChangeResponse`.
+- **`analytics.campaignStatus(id)`** — `GET /api/v1/campaigns/{id}/status` (#1776): live status, the ads a pause would stop, daily budget, mean daily spend, each action's `{ available, reason, affected_ads_count }` and `confirm_token`, in one call. Type `CampaignStatusResponse`.
+- **`AtribuApiError.reason`** (and `ApiErrorBody.reason`): refines a shared class code (`forbidden` + `meta_permission_denied`); `null` when the refusal names none. `ApiErrorCode` names `campaign_not_found` (404), `campaign_not_pausable` and `campaign_not_resumable` (409).
+- **`whatsapp.console.recordDeclaredSourceAnswer(input)`** — `POST /api/v1/partner/declared-source` (#1708): record the "how did you find us?" answer your assistant interpreted in your own WhatsApp conversation. `customer` is exactly one of `{ external_ref, email?, phone? }` or `{ wa_id }` — an unknown `external_ref` sent with an email and/or phone creates the customer and binds the ref (#1799); a ref alone never creates one, and a national id (RUT) is refused. Idempotent on `wamid`. Types `RecordDeclaredSourceAnswerInput` / `DeclaredSourceAnswerRecord`. The declared-source `answer_key` enum gains `walk_in`.
+- **`whatsapp.console.recordDeclaredSourceAnswer(input)`** — `POST /api/v1/partner/declared-source` (#1708): record the "how did you find us?" answer your assistant interpreted in your own WhatsApp conversation. `customer` is exactly one of `{ external_ref }` or `{ wa_id }`; idempotent on `wamid`. Types `RecordDeclaredSourceAnswerInput` / `DeclaredSourceAnswerRecord`. The declared-source `answer_key` enum gains `walk_in`.
+- **`privacy_mode`** (#1782) on the app-credential `POST /api/v1/profiles` and `PUT /api/v1/profiles/{profileId}/entitlements/{feature}` request types (`"standard" | "platform_safe" | "hipaa"`), echoed in their responses, plus `revoked_keys` on `ProvisionedProfile`. Types only; no method signature changed.
+- **`analytics.customerJourneyByKey({ customer_key })`** — `GET /api/v1/customers/journey` (#1768): one person's whole journey by the customer id you send as `user_traits.external_id` (or, with `customers:read`, `{ email }` / `{ phone }`), with `meta.person`. `conversions:read`.
+- **Key-only journey projection** (#1767): `analytics.conversionJourney` now opens at `conversions:read`; its response type is the union of the full `JourneyEvent` page and `JourneyEventProjected` rows with `meta.conversion.customer_key`, decided by whether the key holds `customers:read`.
+- **TikTok Events API destination** (#1700): `ExportDestination` / `ExportDestinationWriteRequest` gain `tiktok_pixel_code`, `destination` accepts `"tiktok_events_api"`, and the `export.completed` / `export.failed` webhook types gain an optional `tiktok` counts object. Types only; no method signature changed.
+- **`identity.mintLinkTokens(input)`** — `POST /api/v1/customers/link-tokens` (#1693): mint `atb_t` link-identity tokens for existing customers, plus GoHighLevel / Klaviyo / WhatsApp merge-tag recipes. Types `LinkTokenMintInput` / `LinkTokenMintResponse`.
+- `IngestEventBody` gains optional **`action_source`** (Meta's enum: `"website"
+  | "business_messaging" | "physical_store" | "system_generated" | "app" |
+  "phone_call" | "chat" | "email" | "other"`), sent to Meta verbatim; any
+  non-`website` value ships without `event_source_url`. `ExportLedgerEntry`
+  gains **`action_source`** (`string | null`), what the delivery's Meta payload
+  carried (#1670). Types only; no method signature changed.
+- `AtribuApiError.consent` (and `ApiErrorBody.consent`, type
+  `SwapConsentRequirement`): on a `consent_required` (409) error, the current
+  duplicate-and-swap consent text `version` and the SHA-256 `text_hashes` of each
+  locale; `null` on every other error (#306).
+- `conversionSync.applyPlatformSafeRepoint` and `conversionSync.wireAdSets`
+  accept `consent: { version, text_hash, accepted_by, accepted_at }`, required
+  for an API key or MCP user token that confirms a rebuild, and their responses
+  gain `warnings` (new ad set ids, learning reset, double spend) (#306).
+- `ads.pause(id)` / `ads.resume(id)` — pause or resume one ad by its Meta id
+  with no recommendation behind it (`POST /api/v1/ads/{id}/pause|resume`,
+  `campaigns:apply`). Tier `confirm`, audited in `meta_action_log`, reversible;
+  the same `Idempotency-Key` replays without calling Meta.
+- `ads.setAdSetBudget(adSetId, { new_daily_budget_minor, applied_by? })` —
+  `POST /api/v1/adsets/{id}/budget`, the key-callable daily-budget change
+  (money tier, ±50 % of the live budget per call).
+- `analytics.conversionJourney(id)` — `GET /api/v1/conversions/{id}/journey`:
+  the visitor timeline behind one conversion, addressed by `outcome_event_id`,
+  `conversions.id` or the ingest's own `event_id`; `meta.conversion` names the
+  resolved customer.
+- `ApiErrorCode` names `meta_write_permission_missing` (403) and
+  `budget_change_out_of_bounds` (422).
+
+### Changed
+
+- **Campaign / ad set / ad counts are credited-only** (#1825, server-side, affects every SDK version): under `last_touch` / `first_touch` / `last_non_direct`, `outcome_count`, `outcome_count_first_payment` and `attributed_outcome_count` from `analytics.campaigns` (every `level`), the ad detail, the ad trend reads and the unattributed remainder DROP, and `cac` / `cac_first_payment` rise by the same ratio. A conversion used to be counted under every entity on its path and again in the remainder. Values and ROAS do not change.
+- **`first_payment_customers` / `recurring_customers`** (analytics overview) and the LTV **`unique_customers`** / `avg_ltv` / `repeat_rate_pct` / cohort sizes now count payer SUBJECTS: a customer paying for several subjects (`subject_ref`) counts once per subject that was accepted as a new patient. Identical to before for every customer that has no `subject_ref` on any payment. A subject the rollout guard blocks (an untagged earlier payment of the same customer) is still counted once at the customer level, so switching `subject_ref` on without a backfill never counts one patient twice. LTV `top_customers` stays one row per paying customer.
+- Server-side, not in this package: on a key minted by the app that provisioned
+  the profile, `recommendations.apply()` (and the budget change above) no longer
+  needs `applied_by` — it defaults to the workspace's shadow owner.
+
+## [1.25.0] - 2026-09-23
+
+### Added
+
+- `AtribuApiError` gains **`provider`**, **`providerStatus`**, **`providerCode`**
+  and **`providerMessage`** — the upstream provider's own verdict when the API
+  passes one through (today: email sends — `gmail` | `outlook`). `ApiErrorBody`
+  gains the matching `provider*` fields (#1653).
+- `ApiErrorCode` names the email send verdicts: `account_suspended` (403),
+  `mailbox_disabled` (403), `auth_revoked` (403, with `reconnectRequired`),
+  `quota_exceeded` (429 + `Retry-After`) and `recipient_rejected` (422). The
+  403s derive `retry: { action: "do_not_retry" }`.
+- `EmailChannelHealthUpdatedEvent` / `EmailChannelHealthSnapshot`: the
+  `channel.health.updated` event on provider `email` — `needs_action`,
+  `reconnect_required` or `healthy`, with the provider's code and message.
+
+### Fixed
+
+- Server-side, not in this package: a Gmail/Microsoft Graph refusal of an email
+  send (a suspended account, a revoked grant, …) answered `502`, which
+  Cloudflare delivers as a bare `http_502` that reads as a transport error. It
+  is now the typed 4xx above; only a transient provider failure is still 5xx.
+
+### Added
+
+- `workspaces.oauthApps(workspaceId)`, `workspaces.acceptOAuthAppDpa(workspaceId,
+  appId, { document_version? })` and `workspaces.withdrawOAuthAppDpa(workspaceId,
+  appId)` — the app-level DPA a partner accepts once for every profile its OAuth
+  app provisions (#1668). The two writes answer `403` for an API key or an MCP
+  user token: only a signed-in owner/admin session can accept a contract.
+## [1.24.0] - 2026-09-23
+
+### Added
+
+- `EmailEventDeliveryFailure` gains **`action`** — the report's RFC 3464
+  `Action` for the same recipient as `status` (`"failed"`, `"delayed"`,
+  `"delivered"`, `"relayed"`, `"expanded"`, or `null`) — and
+  **`diagnostic_code`**, the report's `Diagnostic-Code` verbatim (`string |
+  null`). `failed` + `5.x.x` is a hard bounce; `delayed` + `4.x.x` is the MTA
+  still retrying. `eventFixtures.emailDeliveryFailure()` carries both (#1653).
+
+### Fixed
+
+- Server-side, not in this package: `delivery_failure.status` was always `null`
+  on Gmail bounces because Gmail nests the per-recipient report fields one MIME
+  part deeper than Atribu read. It now carries the status code (e.g. `"5.1.2"`).
+
 ## [1.23.0] - 2026-09-22
 
 ### Added

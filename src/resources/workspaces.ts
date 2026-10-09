@@ -13,8 +13,14 @@
  * workspace nor a profile, because it is what you call before you have either.
  */
 import type { paths } from "../__generated__/api";
-import type { HttpClientLike } from "../http";
+import type { BinaryResponse, HttpClientLike } from "../http";
 import type { ReadExtras, WriteExtras } from "./common";
+
+export type WorkspaceTopPerformersExportBody = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/top-performers/export"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type WorkspaceTopPerformersExportPromptResponse =
+  paths["/api/v1/workspaces/{workspaceId}/top-performers/export"]["post"]["responses"][200]["content"]["application/json"];
 
 export type WorkspacesResponse =
   paths["/api/v1/workspaces"]["get"]["responses"][200]["content"]["application/json"];
@@ -101,13 +107,6 @@ export type WorkspaceArchetypesOptions = WorkspaceArchetypesQuery & ReadExtras;
 export type WorkspaceExperimentsResponse =
   paths["/api/v1/workspaces/{workspaceId}/experiments"]["get"]["responses"][200]["content"]["application/json"];
 
-type WorkspaceTestRoadmapQuery = NonNullable<
-  paths["/api/v1/workspaces/{workspaceId}/test-roadmap"]["get"]["parameters"]["query"]
->;
-export type WorkspaceTestRoadmapResponse =
-  paths["/api/v1/workspaces/{workspaceId}/test-roadmap"]["get"]["responses"][200]["content"]["application/json"];
-export type WorkspaceTestRoadmapOptions = WorkspaceTestRoadmapQuery & ReadExtras;
-
 type WorkspaceTopPerformersBriefQuery = NonNullable<
   paths["/api/v1/workspaces/{workspaceId}/top-performers/brief"]["get"]["parameters"]["query"]
 >;
@@ -127,27 +126,6 @@ type WorkspaceRecommendationsQuery = NonNullable<
 export type WorkspaceRecommendationsResponse =
   paths["/api/v1/workspaces/{workspaceId}/recommendations"]["get"]["responses"][200]["content"]["application/json"];
 export type WorkspaceRecommendationsOptions = WorkspaceRecommendationsQuery & ReadExtras;
-
-export type WorkspaceReplicateRunResponse =
-  paths["/api/v1/workspaces/{workspaceId}/replicate-runs/{runId}"]["get"]["responses"][200]["content"]["application/json"];
-
-export type ReplicateHandoffInput = NonNullable<
-  paths["/api/v1/workspaces/{workspaceId}/replicate-runs/{runId}/handoff"]["post"]["requestBody"]
->["content"]["application/json"];
-export type ReplicateHandoffResponse =
-  paths["/api/v1/workspaces/{workspaceId}/replicate-runs/{runId}/handoff"]["post"]["responses"][200]["content"]["application/json"];
-
-export type CreativeTestDecisionInput = NonNullable<
-  paths["/api/v1/workspaces/{workspaceId}/creative-tests/decisions"]["post"]["requestBody"]
->["content"]["application/json"];
-export type CreativeTestDecisionResponse =
-  paths["/api/v1/workspaces/{workspaceId}/creative-tests/decisions"]["post"]["responses"][200]["content"]["application/json"];
-
-export type ExperimentPromotionInput = NonNullable<
-  paths["/api/v1/workspaces/{workspaceId}/experiment-promotions"]["post"]["requestBody"]
->["content"]["application/json"];
-export type ExperimentPromotionResponse =
-  paths["/api/v1/workspaces/{workspaceId}/experiment-promotions"]["post"]["responses"][200]["content"]["application/json"];
 
 // #489 — a profile's `atb_live_` API keys, managed at workspace scope. See
 // `@atribu/api-contract/dto-api-keys`'s header (mirrored in the OpenAPI
@@ -257,6 +235,15 @@ export type WorkspaceComplianceOverviewUpdateBody = NonNullable<
 >["content"]["application/json"];
 export type WorkspaceComplianceOverviewUpdateResponse =
   paths["/api/v1/workspaces/{workspaceId}/compliance-overview"]["patch"]["responses"][200]["content"]["application/json"];
+
+// #1668 — the app-level DPA a partner accepts once for every profile its app provisions.
+export type WorkspaceOAuthAppsResponse =
+  paths["/api/v1/workspaces/{workspaceId}/oauth-apps"]["get"]["responses"][200]["content"]["application/json"];
+export type WorkspaceOAuthAppDpaAcceptBody = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/oauth-apps/{appId}/dpa/accept"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type WorkspaceOAuthAppDpaDecisionResponse =
+  paths["/api/v1/workspaces/{workspaceId}/oauth-apps/{appId}/dpa/accept"]["post"]["responses"][200]["content"]["application/json"];
 
 export type WorkspaceReportingCurrencyResponse =
   paths["/api/v1/workspaces/{workspaceId}/reporting-currency"]["get"]["responses"][200]["content"]["application/json"];
@@ -502,8 +489,10 @@ export class WorkspacesResource {
    *
    * **Three distinct measures per ad; present them separately.**
    * `composite_score` (0–100) is a transparent rule blend of within-cohort
-   * percentiles. `top_performer_likelihood` (0–1) is a PROBABILITY — a
-   * likelihood, not a guarantee, and never ROAS. `attributed_revenue`/`roas` is
+   * percentiles. `top_performer_likelihood` is a LEARNED field
+   * `{ value, status, reason }` (#1761): narrow on `status === "served"` before
+   * reading `value` (a 0–1 probability, never ROAS); `withheld` means no ranker
+   * has cleared the serving gate — show «not evaluated», never 0. `attributed_revenue`/`roas` is
    * real cash Atribu attributed, present when `truth_grade === "attributed"`.
    * `meta_reported_conversions` is a fourth thing again: Meta's OWN last-click
    * count, never folded into `truth_grade`.
@@ -805,30 +794,6 @@ export class WorkspacesResource {
   }
 
   /**
-   * What each profile should test next (`gaps`), and how much scored creative
-   * it has to judge on (`coverage`).
-   *
-   * Read both. An empty `gaps` means either "already doing everything that
-   * works" or "four scored ads and nothing can be concluded", and only
-   * `coverage[].scored_ad_count` separates them.
-   *
-   * `test_key` is the stable id to record a decision against — never the
-   * exemplar ad, which rotates on every rebuild.
-   */
-  async testRoadmap(
-    workspaceId: string,
-    options: WorkspaceTestRoadmapOptions = {},
-  ): Promise<WorkspaceTestRoadmapResponse> {
-    const { signal, ...query } = options;
-    return this.http.request<WorkspaceTestRoadmapResponse>({
-      method: "GET",
-      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/test-roadmap`,
-      query,
-      signal,
-    });
-  }
-
-  /**
    * The six counters that summarise the leaderboard for a window.
    *
    * None is a lifetime total — they describe the same window
@@ -845,6 +810,43 @@ export class WorkspacesResource {
       path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/top-performers/brief`,
       query,
       signal,
+    });
+  }
+
+  /**
+   * #1764 — the «Export to Claude Code» bundle for selected ads (≤ 50) or one
+   * creative pattern, as a zip ({@link BinaryResponse}). Person-only: an API key
+   * gets 403. Building it fetches thumbnails and video sources, so it is given a
+   * 120 s deadline rather than the client default.
+   */
+  async exportTopPerformers(
+    workspaceId: string,
+    input: WorkspaceTopPerformersExportBody,
+    options: WriteExtras = {},
+  ): Promise<BinaryResponse> {
+    return this.http.request<BinaryResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/top-performers/export`,
+      body: input,
+      expectBinary: true,
+      timeoutMs: 120_000,
+      signal: options.signal,
+    });
+  }
+
+  /** The same export as a paste-able prompt (`?format=prompt`) — no zip. */
+  async exportTopPerformersPrompt(
+    workspaceId: string,
+    input: WorkspaceTopPerformersExportBody,
+    options: WriteExtras = {},
+  ): Promise<WorkspaceTopPerformersExportPromptResponse> {
+    return this.http.request<WorkspaceTopPerformersExportPromptResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/top-performers/export`,
+      query: { format: "prompt" },
+      body: input,
+      timeoutMs: 120_000,
+      signal: options.signal,
     });
   }
 
@@ -906,92 +908,6 @@ export class WorkspacesResource {
       path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/recommendations`,
       query,
       signal,
-    });
-  }
-
-  /**
-   * One Replicate run — a winning ad adapted into a draft for another profile.
-   *
-   * A run names TWO profiles and you must be able to open both. A run that does
-   * not exist, one in another workspace and one whose profiles you cannot open
-   * all answer the same 404.
-   */
-  async replicateRun(
-    workspaceId: string,
-    runId: string,
-    options: ReadExtras = {},
-  ): Promise<WorkspaceReplicateRunResponse> {
-    return this.http.request<WorkspaceReplicateRunResponse>({
-      method: "GET",
-      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/replicate-runs/${encodeURIComponent(runId)}`,
-      signal: options.signal,
-    });
-  }
-
-  /**
-   * Bind a finished Replicate run to the creative session it was handed to.
-   *
-   * **Idempotent on the run, not on an `Idempotency-Key`.** A run carries at
-   * most one session, so a second call answers with the FIRST one and
-   * `already_handed_off: true` — your id was NOT stored. Open the id in the
-   * response, never the one you sent.
-   *
-   * A compare-and-set from `review`: a run whose status moved underneath you (a
-   * cancel racing the send) answers 409 rather than coming back as `sent`.
-   */
-  async recordReplicateHandoff(
-    workspaceId: string,
-    runId: string,
-    body: ReplicateHandoffInput,
-    options: ReadExtras = {},
-  ): Promise<ReplicateHandoffResponse> {
-    return this.http.request<ReplicateHandoffResponse>({
-      method: "POST",
-      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/replicate-runs/${encodeURIComponent(runId)}/handoff`,
-      body,
-      signal: options.signal,
-    });
-  }
-
-  /**
-   * Dismiss or draft one testing-roadmap gap.
-   *
-   * Keyed on `(profile_id, score_window, test_key)`, never on the exemplar ad.
-   * Idempotent: repeating a decision is a 200, not a 409, and a `drafted` may
-   * flip a prior `dismissed` without erasing its columns.
-   */
-  async recordCreativeTestDecision(
-    workspaceId: string,
-    body: CreativeTestDecisionInput,
-    options: ReadExtras = {},
-  ): Promise<CreativeTestDecisionResponse> {
-    return this.http.request<CreativeTestDecisionResponse>({
-      method: "POST",
-      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/creative-tests/decisions`,
-      body,
-      signal: options.signal,
-    });
-  }
-
-  /**
-   * Record an ad's promotion to a Meta experiment, before handing the operator
-   * off to Ads Manager.
-   *
-   * Idempotent on `(profile_id, ad_external_id)` — re-posting returns the same
-   * `promotion_id`. **Check `advanced_beyond_write`**: when it is `true` the
-   * promotion had already moved to `live`/`linked` and YOUR DRAFT WAS NOT
-   * STORED, so telling the operator it was saved would be false.
-   */
-  async recordExperimentPromotion(
-    workspaceId: string,
-    body: ExperimentPromotionInput,
-    options: ReadExtras = {},
-  ): Promise<ExperimentPromotionResponse> {
-    return this.http.request<ExperimentPromotionResponse>({
-      method: "POST",
-      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/experiment-promotions`,
-      body,
-      signal: options.signal,
     });
   }
 
@@ -1424,6 +1340,57 @@ export class WorkspacesResource {
     return this.http.request<WorkspaceComplianceOverviewResponse>({
       method: "GET",
       path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/compliance-overview`,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * The OAuth apps this workspace administers, each with its app-level DPA
+   * state and how many of the profiles it provisioned the acceptance covers
+   * (#1668).
+   */
+  async oauthApps(
+    workspaceId: string,
+    options: ReadExtras = {},
+  ): Promise<WorkspaceOAuthAppsResponse> {
+    return this.http.request<WorkspaceOAuthAppsResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/oauth-apps`,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Accept the DPA once for an OAuth app; every profile it provisioned — and
+   * every one it provisions later — inherits it (#1668). A signed-in
+   * owner/admin SESSION only: an API key or an MCP token gets a 403.
+   */
+  async acceptOAuthAppDpa(
+    workspaceId: string,
+    appId: string,
+    body: WorkspaceOAuthAppDpaAcceptBody = {},
+    options: ReadExtras = {},
+  ): Promise<WorkspaceOAuthAppDpaDecisionResponse> {
+    return this.http.request<WorkspaceOAuthAppDpaDecisionResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/oauth-apps/${encodeURIComponent(appId)}/dpa/accept`,
+      body,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Withdraw an OAuth app's DPA acceptance; profiles that held it by
+   * inheritance return to `withdrawn`, direct acceptances are kept (#1668).
+   */
+  async withdrawOAuthAppDpa(
+    workspaceId: string,
+    appId: string,
+    options: ReadExtras = {},
+  ): Promise<WorkspaceOAuthAppDpaDecisionResponse> {
+    return this.http.request<WorkspaceOAuthAppDpaDecisionResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/oauth-apps/${encodeURIComponent(appId)}/dpa/withdraw`,
       signal: options.signal,
     });
   }

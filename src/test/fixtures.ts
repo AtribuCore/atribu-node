@@ -271,6 +271,9 @@ export const eventFixtures = {
           delivery_failure: {
             failed_recipient: "nadie@example.com",
             status: "5.1.1",
+            action: "failed",
+            diagnostic_code:
+              "smtp; 550-5.1.1 The email account that you tried to reach does not exist.",
             original_rfc822_message_id: "<atribu-send-1@mail.gmail.com>",
           },
           raw: {},
@@ -303,8 +306,8 @@ export const responseFixtures = {
    * The defaults model a send that STARTED a thread: `thread_id` is the new
    * thread, and `rfc822_message_id` is what an inbound bounce's
    * `delivery_failure.original_rfc822_message_id` will match.
-   * `provider_message_id` is `""` on Outlook — pass `{ channel: "outlook" }`-
-   * style overrides by naming the fields directly.
+   * On Outlook `provider_message_id` is a Graph immutable id (`AAkALg…`)
+   * rather than a Gmail hex id — override the fields directly to model it.
    */
   emailSent(overrides?: {
     provider_message_id?: string;

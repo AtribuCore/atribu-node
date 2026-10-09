@@ -21,6 +21,12 @@ type AssetsUploadBody = NonNullable<
 type AssetsUploadResponse =
   paths["/api/v1/whatsapp/flows/{flowId}/assets"]["post"]["responses"][200]["content"]["application/json"];
 
+type EndpointResponse =
+  paths["/api/v1/whatsapp/flows/endpoint"]["get"]["responses"][200]["content"]["application/json"];
+type EndpointPutBody = NonNullable<
+  paths["/api/v1/whatsapp/flows/endpoint"]["put"]["requestBody"]
+>["content"]["application/json"];
+
 export type WhatsAppFlow = ListResponse["data"][number];
 export type WhatsAppFlowDetail = GetResponse["data"];
 export type WhatsAppFlowCreateInput = CreateBody;
@@ -29,6 +35,14 @@ export type WhatsAppFlowUpdateInput = UpdateBody;
 export type WhatsAppFlowAsset = AssetsListResponse["data"][number];
 export type WhatsAppFlowJson = AssetsUploadBody["flow_json"];
 export type WhatsAppFlowJsonUploadResult = AssetsUploadResponse["data"];
+export type WhatsAppFlowEndpoint = EndpointResponse["data"];
+export type WhatsAppFlowEndpointRegisterInput = EndpointPutBody;
+
+export interface FlowEndpointOptions {
+  /** Optional when the profile has exactly one WhatsApp connection. */
+  connectionId?: string;
+  signal?: AbortSignal;
+}
 
 export interface FlowReadOptions {
   connectionId: string;
@@ -157,6 +171,50 @@ export class WhatsAppFlowsResource {
       idempotencyKey: opts.idempotencyKey,
       signal: opts.signal,
     });
+  }
+
+  /**
+   * Register (idempotent) the connection's Flows data endpoint: Atribu holds the
+   * number's RSA key and the Meta-facing `endpoint_uri`, and forwards each Flow
+   * request to `data_url` signed with `signing_secret` — returned ONLY when it
+   * is minted (first call) or rotated. Pass `endpoint_uri` on flow create/update.
+   */
+  async registerEndpoint(
+    input: WhatsAppFlowEndpointRegisterInput,
+    opts: FlowMutateOptions = {},
+  ): Promise<WhatsAppFlowEndpoint> {
+    const res = await this.http.request<EndpointResponse>({
+      method: "PUT",
+      path: "/api/v1/whatsapp/flows/endpoint",
+      body: input,
+      idempotencyKey: opts.idempotencyKey,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** The endpoint registration + a live read of Meta's key status (never the secret). */
+  async getEndpoint(opts: FlowEndpointOptions = {}): Promise<WhatsAppFlowEndpoint> {
+    const query = opts.connectionId
+      ? `?connection_id=${encodeURIComponent(opts.connectionId)}`
+      : "";
+    const res = await this.http.request<EndpointResponse>({
+      method: "GET",
+      path: `/api/v1/whatsapp/flows/endpoint${query}`,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** Mint a new data-hop signing secret (effective immediately; returned once). */
+  async rotateEndpointSecret(opts: FlowEndpointOptions = {}): Promise<WhatsAppFlowEndpoint> {
+    const res = await this.http.request<EndpointResponse>({
+      method: "POST",
+      path: "/api/v1/whatsapp/flows/endpoint/rotate-secret",
+      body: opts.connectionId ? { connection_id: opts.connectionId } : {},
+      signal: opts.signal,
+    });
+    return res.data;
   }
 
   /** PUBLISHED → DEPRECATED. Terminal: a deprecated flow can't be re-published. */

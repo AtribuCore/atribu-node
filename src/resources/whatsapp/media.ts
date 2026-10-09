@@ -75,10 +75,15 @@ export class WhatsAppMediaResource {
    * ~5 minutes, so Atribu downloads the bytes and re-hosts them, returning a
    * signed URL (~7-day TTL) — the same shape Instagram inbound attachments use.
    *
-   * You usually don't need this: Atribu already embeds the URL in the WhatsApp
-   * webhook delivery as `attachments:[{type,payload:{url}}]`. Use `get()` only
-   * when you prefer to resolve media on demand. WhatsApp media IDs from
-   * webhooks expire after 7 days.
+   * You usually don't need this for message attachments: Atribu already embeds
+   * the URL in the WhatsApp webhook delivery as
+   * `attachments:[{type,payload:{url}}]`. Use `get()` when you prefer to
+   * resolve media on demand, and for media ids that arrive inside a payload —
+   * a WhatsApp Flow's `PhotoPicker` / `DocumentPicker` answers in
+   * `nfm_reply.response_json`. `sha256` (Meta's hash of the bytes) and
+   * `file_size` let you verify what `url` serves. WhatsApp media IDs from
+   * webhooks expire after 7 days (`410 media_expired`); media over 100 MB is
+   * refused with `413 payload_too_large`.
    *
    * WhatsApp only; requires the `whatsapp` scope.
    */

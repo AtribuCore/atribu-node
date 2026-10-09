@@ -16,6 +16,12 @@ export type AttributionExploreResponse =
   paths["/api/v1/attribution/explore"]["get"]["responses"][200]["content"]["application/json"];
 export type AttributionExploreOptions = ExploreQuery & ReadExtras;
 
+type DeclaredSourceQuery =
+  paths["/api/v1/attribution/declared-source"]["get"]["parameters"]["query"];
+export type DeclaredSourceResponse =
+  paths["/api/v1/attribution/declared-source"]["get"]["responses"][200]["content"]["application/json"];
+export type DeclaredSourceOptions = DeclaredSourceQuery & ReadExtras;
+
 type MessagingQuery = paths["/api/v1/attribution/messaging"]["get"]["parameters"]["query"];
 export type MessagingAttributionResponse =
   paths["/api/v1/attribution/messaging"]["get"]["responses"][200]["content"]["application/json"];
@@ -26,6 +32,11 @@ type MessagingKpiQuery =
 export type MessagingKpiResponse =
   paths["/api/v1/attribution/messaging/kpi"]["get"]["responses"][200]["content"]["application/json"];
 export type MessagingKpiOptions = MessagingKpiQuery & ReadExtras;
+
+type AdPeopleQuery = paths["/api/v1/attribution/ad-people"]["get"]["parameters"]["query"];
+export type AdPeopleResponse =
+  paths["/api/v1/attribution/ad-people"]["get"]["responses"][200]["content"]["application/json"];
+export type AdPeopleOptions = AdPeopleQuery & ReadExtras;
 
 export type MessagingConversionChainResponse =
   paths["/api/v1/attribution/messaging/conversions/{id}"]["get"]["responses"][200]["content"]["application/json"];
@@ -58,6 +69,23 @@ export class AttributionResource {
     return this.http.request<AttributionExploreResponse>({
       method: "GET",
       path: "/api/v1/attribution/explore",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * What buyers SAID brought them ("How did you hear about us?" — the Shopify
+   * post-purchase survey), beside the channel click attribution credited for
+   * the same orders under `model` (#1707). A separate measurement: it never
+   * changes credit or ROAS. `agreement_rate` is null, not 0, when no answered
+   * order could be placed by attribution.
+   */
+  async declaredSource(options: DeclaredSourceOptions): Promise<DeclaredSourceResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<DeclaredSourceResponse>({
+      method: "GET",
+      path: "/api/v1/attribution/declared-source",
       query,
       signal,
     });
@@ -102,6 +130,28 @@ export class AttributionResource {
     return this.http.request<MessagingKpiResponse>({
       method: "GET",
       path: "/api/v1/attribution/messaging/kpi",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * People reached by ads, per month (default), day or ad, in the profile's
+   * time zone: distinct people with at least one ad-tagged Touch, split by
+   * origin (`partner_ad_referral` is a partner's historical import, kept apart
+   * from Atribu's own `conversation_referral` and `web`), beside Meta's own
+   * reported messaging conversations started for the same bucket.
+   *
+   * Counts only: no person is ever returned. `totals` counts each person once
+   * over the whole window, so it is NOT the sum of the buckets.
+   * `first_only: "true"` counts each person only in the bucket of their
+   * earliest-ever ad Touch.
+   */
+  async adPeople(options: AdPeopleOptions): Promise<AdPeopleResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<AdPeopleResponse>({
+      method: "GET",
+      path: "/api/v1/attribution/ad-people",
       query,
       signal,
     });

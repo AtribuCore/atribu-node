@@ -29,6 +29,12 @@ type SendInteractiveBody = NonNullable<
 >["content"]["application/json"];
 type SendInteractiveResponse =
   paths["/api/v1/whatsapp/conversations/{id}/messages/interactive"]["post"]["responses"][201]["content"]["application/json"];
+type SendDeclaredSourcePromptBody = NonNullable<
+  paths["/api/v1/whatsapp/conversations/{id}/messages/declared-source-prompt"]["post"]["requestBody"]
+>["content"]["application/json"];
+type SendDeclaredSourcePromptResponse =
+  paths["/api/v1/whatsapp/conversations/{id}/messages/declared-source-prompt"]["post"]["responses"][201]["content"]["application/json"];
+export type SendDeclaredSourcePromptInput = SendDeclaredSourcePromptBody;
 type SendTemplateBody = NonNullable<
   paths["/api/v1/whatsapp/conversations/{id}/messages/template"]["post"]["requestBody"]
 >["content"]["application/json"];
@@ -121,6 +127,25 @@ export class WhatsAppConversationsResource {
     const res = await this.http.request<SendInteractiveResponse>({
       method: "POST",
       path: `/api/v1/whatsapp/conversations/${encodeURIComponent(conversationId)}/messages/interactive`,
+      body: input,
+      idempotencyKey: opts.idempotencyKey,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #1708 — ask "how did you find us?" as an interactive list. Refused (403)
+   * unless the business opted the account in; inside the 24h window only.
+   */
+  async sendDeclaredSourcePrompt(
+    conversationId: string,
+    input: SendDeclaredSourcePromptInput = {},
+    opts: { idempotencyKey?: string; signal?: AbortSignal } = {},
+  ): Promise<WhatsAppConversationMessage> {
+    const res = await this.http.request<SendDeclaredSourcePromptResponse>({
+      method: "POST",
+      path: `/api/v1/whatsapp/conversations/${encodeURIComponent(conversationId)}/messages/declared-source-prompt`,
       body: input,
       idempotencyKey: opts.idempotencyKey,
       signal: opts.signal,

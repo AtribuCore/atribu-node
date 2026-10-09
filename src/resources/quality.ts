@@ -1,5 +1,5 @@
 /**
- * Tracking-quality reads (#590, #588, #642) — three reads, deliberately not
+ * Tracking-quality reads (#590, #588, #642, #1695, #1697) — deliberately not
  * merged.
  *
  * {@link QualityResource.utm} scores TRAFFIC (anomalous or missing UTMs on
@@ -51,6 +51,28 @@ type AttributionQualityQuery =
 export type QualityAttributionResponse =
   paths["/api/v1/quality/attribution"]["get"]["responses"][200]["content"]["application/json"];
 export type QualityAttributionOptions = AttributionQualityQuery & ReadExtras;
+
+type AdIdsQuery = paths["/api/v1/quality/ad-ids"]["get"]["parameters"]["query"];
+export type QualityAdIdsResponse =
+  paths["/api/v1/quality/ad-ids"]["get"]["responses"][200]["content"]["application/json"];
+export type QualityAdIdsOptions = AdIdsQuery & ReadExtras;
+
+type ItpQuery = paths["/api/v1/quality/itp"]["get"]["parameters"]["query"];
+export type QualityItpResponse =
+  paths["/api/v1/quality/itp"]["get"]["responses"][200]["content"]["application/json"];
+export type QualityItpOptions = ItpQuery & ReadExtras;
+export type QualityAdUrlTagsResponse =
+  paths["/api/v1/quality/ad-ids/url-tags"]["get"]["responses"]["200"]["content"]["application/json"];
+export type QualityAdUrlTagsApplyInput = NonNullable<
+  paths["/api/v1/quality/ad-ids/url-tags/apply"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type QualityAdUrlTagsApplyResponse =
+  paths["/api/v1/quality/ad-ids/url-tags/apply"]["post"]["responses"]["200"]["content"]["application/json"];
+export type QualityAdUrlTagsUndoInput = NonNullable<
+  paths["/api/v1/quality/ad-ids/url-tags/undo"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type QualityAdUrlTagsUndoResponse =
+  paths["/api/v1/quality/ad-ids/url-tags/undo"]["post"]["responses"]["200"]["content"]["application/json"];
 
 export class QualityResource {
   constructor(private readonly http: HttpClientLike) {}
@@ -126,6 +148,91 @@ export class QualityResource {
       path: "/api/v1/quality/attribution",
       query,
       signal,
+    });
+  }
+
+  /**
+   * Ad-id coverage (#1695): what share of paid clicks name the ad that
+   * produced them, per platform, with the reason for every one that does not —
+   * and `ads.missing_macro`, each active Meta ad whose URL parameters lack
+   * `{{ad.id}}`, with the suggested replacement.
+   *
+   * Ad-level credit exists only for Touches with an ad id, so this is the
+   * ceiling on every ad-level number. Durable tables only: any range up to 366
+   * days is valid.
+   */
+  async adIds(options: QualityAdIdsOptions): Promise<QualityAdIdsResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<QualityAdIdsResponse>({
+      method: "GET",
+      path: "/api/v1/quality/ad-ids",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * Safari ITP exposure (#1697): what share of browser traffic Safari's 7-day
+   * storage cap applies to (every iPhone/iPad browser, in-app ones included,
+   * and Safari on Mac), whether the profile's collector protects it, observed
+   * evidence of lost visitor ids, and a `recommendation`. Reads the last 90
+   * days of the range; `narrowed` says when that is shorter than asked.
+   */
+  async itp(options: QualityItpOptions): Promise<QualityItpResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<QualityItpResponse>({
+      method: "GET",
+      path: "/api/v1/quality/itp",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * Whether this profile can apply Atribu's URL parameters to its Meta ads
+   * from Atribu (#1696), and the change log with undo availability. No Meta
+   * call. `can_apply: false` with `write_permission: "missing"` means the Meta
+   * connection is read-only: show the parameters to copy instead.
+   */
+  async adUrlTags(options: ReadExtras = {}): Promise<QualityAdUrlTagsResponse> {
+    return this.http.request<QualityAdUrlTagsResponse>({
+      method: "GET",
+      path: "/api/v1/quality/ad-ids/url-tags",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Write Atribu's URL parameters onto up to 25 Meta ads, merged with each
+   * ad's own (#1696). Replaces each ad's creative with one built from the same
+   * post — a Meta "significant edit" that can restart learning — so
+   * `acknowledge_learning_reset: true` is required on every call. One result
+   * per ad; a Meta refusal is that ad's `failed` result, not a throw.
+   */
+  async applyAdUrlTags(
+    input: QualityAdUrlTagsApplyInput,
+    options: WriteExtras = {},
+  ): Promise<QualityAdUrlTagsApplyResponse> {
+    return this.http.request<QualityAdUrlTagsApplyResponse>({
+      method: "POST",
+      path: "/api/v1/quality/ad-ids/url-tags/apply",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Put one ad back on its previous creative — and so its previous URL parameters (#1696). */
+  async undoAdUrlTags(
+    input: QualityAdUrlTagsUndoInput,
+    options: WriteExtras = {},
+  ): Promise<QualityAdUrlTagsUndoResponse> {
+    return this.http.request<QualityAdUrlTagsUndoResponse>({
+      method: "POST",
+      path: "/api/v1/quality/ad-ids/url-tags/undo",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
     });
   }
 

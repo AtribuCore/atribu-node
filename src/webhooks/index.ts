@@ -19,8 +19,15 @@ export {
   type WhatsAppHistoryThread,
   type WhatsAppHistoryMessage,
   type WhatsAppStateSyncItem,
+  // WhatsApp Flows health (Meta's `flows` webhook field).
+  type WhatsAppFlowStatusEvent,
+  type WhatsAppFlowAlertEvent,
+  type WhatsAppFlowAlert,
   type InstagramMessageReceivedEvent,
   type InstagramMessageDeliveryEvent,
+  type MessengerMessageReceivedEvent,
+  type MessengerMessageDeliveryEvent,
+  type MessengerMessageReceivedData,
   type InstagramCommentReceivedEvent,
   type InstagramMessageReceivedData,
   type InstagramFbLoginMessageData,
@@ -33,6 +40,8 @@ export {
   type EmailEventAddress,
   type EmailEventAttachment,
   type EmailEventDeliveryFailure,
+  type EmailChannelHealthUpdatedEvent,
+  type EmailChannelHealthSnapshot,
   type CalendarEventChangedEvent,
   type CalendarEventChangedData,
   type CalendarChangeDateTime,
@@ -55,5 +64,6 @@ export {
   type ExportCompletedEvent,
   type ExportFailedEvent,
   type ProfileFreshnessChangedEvent,
+  type OutcomeRecordedEvent,
 } from "./types";
 export { AtribuWebhookError, type WebhookErrorCode } from "../errors";

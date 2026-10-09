@@ -39,6 +39,17 @@ export function deriveRetryHint(input: DeriveRetryInput): RetryHint {
   if (input.errorCode === "whatsapp_payment_required") {
     return { action: "fix_and_retry" };
   }
+  // #1771 — link-identity tokens are turned OFF on this deployment (no signing
+  // secret). A 503, but a feature that is off, not an outage: a retry loop
+  // would spin forever. Checked before the generic 5xx → retry below.
+  if (input.errorCode === "link_tokens_disabled") {
+    return { action: "do_not_retry" };
+  }
+  // An event retraction refused because the event was exported or is a
+  // conversation's lead. A 409, but nothing the caller changes makes it pass.
+  if (input.errorCode === "event_already_exported" || input.errorCode === "event_linked_to_conversation") {
+    return { action: "do_not_retry" };
+  }
   if (input.status === 408) return { action: "retry" };
   if (input.status === 409) return { action: "fix_and_retry" };
   if (input.status === 422 || input.errorCode === "validation_error" || input.errorCode === "invalid_content") {

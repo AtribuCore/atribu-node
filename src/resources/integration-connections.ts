@@ -47,6 +47,11 @@ type MetaPagesGetResponse =
   paths["/api/v1/integrations/meta/pages"]["get"]["responses"][200]["content"]["application/json"];
 export type MetaPageRow = MetaPagesGetResponse["data"]["pages"][number];
 
+type MetaPagesAvailableResponse =
+  paths["/api/v1/integrations/meta/pages/available"]["get"]["responses"][200]["content"]["application/json"];
+export type AvailableMetaPages = MetaPagesAvailableResponse["data"];
+export type AvailableMetaPage = AvailableMetaPages["pages"][number];
+
 export type SaveMetaPagesInput = NonNullable<
   paths["/api/v1/integrations/meta/pages"]["post"]["requestBody"]
 >["content"]["application/json"];
@@ -151,6 +156,20 @@ export class IntegrationConnectionsResource {
       signal: opts.signal,
     });
     return res.data.pages;
+  }
+
+  /**
+   * The Pages the connected Meta account can see right now, each marked
+   * `connected` when already tracked. `needs_reconsent: true` (empty list) means
+   * the Meta grant lacks the Page permissions: restart the Meta Ads connect hand-off.
+   */
+  async metaPagesAvailable(opts: RequestOptions = {}): Promise<AvailableMetaPages> {
+    const res = await this.http.request<MetaPagesAvailableResponse>({
+      method: "GET",
+      path: "/api/v1/integrations/meta/pages/available",
+      signal: opts.signal,
+    });
+    return res.data;
   }
 
   /** Reconcile tracked Pages to the requested set; ids left out are disabled, not deleted. */

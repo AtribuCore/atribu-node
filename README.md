@@ -674,6 +674,14 @@ const share = await atribu.calendar.shareCalendar(cal.id, {
 });
 const shares = await atribu.calendar.listCalendarShares(cal.id, connection_id);
 await atribu.calendar.revokeCalendarShare(cal.id, share.id, { connectionId: connection_id });
+
+// 5. Read busy slots on that booking calendar with the same `calendar` key.
+//    Only an Atribu-created calendar of this connection is readable this way;
+//    `primary` or any other calendar → calendar_unsupported (422).
+const page = await atribu.externalCalendars.listEvents({
+  connectionId: connection_id, calendarId: cal.id,
+  timeMin: "2026-07-01T00:00:00Z", timeMax: "2026-07-08T00:00:00Z",
+});
 ```
 
 > **Breaking (v1.0.0):** event ops now **require `calendar_id`** (an Atribu booking calendar — `primary`/unknown is rejected with `calendar_unsupported`, 422), and primary-calendar writes were removed. A connection whose Google grant is missing `calendar.app.created`/`calendar.acls` returns `calendar_scope_required` (403) — prompt the user to reconnect. See the [CHANGELOG](./CHANGELOG.md).

@@ -86,6 +86,7 @@ export type {
   WhatsAppConversationMessagesPage,
   SendMessageOptions as WhatsAppSendMessageOptions,
   SendInteractiveInput as WhatsAppSendInteractiveInput,
+  SendDeclaredSourcePromptInput as WhatsAppSendDeclaredSourcePromptInput,
   SendTemplateOptions as WhatsAppSendTemplateOptions,
 } from "./conversations";
 export type {
@@ -126,6 +127,16 @@ export type { WhatsAppCallingSettings } from "./calling";
 export type {
   WhatsAppAutomaticEventsAccount,
   SetAutomaticEventsOptInInput,
+  WhatsAppDeclaredSourcePrompt,
+  WhatsAppDeclaredSourcePromptAccount,
+  WhatsAppDeclaredSourcePromptSpec,
+  SetDeclaredSourcePromptInput,
+  RecordDeclaredSourceAnswerInput,
+  DeclaredSourceAnswerRecord,
+  RecordAdReferralInput,
+  AdReferralRecord,
+  PreviewAdReferralsInput,
+  AdReferralImpactPreview,
   WhatsAppSettingsLabel,
   WhatsAppLabelMapping,
   CreateWhatsAppLabelInput,

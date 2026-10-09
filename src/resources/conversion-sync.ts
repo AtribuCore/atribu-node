@@ -123,6 +123,10 @@ export type PlatformSafeRepointApplyInput =
   paths["/api/v1/conversion-sync/platform-safe/repoint"]["post"]["requestBody"]["content"]["application/json"];
 export type PlatformSafeRepointApplyResponse =
   paths["/api/v1/conversion-sync/platform-safe/repoint"]["post"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeTargetInput =
+  paths["/api/v1/conversion-sync/platform-safe/target"]["post"]["requestBody"]["content"]["application/json"];
+export type PlatformSafeTargetResponse =
+  paths["/api/v1/conversion-sync/platform-safe/target"]["post"]["responses"][200]["content"]["application/json"];
 
 // ---------------------------------------------------------------------------
 // Platform-Safe Mode (#489 phase 3)
@@ -198,6 +202,11 @@ export type ConversionSyncDatasetResponse =
   paths["/api/v1/conversion-sync/dataset"]["get"]["responses"][200]["content"]["application/json"];
 export type ConversionSyncDatasetOptions = DatasetQuery & ReadExtras;
 
+export type ConversionSyncDataSourcesResponse =
+  paths["/api/v1/conversion-sync/data-sources"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncDataSourceEnsureResponse =
+  paths["/api/v1/conversion-sync/data-sources/{kind}/ensure"]["post"]["responses"][200]["content"]["application/json"];
+
 // ---------------------------------------------------------------------------
 // Campaign Blueprints (#489 phase 6)
 // ---------------------------------------------------------------------------
@@ -251,6 +260,14 @@ export type ConversionSyncOptimizationResponse =
 
 export type ConversionSyncActionRollbackResponse =
   paths["/api/v1/conversion-sync/actions/{id}/rollback"]["post"]["responses"][200]["content"]["application/json"];
+
+// The partner customer-list audience (enabled per profile; off by default).
+export type PartnerCustomerListAudienceStatusResponse =
+  paths["/api/v1/partner/audiences/customer-list"]["get"]["responses"][200]["content"]["application/json"];
+export type PartnerCustomerListAudienceCreateInput =
+  paths["/api/v1/partner/audiences/customer-list"]["post"]["requestBody"]["content"]["application/json"];
+export type PartnerCustomerListLookalikeInput =
+  paths["/api/v1/partner/audiences/customer-list/lookalike"]["post"]["requestBody"]["content"]["application/json"];
 
 export class ConversionSyncResource {
   constructor(private readonly http: HttpClientLike) {}
@@ -403,6 +420,12 @@ export class ConversionSyncResource {
    * `switch` mode) a pause of the original, so it needs a second explicit
    * yes: re-send with `confirm_duplicate_swap: true` AND a
    * `duplicate_swap_mode`. There is no default mode on purpose.
+   *
+   * #306 — with an API key or MCP user token, that second yes must also carry
+   * `consent: { version, text_hash, accepted_by, accepted_at }` for the current
+   * consent text (Partners → Automated duplicate-and-swap), or it throws
+   * `consent_required` (409) with `error.consent` naming the current version.
+   * Every rebuild is stated in `warnings`.
    */
   async wireAdSets(
     input: ConversionSyncWireAdSetsInput,
@@ -667,6 +690,42 @@ export class ConversionSyncResource {
       path: "/api/v1/conversion-sync/dataset",
       query,
       signal,
+    });
+  }
+
+  /**
+   * Per data source (WhatsApp, website pixel, Instagram): whether the Meta dataset is
+   * wired, what blocks it, and a 30-day preview of what it would export.
+   * `creation: "on_request"` means connecting only reports `ready` — the
+   * dataset is created by {@link ensureDataSource}. Never calls Meta.
+   */
+  async dataSources(options: ReadExtras = {}): Promise<ConversionSyncDataSourcesResponse> {
+    return this.http.request<ConversionSyncDataSourcesResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/data-sources",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * `whatsapp`: create (201) or confirm (200) the WhatsApp Business Account's
+   * Meta dataset and its Conversions API destination. `instagram`: the same,
+   * on the connected Instagram professional account. `website`: attach one of
+   * the ad account's EXISTING pixels (`{ dataset_id }`) — never creates one. Idempotent — a retry never creates
+   * twice. Exports start from this moment (`export_from`); history is never
+   * sent.
+   */
+  async ensureDataSource(
+    kind: "whatsapp" | "website" | "instagram",
+    input: { dataset_id?: string } = {},
+    options: WriteExtras = {},
+  ): Promise<ConversionSyncDataSourceEnsureResponse> {
+    return this.http.request<ConversionSyncDataSourceEnsureResponse>({
+      method: "POST",
+      path: `/api/v1/conversion-sync/data-sources/${encodeURIComponent(kind)}/ensure`,
+      ...(input.dataset_id !== undefined ? { body: input } : {}),
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
     });
   }
 
@@ -944,6 +1003,52 @@ export class ConversionSyncResource {
   }
 
   /** Pause, resume, or delete a managed audience (children first on a delete). */
+  /** The partner customer-list audience — its state and whether this profile can have one. */
+  async customerListAudience(options: ReadExtras = {}): Promise<PartnerCustomerListAudienceStatusResponse> {
+    return this.http.request<PartnerCustomerListAudienceStatusResponse>({
+      method: "GET",
+      path: "/api/v1/partner/audiences/customer-list",
+      signal: options.signal,
+    });
+  }
+
+  /** Create the customer-list audience (needs the current consent). Idempotent per profile. */
+  async createCustomerListAudience(
+    input: PartnerCustomerListAudienceCreateInput,
+    options: WriteExtras = {},
+  ): Promise<PartnerCustomerListAudienceStatusResponse> {
+    return this.http.request<PartnerCustomerListAudienceStatusResponse>({
+      method: "POST",
+      path: "/api/v1/partner/audiences/customer-list",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Add the 1 % lookalike to the customer list. */
+  async addCustomerListLookalike(
+    input: PartnerCustomerListLookalikeInput,
+    options: WriteExtras = {},
+  ): Promise<PartnerCustomerListAudienceStatusResponse> {
+    return this.http.request<PartnerCustomerListAudienceStatusResponse>({
+      method: "POST",
+      path: "/api/v1/partner/audiences/customer-list/lookalike",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Delete the customer list and its lookalike in Meta. */
+  async deleteCustomerListAudience(options: WriteExtras = {}): Promise<PartnerCustomerListAudienceStatusResponse> {
+    return this.http.request<PartnerCustomerListAudienceStatusResponse>({
+      method: "DELETE",
+      path: "/api/v1/partner/audiences/customer-list",
+      signal: options.signal,
+    });
+  }
+
   async manageAudience(
     audienceId: string,
     input: ConversionSyncAudienceManageInput,
@@ -961,11 +1066,17 @@ export class ConversionSyncResource {
   /**
    * Provision the Platform-Safe Clean Dataset and its neutral conversions.
    *
-   * Two shapes at 200, discriminated by `status`: `provisioned`, or
-   * `action_required` with the manual steps when the grant lacks
-   * `ads_management` or the ad account's one self-created-pixel slot is taken.
-   * Neither is fixable by retrying. Owners and admins only when the caller is
-   * a person.
+   * Two shapes at 200, discriminated by `status`: `provisioned` /
+   * `already_provisioned` (idempotent — answered from Atribu's database, no
+   * Meta call), or `action_required` with the manual steps when the grant
+   * lacks `ads_management` or the ad account's one self-created-pixel slot is
+   * taken. Neither is fixable by retrying. Every 200 carries `checks`.
+   * An API key must switch the profile to `platform_safe` first
+   * (`saveCatalogSettings`), or gets `409 platform_safe_required`.
+   * A Clean Dataset that exists after the call sets the profile's
+   * `platform_safe_target` to `clean` (#1669) — prefer `setPlatformSafeTarget`,
+   * which also lists the ad sets to recreate.
+   * Owners and admins only when the caller is a person.
    */
   async provisionPlatformSafe(
     input: PlatformSafeProvisionInput = {},
@@ -974,6 +1085,32 @@ export class ConversionSyncResource {
     return this.http.request<PlatformSafeProvisionResponse>({
       method: "POST",
       path: "/api/v1/conversion-sync/platform-safe/provision",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Switch where a Platform-Safe profile's scrubbed Meta feed goes (#1669).
+   *
+   * `existing` (the default) sends to the ordinary Meta dataset(s), so the
+   * live ad sets keep optimizing with no recreation. `clean` is the
+   * remediation once Meta restricts that dataset: it provisions the Clean
+   * Dataset, flips the target only when one exists (an `action_required`
+   * provision leaves it on `existing`, `switched: false`), and lists the ad
+   * sets to recreate. Going back to `existing` is refused with `409
+   * clean_dataset_has_live_ad_sets` while Clean Dataset ad sets still deliver,
+   * unless `confirm_live_ad_sets: true`. Only in `platform_safe` mode (`409
+   * platform_safe_required`); owners and admins only when the caller is a person.
+   */
+  async setPlatformSafeTarget(
+    input: PlatformSafeTargetInput,
+    options: WriteExtras = {},
+  ): Promise<PlatformSafeTargetResponse> {
+    return this.http.request<PlatformSafeTargetResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/platform-safe/target",
       body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
@@ -997,6 +1134,12 @@ export class ConversionSyncResource {
    * normal: `needs_recreate` holds the ad sets Meta froze, which need a second
    * yes (`confirm_recreate: true`) because rebuilding costs a new ad set id and
    * a learning reset. Owners and admins only when the caller is a person.
+   *
+   * #306 — with an API key or MCP user token, `confirm_recreate: true` must
+   * also carry `consent: { version, text_hash, accepted_by, accepted_at }` for
+   * the current consent text, or it throws `consent_required` (409) with
+   * `error.consent` naming the current version. Every rebuild is stated in
+   * `warnings`.
    */
   async applyPlatformSafeRepoint(
     input: PlatformSafeRepointApplyInput,

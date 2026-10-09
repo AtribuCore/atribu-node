@@ -23,12 +23,14 @@
 export const WEBHOOK_PROVIDERS = [
   "whatsapp",
   "instagram",
+  "messenger",
   "email",
   "google_calendar",
   "shopify",
   // Atribu itself — the provider carried by every PLATFORM LIFECYCLE event
   // (connection.*, handoff.completed, recompute.completed,
-  // conversion.attributed, export.*, profile.freshness.changed).
+  // conversion.attributed, export.*, profile.freshness.changed,
+  // outcome.recorded).
   //
   // Subscriptions match on providers AND events, so these are opt-in: put
   // atribu in your subscription's `providers` or you will receive none of
@@ -55,6 +57,8 @@ export const WEBHOOK_EVENT_TYPES = [
   "channel.health.updated",
   "call.status.updated",
   "call.permission.updated",
+  "whatsapp.flow.status",
+  "whatsapp.flow.alert",
   "comment.received",
   "catalog.updated",
   "product.stock.changed",
@@ -71,6 +75,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "export.completed",
   "export.failed",
   "profile.freshness.changed",
+  "outcome.recorded",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
@@ -329,6 +334,49 @@ export interface InstagramMessageDeliveryEvent extends BaseEvent {
 }
 
 /**
+ * A Messenger (Facebook Page) `message.received`. `kind` says which Meta event
+ * it came from:
+ *   - `message`  — a message (or, with `is_echo`, the Page's own send);
+ *   - `postback` — a button / Get Started tap (`text` = the button title);
+ *   - `referral` — an existing thread re-entered from an ad or m.me link, with
+ *                  no message (`text` and `mid` are null).
+ * `referral` carries the Click-to-Messenger ad referral verbatim when present:
+ * `{ ref?, ad_id, source: "ADS", type: "OPEN_THREAD", ads_context_data }`.
+ * `sender_id` is the person's page-scoped id (PSID) — the `to` of a reply.
+ */
+export interface MessengerMessageReceivedData {
+  kind: "message" | "postback" | "referral";
+  page_id: string;
+  sender_id: string;
+  recipient_id: string;
+  mid: string | null;
+  text: string | null;
+  is_echo: boolean;
+  attachments?: unknown[] | null;
+  title?: string | null;
+  payload?: string | null;
+  referral: unknown | null;
+}
+
+export interface MessengerMessageReceivedEvent extends BaseEvent {
+  type: "message.received";
+  provider: "messenger";
+  data: MessengerMessageReceivedData;
+}
+
+export interface MessengerMessageDeliveryEvent extends BaseEvent {
+  type: "message.delivery";
+  provider: "messenger";
+  data: {
+    page_id: string;
+    sender_id: string;
+    recipient_id: string;
+    mids: string[];
+    watermark: number;
+  };
+}
+
+/**
  * A comment landed on a connected IG post — ig_login `field=comments` or
  * fb_login `field=feed` (comments nested in the Page feed). Emitted for
  * EVERY inbound comment, unconditional on whether it matched an internal
@@ -499,6 +547,23 @@ export interface EmailEventDeliveryFailure {
    */
   status: string | null;
   /**
+   * The report's `Action` field for the same recipient, lowercased (RFC 3464
+   * §2.3.3): `"failed"` — the MTA gave up, `"delayed"` — it is still retrying
+   * (a warning, not a bounce), or `"delivered"` / `"relayed"` / `"expanded"`
+   * for a positive report. Read it together with `status`: a `failed` with a
+   * `5.x.x` status is a hard bounce. `null` when the report carried none (or a
+   * value outside those five), and always `null` for an Outlook bounce whose
+   * raw report could not be fetched.
+   */
+  action: "failed" | "delayed" | "delivered" | "relayed" | "expanded" | null;
+  /**
+   * The report's `Diagnostic-Code` for the same recipient, verbatim with its
+   * diagnostic-type prefix (e.g. `"smtp; 550 5.1.1 The email account … does
+   * not exist."`) — the remote server's own words. For display and logs; branch
+   * on `status` and `action`, not on this text. `null` when absent.
+   */
+  diagnostic_code: string | null;
+  /**
    * The `Message-ID` of YOUR message that bounced — read from the report's
    * returned headers, its `Original-Message-ID` field, or the bounce's own
    * `In-Reply-To`, in that order. This equals the `rfc822_message_id` the send
@@ -594,6 +659,8 @@ export interface CalendarChangeAttendee {
 export interface CalendarEventChangedData {
   calendar_id: string;
   event_id: string;
+  /** Opaque partner intention, retained even when Google emits a skeletal cancellation. */
+  intention_id?: string | null;
   change_type: "upserted" | "deleted";
   ical_uid: string | null;
   status: "confirmed" | "tentative" | "cancelled";
@@ -678,6 +745,40 @@ export interface WhatsAppChannelHealthUpdatedEvent extends BaseEvent {
   };
 }
 
+/**
+ * The health snapshot on an EMAIL `channel.health.updated` event (#1653).
+ *
+ * `needs_action` — the mailbox's provider refused a send for a reason only its
+ * owner can fix (`code`: `account_suspended` | `mailbox_disabled` |
+ * `quota_exceeded`). The connection still accepts sends; the first one the
+ * provider accepts clears it and pushes `healthy`.
+ * `reconnect_required` — the grant is dead (`code: "auth_revoked"`); reconnect.
+ * `healthy` — a previously recorded block cleared (a send succeeded, or the
+ * mailbox was reconnected).
+ */
+export interface EmailChannelHealthSnapshot {
+  status: "needs_action" | "reconnect_required" | "healthy";
+  code: "account_suspended" | "auth_revoked" | "mailbox_disabled" | "quota_exceeded" | null;
+  provider: "gmail" | "outlook" | null;
+  /** The provider's own error code (`ErrorAccountSuspend`, `failedPrecondition`, …). */
+  provider_code: string | null;
+  /** The provider's own message, verbatim — show it to the mailbox owner. */
+  provider_message: string | null;
+  /** When this episode started (ISO); null on `healthy`. */
+  since: string | null;
+}
+
+/** An email mailbox's ability to send changed (#1653). */
+export interface EmailChannelHealthUpdatedEvent extends BaseEvent {
+  type: "channel.health.updated";
+  provider: "email";
+  data: {
+    /** Always `"send"` today: the verdict came from a send attempt. */
+    field: "send";
+    health: EmailChannelHealthSnapshot;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // WhatsApp calling (ADR 0053). Under SIP interconnect Meta emits exactly two
 // call events (`call_created`, `terminate`) and exactly two statuses
@@ -743,6 +844,78 @@ export interface WhatsAppCallPermissionUpdatedEvent extends BaseEvent {
     expiration_timestamp: string | number | null;
     /** The raw Meta `call_permission_reply` object. */
     raw: Record<string, unknown>;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp Flows health — Meta's `flows` webhook field. Meta keys these on the
+// WABA and sends no phone number and no flow name: `phone_number_id` is the
+// number behind `connection_id` (one event per connection of the WABA), and
+// `flow_name` is read from Meta's status sentence when it states one.
+// ---------------------------------------------------------------------------
+
+/**
+ * A flow's status changed at Meta — including its creation (no `old_status`),
+ * and Meta's own health monitoring moving a published flow to `THROTTLED`
+ * (opens, but 10 sends/hour) or `BLOCKED` (cannot be sent or opened) and back.
+ */
+export interface WhatsAppFlowStatusEvent extends BaseEvent {
+  type: "whatsapp.flow.status";
+  provider: "whatsapp";
+  data: {
+    waba_id: string;
+    phone_number_id: string | null;
+    /** Meta flow id. */
+    flow_id: string;
+    flow_name: string | null;
+    /** null on a create notification. */
+    old_status: string | null;
+    /** DRAFT | PUBLISHED | DEPRECATED | BLOCKED | THROTTLED (Meta casing; typed open). */
+    new_status: string;
+    /** Meta's human sentence (`value.message`). */
+    message: string | null;
+    occurred_at: string;
+  };
+}
+
+/** The alert inside a `whatsapp.flow.alert` event. */
+export interface WhatsAppFlowAlert {
+  type: "error_rate" | "latency" | "availability" | "version_expiry";
+  /** error_rate only — Meta's ENDPOINT_ERROR_RATE vs CLIENT_ERROR_RATE. */
+  source: "endpoint" | "client" | null;
+  /** Meta's alert_state, lowercased; null for version_expiry. */
+  state: "activated" | "deactivated" | null;
+  /** error rate %, p90 latency ms, or availability %; null for version_expiry. */
+  value: number | null;
+  /** The threshold crossed (or recovered from): 5/10/50 %, 1000/5000/7000 ms, 90 %. */
+  threshold: number | null;
+  /** Meta's documented detection window (60m client errors, 30m endpoint errors and latency, 10m availability). */
+  window: string | null;
+  /** The raw Meta event name (ENDPOINT_ERROR_RATE, FLOW_VERSION_EXPIRY_WARNING, …). */
+  meta_event: string;
+  /** Meta's human sentence; for version_expiry, its `warning` text. */
+  message: string | null;
+  /** The rest of Meta's payload — `errors[]`, `p50_latency`, `requests_count`, … */
+  details: Record<string, unknown> | null;
+}
+
+/**
+ * Meta's monitoring of a flow raised or cleared an alert: endpoint or client
+ * error rate, endpoint p90 latency, endpoint availability, or the flow's JSON
+ * version about to freeze (also raised when a create notification carries
+ * Meta's `warning`).
+ */
+export interface WhatsAppFlowAlertEvent extends BaseEvent {
+  type: "whatsapp.flow.alert";
+  provider: "whatsapp";
+  data: {
+    waba_id: string;
+    phone_number_id: string | null;
+    /** Meta flow id. */
+    flow_id: string;
+    flow_name: string | null;
+    alert: WhatsAppFlowAlert;
+    occurred_at: string;
   };
 }
 
@@ -919,6 +1092,8 @@ export interface ExportCompletedEvent extends BaseEvent {
     profile_id: string;
     meta: ExportDestinationCounts;
     google: ExportDestinationCounts;
+    /** TikTok Events API lane (#1700). Absent on events emitted before it. */
+    tiktok?: ExportDestinationCounts;
     duration_ms: number;
     /** `true` when the run was an explicit replay of named export rows. */
     replay: boolean;
@@ -938,6 +1113,8 @@ export interface ExportFailedEvent extends BaseEvent {
     profile_id: string;
     meta: ExportDestinationCounts;
     google: ExportDestinationCounts;
+    /** TikTok Events API lane (#1700). Absent on events emitted before it. */
+    tiktok?: ExportDestinationCounts;
     duration_ms: number;
     replay: boolean;
   };
@@ -960,6 +1137,56 @@ export interface ProfileFreshnessChangedEvent extends BaseEvent {
   };
 }
 
+/**
+ * A provider outcome — a GoHighLevel lead / booking / won / lost…, a
+ * MercadoPago payment — recorded on a profile your app provisioned. For a
+ * healthcare-family profile only the app that provisioned it receives it
+ * (contact by that app's grant, as below).
+ * `connection_id` is always null; the source is `data.provider`.
+ *
+ * `id` is stable per outcome: the same outcome carries the same id on every
+ * retry, on `GET /api/v1/outcomes/recorded` (the replay of these events, in
+ * the same order), and after any recompute or re-sync — de-dupe on it.
+ *
+ * Delivery needs your app's live grant on the profile. Contact fields ride
+ * only when that grant carries `customers:read`; otherwise `contact` is null
+ * and `contact_withheld` is true. The person is read at each delivery attempt.
+ */
+export interface OutcomeRecordedEvent extends BaseEvent {
+  type: "outcome.recorded";
+  provider: "atribu";
+  data: {
+    profile_id: string;
+    /** `gohighlevel` | `mercadopago` */
+    provider: string;
+    /** `lead_created`, `appointment_booked`, `closed_won`, `payment_received`, … */
+    outcome_type: string;
+    occurred_at: string;
+    /** When Atribu recorded it — a backfill records old outcomes late. */
+    recorded_at: string;
+    /** The provider's own id for the outcome. */
+    external_id: string | null;
+    /** Atribu's id for the outcome — `outcome_event_id` on `GET /api/v1/campaigns/{id}/conversions`. */
+    outcome_event_id: string | null;
+    /**
+     * The conversion it produced — `conversion_id` on `GET /api/v1/campaigns/{id}/conversions`.
+     * Null when the outcome produced no conversion, or none yet at delivery time; join on `outcome_event_id` then.
+     */
+    conversion_id: string | null;
+    /** The provider's customer id; null when it is not the provider's opaque id shape (an email, a phone) and contact is withheld. */
+    customer_key: string | null;
+    /** `amount` is an exact decimal string (ADR 0018) — parse before arithmetic. */
+    value: { amount: string; currency: string | null } | null;
+    contact: {
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+      phone: string | null;
+    } | null;
+    contact_withheld: boolean;
+  };
+}
+
 export type AtribuWebhookEvent =
   | WhatsAppMessageReceivedEvent
   | WhatsAppMessageDeliveryEvent
@@ -968,10 +1195,15 @@ export type AtribuWebhookEvent =
   | WhatsAppContactsSyncEvent
   | WhatsAppTemplateUpdatedEvent
   | WhatsAppChannelHealthUpdatedEvent
+  | EmailChannelHealthUpdatedEvent
   | WhatsAppCallStatusUpdatedEvent
   | WhatsAppCallPermissionUpdatedEvent
+  | WhatsAppFlowStatusEvent
+  | WhatsAppFlowAlertEvent
   | InstagramMessageReceivedEvent
   | InstagramMessageDeliveryEvent
+  | MessengerMessageReceivedEvent
+  | MessengerMessageDeliveryEvent
   | InstagramCommentReceivedEvent
   | EmailMessageReceivedEvent
   | CalendarEventChangedEvent
@@ -989,4 +1221,5 @@ export type AtribuWebhookEvent =
   | ConversionAttributedEvent
   | ExportCompletedEvent
   | ExportFailedEvent
-  | ProfileFreshnessChangedEvent;
+  | ProfileFreshnessChangedEvent
+  | OutcomeRecordedEvent;

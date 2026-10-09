@@ -60,11 +60,26 @@ export type CampaignsUnattributedResponse =
   paths["/api/v1/campaigns/unattributed"]["get"]["responses"][200]["content"]["application/json"];
 export type CampaignsUnattributedOptions = CampaignsUnattributedQuery & ReadExtras;
 
+type CampaignsPlatformComparisonQuery =
+  paths["/api/v1/campaigns/platform-comparison"]["get"]["parameters"]["query"];
+export type CampaignsPlatformComparisonResponse =
+  paths["/api/v1/campaigns/platform-comparison"]["get"]["responses"][200]["content"]["application/json"];
+export type CampaignsPlatformComparisonOptions = CampaignsPlatformComparisonQuery & ReadExtras;
+
 type CampaignConversionsQuery =
   paths["/api/v1/campaigns/{id}/conversions"]["get"]["parameters"]["query"];
 export type CampaignConversionsResponse =
   paths["/api/v1/campaigns/{id}/conversions"]["get"]["responses"][200]["content"]["application/json"];
 export type CampaignConversionsOptions = CampaignConversionsQuery & ReadExtras;
+
+// #1776 — campaign-level pause / resume and the live status read before them.
+export type CampaignStatusResponse =
+  paths["/api/v1/campaigns/{id}/status"]["get"]["responses"][200]["content"]["application/json"];
+export type CampaignStatusChangeInput = NonNullable<
+  paths["/api/v1/campaigns/{id}/pause"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type CampaignStatusChangeResponse =
+  paths["/api/v1/campaigns/{id}/pause"]["post"]["responses"][200]["content"]["application/json"];
 
 type BreakdownQuery = paths["/api/v1/breakdown"]["get"]["parameters"]["query"];
 export type BreakdownResponse =
@@ -127,6 +142,22 @@ type CustomerJourneyQuery =
 export type CustomerJourneyResponse =
   paths["/api/v1/customers/{id}/journey"]["get"]["responses"][200]["content"]["application/json"];
 export type CustomerJourneyOptions = CustomerJourneyQuery & ReadExtras;
+
+// The Vitrina Ads contract §12, ask D — the same page, addressed by a
+// conversion handle (outcome_event_id, conversions.id, or the ingest event_id).
+type ConversionJourneyQuery =
+  paths["/api/v1/conversions/{id}/journey"]["get"]["parameters"]["query"];
+export type ConversionJourneyResponse =
+  paths["/api/v1/conversions/{id}/journey"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionJourneyOptions = ConversionJourneyQuery & ReadExtras;
+
+// #1768 — one person's journey, named by YOUR customer id (the
+// `user_traits.external_id` you ingest), or with `customers:read` by email/phone.
+type CustomerJourneyByKeyQuery =
+  NonNullable<paths["/api/v1/customers/journey"]["get"]["parameters"]["query"]>;
+export type CustomerJourneyByKeyResponse =
+  paths["/api/v1/customers/journey"]["get"]["responses"][200]["content"]["application/json"];
+export type CustomerJourneyByKeyOptions = CustomerJourneyByKeyQuery & ReadExtras;
 
 type CustomerSummaryQuery =
   paths["/api/v1/customers/{id}/summary"]["get"]["parameters"]["query"];
@@ -233,6 +264,27 @@ export class AnalyticsResource {
   }
 
   /**
+   * Platform-reported vs Atribu-attributed (#1710): per platform and per
+   * campaign / ad set / ad (`level`), the platform's OWN reported conversions
+   * and value beside the conversions and cash Atribu attributed under `model`,
+   * with the gap and ROAS both ways. The two sides are never blended — every
+   * platform field is `platform_*`, every Atribu field `atribu_*`, and `null`
+   * on the platform side means "the platform reported nothing", not zero.
+   * Durable tables only: any range up to 366 days is valid.
+   */
+  async campaignsPlatformComparison(
+    options: CampaignsPlatformComparisonOptions,
+  ): Promise<CampaignsPlatformComparisonResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<CampaignsPlatformComparisonResponse>({
+      method: "GET",
+      path: "/api/v1/campaigns/platform-comparison",
+      query,
+      signal,
+    });
+  }
+
+  /**
    * The conversions one campaign is credited with. `campaignId` is the
    * PLATFORM id (Meta's numeric campaign id), the value `campaigns()` returns
    * as `campaign_external_id` — not the Atribu row id.
@@ -247,6 +299,66 @@ export class AnalyticsResource {
       path: `/api/v1/campaigns/${encodeURIComponent(campaignId)}/conversions`,
       query,
       signal,
+    });
+  }
+
+  /**
+   * A campaign's live status and what pausing or resuming it would do — the
+   * consent screen's one call: name, `effective_status`, the ads a pause stops
+   * (or a resume frees), daily budget, mean daily spend, and per action
+   * `{ available, reason, affected_ads_count }`. Degrades to the synced status
+   * (with a `reason`) instead of failing when Meta is unreadable. `campaigns:read`.
+   */
+  async campaignStatus(
+    campaignId: string,
+    options: ReadExtras = {},
+  ): Promise<CampaignStatusResponse> {
+    return this.http.request<CampaignStatusResponse>({
+      method: "GET",
+      path: `/api/v1/campaigns/${encodeURIComponent(campaignId)}/status`,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Pause one ACTIVE campaign by its Meta id — ONE campaign-level write, never
+   * a per-ad fan-out. `affected_ads_count` is how many delivering ads stopped;
+   * `undo` is the resume call. A paused campaign is `outcome: "no_change"`.
+   * Pass `idempotencyKey` (required by the route) — derive it from
+   * {@link campaignStatus}'s `confirm_token`, so a retry replays and a later
+   * toggle never does. `campaigns:apply`.
+   */
+  async campaignPause(
+    campaignId: string,
+    input: CampaignStatusChangeInput = {},
+    options: WriteExtras = {},
+  ): Promise<CampaignStatusChangeResponse> {
+    return this.http.request<CampaignStatusChangeResponse>({
+      method: "POST",
+      path: `/api/v1/campaigns/${encodeURIComponent(campaignId)}/pause`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Resume one PAUSED campaign. When Atribu paused it, this is that pause's
+   * undo (`rollback_of` names it). Ads paused on their own stay paused. An
+   * active campaign is `outcome: "no_change"`. Same idempotency contract as
+   * {@link campaignPause}. `campaigns:apply`.
+   */
+  async campaignResume(
+    campaignId: string,
+    input: CampaignStatusChangeInput = {},
+    options: WriteExtras = {},
+  ): Promise<CampaignStatusChangeResponse> {
+    return this.http.request<CampaignStatusChangeResponse>({
+      method: "POST",
+      path: `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resume`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
     });
   }
 
@@ -474,6 +586,46 @@ export class AnalyticsResource {
     return this.http.request<CustomerJourneyResponse>({
       method: "GET",
       path: `/api/v1/customers/${encodeURIComponent(visitorId)}/journey`,
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * The visitor timeline behind ONE conversion — the page
+   * {@link customerJourney} returns, addressed by the `outcome_event_id` an
+   * `events.ingest` response returned, a `conversions.id`, or the ingest's own
+   * `event_id` (your idempotency key). `conversions:read`; without
+   * `customers:read` the answer is the key-only projection, with your own
+   * `customer_key` in `meta.conversion` instead of Atribu's ids (#1767).
+   */
+  async conversionJourney(
+    conversionId: string,
+    options: ConversionJourneyOptions = {},
+  ): Promise<ConversionJourneyResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<ConversionJourneyResponse>({
+      method: "GET",
+      path: `/api/v1/conversions/${encodeURIComponent(conversionId)}/journey`,
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * One person's whole journey, named by the customer id YOU send as
+   * `user_traits.external_id` (`{ customer_key }`), or — with `customers:read`
+   * — by `{ email }` / `{ phone }`. `conversions:read`. Without
+   * `customers:read` the rows are the key-only projection (no person, no
+   * pages) and `meta.person` carries no name or identifiers (#1768).
+   */
+  async customerJourneyByKey(
+    options: CustomerJourneyByKeyOptions,
+  ): Promise<CustomerJourneyByKeyResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<CustomerJourneyByKeyResponse>({
+      method: "GET",
+      path: "/api/v1/customers/journey",
       query,
       signal,
     });

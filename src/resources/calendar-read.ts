@@ -103,7 +103,14 @@ export class ExternalCalendarsResource {
     return res.data;
   }
 
-  /** List events on one calendar within a window, or incrementally via `syncToken`. */
+  /**
+   * List events on one calendar within a window, or incrementally via `syncToken`.
+   *
+   * Also callable with a booking (`calendar`) key, but then only on a
+   * `google_calendar` booking connection and only for a calendar Atribu created
+   * for it (`calendar.calendars.create`); `primary` or any other calendar is
+   * refused with 422 `calendar_unsupported`.
+   */
   async listEvents(
     input: ExternalEventsListInput,
     opts: ExternalCalendarReadOptions = {},

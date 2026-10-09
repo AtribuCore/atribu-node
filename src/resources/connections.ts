@@ -137,6 +137,14 @@ export type SyncStatusOptions = Omit<SyncStatusQuery, "provider"> & { signal?: A
 export type DisconnectResponse =
   paths["/api/v1/connections/{id}/disconnect"]["post"]["responses"][200]["content"]["application/json"];
 
+/** #1800 A4 — a CRM's stages with the suggested and current outcome mapping. */
+export type StagesResponse =
+  paths["/api/v1/connections/{provider}/stages"]["get"]["responses"][200]["content"]["application/json"];
+export type StagesProvider = paths["/api/v1/connections/{provider}/stages"]["get"]["parameters"]["path"]["provider"];
+export type StagesOptions = NonNullable<
+  paths["/api/v1/connections/{provider}/stages"]["get"]["parameters"]["query"]
+> & { signal?: AbortSignal };
+
 export class ConnectionsResource {
   constructor(private readonly http: HttpClientLike) {}
 
@@ -305,6 +313,26 @@ export class ConnectionsResource {
       body: input,
       idempotencyKey: opts.idempotencyKey,
       signal: opts.signal,
+    });
+  }
+
+  /**
+   * #1800 A4 — every stage of the CRM's pipelines with what Atribu suggests it
+   * means (labelled in `locale`), the mapping in force, and why there is no
+   * suggestion when there is none. One read, no provider call.
+   *
+   * Write a stage's mapping with
+   * `profile.updateOutcomeDefinition(stage.outcome_definition_id, { event_key })`
+   * — idempotent, needs `goals:write`; `can_write` / `writable` say whether it
+   * would be refused.
+   */
+  async stages(provider: StagesProvider, options: StagesOptions = {}): Promise<StagesResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<StagesResponse>({
+      method: "GET",
+      path: `/api/v1/connections/${encodeURIComponent(provider)}/stages`,
+      query,
+      signal,
     });
   }
 

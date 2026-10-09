@@ -109,33 +109,6 @@ export type CreativeAnalysisBackfillResponse =
   paths["/api/v1/profile/creative-analysis/backfill"]["post"]["responses"][200]["content"]["application/json"];
 export type CreativeAnalysisBackfillPlan = CreativeAnalysisBackfillResponse["data"];
 
-/** #489 — the profile knowledge-base document surface. See {@link ProfileResource.knowledgeBaseDocuments}. */
-export type KnowledgeBaseDocumentsListResponse =
-  paths["/api/v1/profile/knowledge-base/documents"]["get"]["responses"][200]["content"]["application/json"];
-export type KnowledgeBaseDocumentListItem = KnowledgeBaseDocumentsListResponse["data"]["items"][number];
-
-export type KnowledgeBaseDocumentCreateInput = NonNullable<
-  paths["/api/v1/profile/knowledge-base/documents"]["post"]["requestBody"]
->["content"]["application/json"];
-export type KnowledgeBaseDocumentCreateResponse =
-  paths["/api/v1/profile/knowledge-base/documents"]["post"]["responses"][202]["content"]["application/json"];
-export type KnowledgeBaseDocumentQueuedResult = KnowledgeBaseDocumentCreateResponse["data"];
-
-export type KnowledgeBaseDocumentGetResponse =
-  paths["/api/v1/profile/knowledge-base/documents/{documentId}"]["get"]["responses"][200]["content"]["application/json"];
-export type KnowledgeBaseDocumentDetail = KnowledgeBaseDocumentGetResponse["data"];
-
-export type KnowledgeBaseDocumentUpdateInput = NonNullable<
-  paths["/api/v1/profile/knowledge-base/documents/{documentId}"]["patch"]["requestBody"]
->["content"]["application/json"];
-export type KnowledgeBaseDocumentUpdateResponse =
-  paths["/api/v1/profile/knowledge-base/documents/{documentId}"]["patch"]["responses"][200]["content"]["application/json"];
-export type KnowledgeBaseDocumentUpdateResult = KnowledgeBaseDocumentUpdateResponse["data"];
-
-export type KnowledgeBaseDocumentDeleteResponse =
-  paths["/api/v1/profile/knowledge-base/documents/{documentId}"]["delete"]["responses"][200]["content"]["application/json"];
-export type KnowledgeBaseDocumentDeleteResult = KnowledgeBaseDocumentDeleteResponse["data"];
-
 export interface CreateProfileInput {
   /** The EXISTING workspace to add this profile to. You must hold an ACTIVE owner or admin membership on it. */
   workspace_id: string;
@@ -760,90 +733,6 @@ export class ProfileResource {
       method: "POST",
       path: "/api/v1/profile/creative-analysis/backfill",
       body: input,
-      idempotencyKey: options.idempotencyKey,
-      signal: options.signal,
-    });
-    return res.data;
-  }
-
-  // -------------------------------------------------------------------------
-  // #489 — the profile knowledge-base document surface: an AI-searchable
-  // reference library a profile's assistants can draw on. Metadata-only list;
-  // `getKnowledgeBaseDocument` for the full `content`.
-  // -------------------------------------------------------------------------
-
-  /** The profile's knowledge-base documents (metadata only), newest-updated first. */
-  async knowledgeBaseDocuments(
-    options: ReadExtras = {},
-  ): Promise<KnowledgeBaseDocumentListItem[]> {
-    const res = await this.http.request<KnowledgeBaseDocumentsListResponse>({
-      method: "GET",
-      path: "/api/v1/profile/knowledge-base/documents",
-      signal: options.signal,
-    });
-    return res.data.items;
-  }
-
-  /**
-   * Add a document. Returns `202 queued` immediately — chunking, an LLM
-   * contextualise pass and embedding all happen asynchronously; poll
-   * {@link getKnowledgeBaseDocument} and watch `processing_status`.
-   * `content` is raw text, not a file — extract it client-side first.
-   */
-  async createKnowledgeBaseDocument(
-    input: KnowledgeBaseDocumentCreateInput,
-    options: WriteExtras = {},
-  ): Promise<KnowledgeBaseDocumentQueuedResult> {
-    const res = await this.http.request<KnowledgeBaseDocumentCreateResponse>({
-      method: "POST",
-      path: "/api/v1/profile/knowledge-base/documents",
-      body: input,
-      idempotencyKey: options.idempotencyKey,
-      signal: options.signal,
-    });
-    return res.data;
-  }
-
-  /** One document, including its full `content`. */
-  async getKnowledgeBaseDocument(
-    documentId: string,
-    options: ReadExtras = {},
-  ): Promise<KnowledgeBaseDocumentDetail> {
-    const res = await this.http.request<KnowledgeBaseDocumentGetResponse>({
-      method: "GET",
-      path: `/api/v1/profile/knowledge-base/documents/${encodeURIComponent(documentId)}`,
-      signal: options.signal,
-    });
-    return res.data;
-  }
-
-  /**
-   * Edit a document. Every field is optional. Sending `content` different
-   * from the stored value re-queues chunking + embedding.
-   */
-  async updateKnowledgeBaseDocument(
-    documentId: string,
-    input: KnowledgeBaseDocumentUpdateInput,
-    options: WriteExtras = {},
-  ): Promise<KnowledgeBaseDocumentUpdateResult> {
-    const res = await this.http.request<KnowledgeBaseDocumentUpdateResponse>({
-      method: "PATCH",
-      path: `/api/v1/profile/knowledge-base/documents/${encodeURIComponent(documentId)}`,
-      body: input,
-      idempotencyKey: options.idempotencyKey,
-      signal: options.signal,
-    });
-    return res.data;
-  }
-
-  /** Soft-delete a document (excludes it from search). */
-  async deleteKnowledgeBaseDocument(
-    documentId: string,
-    options: WriteExtras = {},
-  ): Promise<KnowledgeBaseDocumentDeleteResult> {
-    const res = await this.http.request<KnowledgeBaseDocumentDeleteResponse>({
-      method: "DELETE",
-      path: `/api/v1/profile/knowledge-base/documents/${encodeURIComponent(documentId)}`,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
     });

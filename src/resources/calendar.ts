@@ -1,4 +1,17 @@
-import type { HttpClientLike } from "../http";
+import type { HttpClientLike, RequestOptions } from "../http";
+import { AtribuApiError } from "../errors";
+
+export type CalendarReadinessResult =
+  | { state: "blocked"; reason: string; checked_at: string }
+  | { state: "ready"; checked_at: string; valid_until: string;
+      scope: CalendarIntentionScope & { workspace_id: string; profile_id: string; account_id: string };
+      evidence: {
+        partner: { app_id: string; grant_id: string };
+        lifecycle: { observed_at: string };
+        watch: { channel_id: string; receipt_ref: string; expires_at: string };
+        sync: { fence: number; generation: number; completed_at: string; completed_pages: number };
+        google: { checked_at: string; metadata_ref: string; calendar_id: string; time_zone: string | null; meet_supported: true; metadata_readable: true };
+      } };
 
 // ---------------------------------------------------------------------------
 // Wire types — all snake_case to match the /api/v1/calendar/* route bodies.
@@ -144,6 +157,26 @@ export interface CalendarRevokeShareOptions {
   signal?: AbortSignal;
 }
 
+
+/** Opaque booking identity survives HTTP retries, process restarts and API-key rotation. */
+export interface CalendarIntentionScope { connection_id: string; calendar_id: string }
+export interface CalendarIntentionMutation extends CalendarIntentionScope {
+  operation_id: string;
+  summary?: string;
+  start?: { date_time: string; time_zone: string };
+  end?: { date_time: string; time_zone: string };
+  attendees?: Array<{ email: string }>;
+}
+export interface CalendarIntentionEvent {
+  id: string; calendar_id: string; ical_uid: string | null; meet_link: string | null;
+  status: string; start: { date_time: string; time_zone: string } | null;
+  end: { date_time: string; time_zone: string } | null; attendees: string[];
+}
+export type CalendarIntentionResult =
+  | { status: "confirmed"; intention_id: string; event: CalendarIntentionEvent }
+  | { status: "rejected"; intention_id: string; reason: string }
+  | { status: "uncertain"; intention_id: string; event_id: string | null; reason: string };
+
 interface DataEnvelope<T> {
   data: T;
 }
@@ -162,6 +195,60 @@ interface DataEnvelope<T> {
  */
 export class CalendarResource {
   constructor(private readonly http: HttpClientLike) {}
+
+  private async intentionRequest(intentionId: string, request: RequestOptions): Promise<CalendarIntentionResult> {
+    try { return (await this.http.request<DataEnvelope<CalendarIntentionResult>>(request)).data; }
+    catch (error) {
+      if (error instanceof AtribuApiError && error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status))
+        return { status: "rejected", intention_id: intentionId, reason: error.code };
+      return { status: "uncertain", intention_id: intentionId, event_id: null, reason: "transport_outcome_unknown" };
+    }
+  }
+
+  /** Read finite provider/lifecycle evidence; never activates or books. */
+  async readiness(input: CalendarIntentionScope, opts: CalendarListOptions = {}): Promise<CalendarReadinessResult> {
+    const response = await this.http.request<DataEnvelope<CalendarReadinessResult>>({
+      method: "GET", path: "/api/v1/calendar/readiness", query: { ...input }, signal: opts.signal,
+    });
+    return response.data;
+  }
+
+  /** Timed event + new Meet + invitations, claimed durably before Google is called. */
+  async createIntention(intentionId: string, input: CalendarIntentionMutation & {
+    start: { date_time: string; time_zone: string }; end: { date_time: string; time_zone: string };
+    attendees: Array<{ email: string }>;
+  }, opts: CalendarMutationOptions = {}): Promise<CalendarIntentionResult> {
+    return this.intentionRequest(intentionId, {
+      method: "POST", path: `/api/v1/calendar/intents/${encodeURIComponent(intentionId)}`,
+      body: input, signal: opts.signal, retryable: false,
+    });
+  }
+
+  /** Reconcile the durable intention with Google; an uncertain result never authorizes a blind mutation. */
+  async readIntention(intentionId: string, input: CalendarIntentionScope,
+    opts: CalendarListOptions = {}): Promise<CalendarIntentionResult> {
+    return this.intentionRequest(intentionId, {
+      method: "GET", path: `/api/v1/calendar/intents/${encodeURIComponent(intentionId)}`,
+      query: { ...input }, signal: opts.signal,
+    });
+  }
+
+  async updateIntention(intentionId: string, input: CalendarIntentionMutation,
+    opts: CalendarMutationOptions = {}): Promise<CalendarIntentionResult> {
+    return this.intentionRequest(intentionId, {
+      method: "PATCH", path: `/api/v1/calendar/intents/${encodeURIComponent(intentionId)}`,
+      body: input, signal: opts.signal, retryable: false,
+    });
+  }
+
+  async cancelIntention(intentionId: string, input: CalendarIntentionScope & { operation_id: string },
+    opts: CalendarMutationOptions = {}): Promise<CalendarIntentionResult> {
+    return this.intentionRequest(intentionId, {
+      method: "DELETE", path: `/api/v1/calendar/intents/${encodeURIComponent(intentionId)}`,
+      body: input, signal: opts.signal, retryable: false,
+    });
+  }
+
 
   /** Create an event. `start`/`end` required (timed via `date_time` or all-day via `date`). */
   async createEvent(

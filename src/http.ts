@@ -117,8 +117,23 @@ export interface RequestOptions {
    * and a coincidence.
    */
   expectText?: boolean;
+  /**
+   * Resolve a success body as raw bytes ({@link BinaryResponse}) — for the
+   * operations that answer a file (the Top Performers export zip, #1764). An
+   * error status still goes through the JSON error envelope below.
+   */
+  expectBinary?: boolean;
   /** Extra headers to merge. */
   headers?: Record<string, string>;
+}
+
+/** A success body returned as bytes, with the headers a download needs. */
+export interface BinaryResponse {
+  body: ArrayBuffer;
+  contentType: string | null;
+  /** From `Content-Disposition: attachment; filename="…"`, when present. */
+  filename: string | null;
+  headers: Headers;
 }
 
 export interface ApiEnvelope<T> {
@@ -193,6 +208,17 @@ export class HttpClient implements HttpClientLike {
       return undefined as T;
     }
 
+    if (opts.expectBinary && res.ok) {
+      const cd = res.headers.get("content-disposition") ?? "";
+      const binary: BinaryResponse = {
+        body: await res.arrayBuffer(),
+        contentType: res.headers.get("content-type"),
+        filename: /filename="?([^";]+)"?/.exec(cd)?.[1] ?? null,
+        headers: res.headers,
+      };
+      return binary as T;
+    }
+
     const requestId = res.headers.get("x-request-id");
     const text = await res.text();
     // A non-JSON success body still has to go through the error branch below
@@ -226,6 +252,13 @@ export class HttpClient implements HttpClientLike {
         upgradePlan: body?.upgrade?.plan ?? null,
         docsUrl: body?.docs_url ?? null,
         requiredScopes: body?.required_scopes ?? null,
+        provider: body?.provider ?? null,
+        providerStatus: body?.provider_status ?? null,
+        providerCode: body?.provider_code ?? null,
+        providerMessage: body?.provider_message ?? null,
+        consent: body?.consent ?? null,
+        reason: body?.reason ?? null,
+        conflictingDestinationId: body?.conflicting_destination_id ?? null,
       });
     }
 

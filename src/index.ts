@@ -20,6 +20,7 @@ export {
   AtribuWebhookError,
   type ApiErrorCode,
   type ApiErrorBody,
+  type SwapConsentRequirement,
   type OauthErrorCode,
   type WebhookErrorCode,
 } from "./errors";
@@ -60,6 +61,11 @@ export type {
 } from "./resources/email";
 
 export type {
+  CalendarIntentionScope,
+  CalendarIntentionMutation,
+  CalendarIntentionEvent,
+  CalendarIntentionResult,
+  CalendarReadinessResult,
   CalendarEventDateTimeInput,
   CalendarAttendeeInput,
   CalendarSendUpdates,
@@ -114,6 +120,11 @@ export type {
 } from "./resources/webhook-deliveries";
 
 export type {
+  OutcomesRecordedPage,
+  OutcomesRecordedOptions,
+} from "./resources/outcomes-recorded";
+
+export type {
   Connection,
   ConnectionChannel,
   ConnectionKind,
@@ -155,6 +166,11 @@ export type {
   CampaignsResponse,
   CampaignConversionsOptions,
   CampaignConversionsResponse,
+  CampaignStatusResponse,
+  CampaignStatusChangeInput,
+  CampaignStatusChangeResponse,
+  CampaignsPlatformComparisonOptions,
+  CampaignsPlatformComparisonResponse,
   BreakdownOptions,
   BreakdownResponse,
   DrillOptions,
@@ -176,10 +192,14 @@ export type {
   AttributionModelsResponse,
   AttributionExploreOptions,
   AttributionExploreResponse,
+  DeclaredSourceOptions,
+  DeclaredSourceResponse,
   MessagingAttributionOptions,
   MessagingAttributionResponse,
   MessagingKpiOptions,
   MessagingKpiResponse,
+  AdPeopleOptions,
+  AdPeopleResponse,
   MessagingConversionChainOptions,
   MessagingConversionChainResponse,
 } from "./resources/attribution";
@@ -237,14 +257,6 @@ export type {
   // #489 (#1233) — "Analyze history".
   CreativeAnalysisBackfillInput,
   CreativeAnalysisBackfillPlan,
-  // #489 — the profile knowledge-base document surface.
-  KnowledgeBaseDocumentListItem,
-  KnowledgeBaseDocumentCreateInput,
-  KnowledgeBaseDocumentQueuedResult,
-  KnowledgeBaseDocumentDetail,
-  KnowledgeBaseDocumentUpdateInput,
-  KnowledgeBaseDocumentUpdateResult,
-  KnowledgeBaseDocumentDeleteResult,
 } from "./resources/profile";
 
 // #487 / #617 — the workspace-scoped surface. Session bearers only.
@@ -272,7 +284,11 @@ export type {
   McpWritebackAudit,
   // #1176 — DELETE /api/v1/workspaces/{id}: archive, terminal, owner only.
   ArchivedWorkspace,
+  // #1764 — the Top Performers export bundle.
+  WorkspaceTopPerformersExportBody,
+  WorkspaceTopPerformersExportPromptResponse,
 } from "./resources/workspaces";
+export type { BinaryResponse } from "./http";
 // #648 — the user-scoped surface. Session bearers only, and the only scope form
 // that names no tenant (`userScoped: true`).
 export type {
@@ -294,6 +310,15 @@ export type {
   QualityAttributionResponse,
   QualityInstrumentationHealthOptions,
   QualityInstrumentationHealthResponse,
+  QualityAdIdsOptions,
+  QualityAdIdsResponse,
+  QualityItpOptions,
+  QualityItpResponse,
+  QualityAdUrlTagsResponse,
+  QualityAdUrlTagsApplyInput,
+  QualityAdUrlTagsApplyResponse,
+  QualityAdUrlTagsUndoInput,
+  QualityAdUrlTagsUndoResponse,
 } from "./resources/quality";
 
 // #643 — customer identity: the merge review queue + the repair scan.
@@ -313,6 +338,10 @@ export type {
   CustomerImportInput,
   CustomerImportResponse,
   CustomerImportRow,
+  LinkTokenMintInput,
+  CustomerErasureInput,
+  CustomerErasureReceiptResponse,
+  LinkTokenMintResponse,
 } from "./resources/identity";
 
 export type {
@@ -357,6 +386,12 @@ export type {
   FilterValuesOptions,
   FilterValuesResponse,
 } from "./resources/filters";
+
+export type {
+  Appointment,
+  AppointmentsListOptions,
+  AppointmentsListResponse,
+} from "./resources/appointments";
 
 export type {
   RecommendationsOptions,
@@ -428,6 +463,8 @@ export type {
   ConversionSyncFeedResponse,
   ConversionSyncSetupLinkResponse,
   ConversionSyncTransparencyResponse,
+  ConversionSyncDataSourcesResponse,
+  ConversionSyncDataSourceEnsureResponse,
 } from "./resources/conversion-sync";
 
 export type {
@@ -488,6 +525,10 @@ export type {
   PurchaseInput,
   TrackEventResponse,
   EventTrackOptions,
+  RetractEventInput,
+  RetractEventResponse,
+  EventRetractionRemoved,
+  EventRetractionUpdated,
 } from "./resources/events";
 
 export type {
@@ -510,6 +551,17 @@ export type {
   WhatsAppConversationMessagesPage,
   WhatsAppSendMessageOptions,
   WhatsAppSendInteractiveInput,
+  WhatsAppSendDeclaredSourcePromptInput,
+  WhatsAppDeclaredSourcePrompt,
+  WhatsAppDeclaredSourcePromptAccount,
+  WhatsAppDeclaredSourcePromptSpec,
+  SetDeclaredSourcePromptInput,
+  RecordDeclaredSourceAnswerInput,
+  DeclaredSourceAnswerRecord,
+  RecordAdReferralInput,
+  AdReferralRecord,
+  PreviewAdReferralsInput,
+  AdReferralImpactPreview,
   WhatsAppSendTemplateOptions,
   WhatsAppMediaUpload,
   UploadMediaOptions,

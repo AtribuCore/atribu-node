@@ -15,7 +15,7 @@
  */
 import type { paths } from "../__generated__/api";
 import type { HttpClientLike } from "../http";
-import type { ReadExtras } from "./common";
+import type { ReadExtras, WriteExtras } from "./common";
 
 export type AdCreativeAnalysisResponse =
   paths["/api/v1/ads/{id}/creative-analysis"]["get"]["responses"][200]["content"]["application/json"];
@@ -90,6 +90,18 @@ export type CreativeVariantsPublishResponse =
 
 export type AdVideoSourceResponse =
   paths["/api/v1/ads/videos/{video_id}"]["get"]["responses"][200]["content"]["application/json"];
+
+// The Vitrina Ads contract §12 (asks B/C) — key-callable ad-object writes.
+export type AdStatusChangeInput = NonNullable<
+  paths["/api/v1/ads/{id}/pause"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type AdStatusChangeResponse =
+  paths["/api/v1/ads/{id}/pause"]["post"]["responses"][200]["content"]["application/json"];
+export type AdSetBudgetInput = NonNullable<
+  paths["/api/v1/adsets/{id}/budget"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type AdSetBudgetResponse =
+  paths["/api/v1/adsets/{id}/budget"]["post"]["responses"][200]["content"]["application/json"];
 
 export class AdsResource {
   constructor(private readonly http: HttpClientLike) {}
@@ -332,6 +344,69 @@ export class AdsResource {
     return this.http.request<AdVideoSourceResponse>({
       method: "GET",
       path: `/api/v1/ads/videos/${encodeURIComponent(videoId)}`,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Pause one ad by its Meta id — no recommendation required. Tier `confirm`
+   * (the call is the confirmation), audited in `meta_action_log`, reversible:
+   * undo with {@link resume} or `conversionSync.rollbackAction(data.action_id)`.
+   *
+   * The `Idempotency-Key` header is REQUIRED and the transport always sends one
+   * (generated when `idempotencyKey` is omitted). Pass your own whenever a retry
+   * may cross a process boundary: the same key replays the stored result
+   * (`outcome: "replayed"`) without calling Meta. `campaigns:apply`.
+   */
+  async pause(
+    id: string,
+    input: AdStatusChangeInput = {},
+    options: WriteExtras = {},
+  ): Promise<AdStatusChangeResponse> {
+    return this.http.request<AdStatusChangeResponse>({
+      method: "POST",
+      path: `/api/v1/ads/${encodeURIComponent(id)}/pause`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Resume one PAUSED ad by its Meta id (also one paused outside Atribu). An
+   * ARCHIVED/DELETED ad is refused with `409 invalid_state`. Same idempotency
+   * contract as {@link pause}. `campaigns:apply`.
+   */
+  async resume(
+    id: string,
+    input: AdStatusChangeInput = {},
+    options: WriteExtras = {},
+  ): Promise<AdStatusChangeResponse> {
+    return this.http.request<AdStatusChangeResponse>({
+      method: "POST",
+      path: `/api/v1/ads/${encodeURIComponent(id)}/resume`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Set one ad set's daily budget (MINOR units) by its Meta id. Tier `money`:
+   * send `applied_by`, or call with a key of the app that provisioned the
+   * profile (its shadow owner is used). Held to ±50 % of the live budget per
+   * call — outside it is `422 budget_change_out_of_bounds`. `campaigns:apply`.
+   */
+  async setAdSetBudget(
+    adSetId: string,
+    input: AdSetBudgetInput,
+    options: WriteExtras = {},
+  ): Promise<AdSetBudgetResponse> {
+    return this.http.request<AdSetBudgetResponse>({
+      method: "POST",
+      path: `/api/v1/adsets/${encodeURIComponent(adSetId)}/budget`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
       signal: options.signal,
     });
   }
