@@ -35,6 +35,9 @@ export type ConversationLabelsResponse =
 export type ConversationReviewProposalsResponse =
   paths["/api/v1/conversations/{id}/review-proposals"]["get"]["responses"][200]["content"]["application/json"];
 
+export type ConversationDetectedContactsResponse =
+  paths["/api/v1/conversations/{id}/detected-contacts"]["get"]["responses"][200]["content"]["application/json"];
+
 export type PendingReviewsCountResponse =
   paths["/api/v1/inbox/pending-reviews-count"]["get"]["responses"][200]["content"]["application/json"];
 
@@ -146,6 +149,18 @@ export class ConversationsResource {
     return this.http.request<ConversationReviewProposalsResponse>({
       method: "GET",
       path: `/api/v1/conversations/${encodeURIComponent(id)}/review-proposals`,
+      signal: options.signal,
+    });
+  }
+
+  /** The email / phone the customer typed in a conversation, beside their customer's (#2057). */
+  async detectedContacts(
+    id: string,
+    options: ReadExtras = {},
+  ): Promise<ConversationDetectedContactsResponse> {
+    return this.http.request<ConversationDetectedContactsResponse>({
+      method: "GET",
+      path: `/api/v1/conversations/${encodeURIComponent(id)}/detected-contacts`,
       signal: options.signal,
     });
   }

@@ -169,6 +169,8 @@ export type {
   CampaignStatusResponse,
   CampaignStatusChangeInput,
   CampaignStatusChangeResponse,
+  CampaignBudgetInput,
+  CampaignBudgetResponse,
   CampaignsPlatformComparisonOptions,
   CampaignsPlatformComparisonResponse,
   BreakdownOptions,
@@ -254,6 +256,11 @@ export type {
   AttributionSettings,
   AttributionSettingsUpdateInput,
   AttributionSettingsUpdateResult,
+  AttributionWindowRecommendation,
+  // #2054 — «Qué vendes con anuncios».
+  RevenueScope,
+  RevenueScopeUpdateInput,
+  RevenueScopeUpdateResult,
   // #489 (#1233) — "Analyze history".
   CreativeAnalysisBackfillInput,
   CreativeAnalysisBackfillPlan,
@@ -380,6 +387,15 @@ export type {
   CommerceProductsResponse,
   CommerceStockState,
   CommerceVariant,
+  // #2105 — the live Shopify passthrough.
+  CommerceLiveOrder,
+  CommerceLiveOrderLine,
+  CommerceLiveOrdersOptions,
+  CommerceLiveOrdersResponse,
+  CommerceLiveProduct,
+  CommerceLiveProductsOptions,
+  CommerceLiveProductsResponse,
+  CommerceLiveVariant,
 } from "./resources/commerce";
 
 export type {
@@ -406,6 +422,7 @@ export type {
 export type {
   ExportDestinationsResponse,
   ExportLedgerOptions,
+  ExportRulesOptions,
   ExportLedgerResponse,
   ExportTriggerInput,
   ExportTriggerResponse,
@@ -465,6 +482,10 @@ export type {
   ConversionSyncTransparencyResponse,
   ConversionSyncDataSourcesResponse,
   ConversionSyncDataSourceEnsureResponse,
+  ConversionSyncDataSourceOptionsResponse,
+  ConversionSyncDataSourceOption,
+  ConversionSyncCreateDatasetInput,
+  ConversionSyncCreatedDatasetResponse,
 } from "./resources/conversion-sync";
 
 export type {
@@ -504,6 +525,9 @@ export type {
   // `client.payments` at all, so the UI slice (#1654 D8) adds them here.
   PaymentsListOptions,
   PaymentsListResponse,
+  // #2061 — «Cómo llega la plata».
+  PaymentsLinkageOptions,
+  PaymentsLinkageResponse,
   PaymentSetPayerInput,
   PaymentSetInstallmentInput,
   PaymentRecordRefundInput,
@@ -536,6 +560,7 @@ export type {
   WhatsAppTemplateCreateInput,
   WhatsAppTemplateCreateResult,
   WhatsAppTemplateSyncResult,
+  WhatsAppTemplateAnalytics,
   WhatsAppFlow,
   WhatsAppFlowDetail,
   WhatsAppFlowCreateInput,
@@ -643,6 +668,17 @@ export type {
   IgWindowOptions,
 } from "./resources/instagram";
 
+// TikTok Business Messaging conversation reads: `client.tiktok.conversations`.
+export type {
+  TikTokConversation,
+  TikTokConversationMessage,
+  TikTokParticipant,
+  TikTokReplyWindow,
+  TikTokConversationPage,
+  TikTokConversationListOptions,
+  TikTokConversationMessagesResult,
+} from "./resources/tiktok";
+
 // #649 — the unified inbox: `client.conversations`. Distinct from
 // `InstagramConversation*` / `WhatsAppConversation*` above — those are
 // Vitrina's own messaging surfaces (keyed by connection/IGSID); this is
@@ -656,6 +692,7 @@ export type {
   ConversationOrganicMatchesOptions,
   ConversationLabelsResponse,
   ConversationReviewProposalsResponse,
+  ConversationDetectedContactsResponse,
   PendingReviewsCountResponse,
   UnlinkedInstagramPaymentsResponse,
   UnlinkedInstagramPaymentsOptions,

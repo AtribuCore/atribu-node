@@ -227,6 +227,12 @@ export class ConnectionsResource {
    * console.log("ask your user to open:", data.url);
    * // …then poll:
    * const { data: state } = await client.handoffs.get(data.id);
+   *
+   * // Shopify (#2104) needs the store:
+   * await client.connections.handoff("shopify", {
+   *   shop: "my-store.myshopify.com",
+   *   return_url: "https://app.example.com/integrations",
+   * });
    * ```
    *
    * The page is session-less — whoever holds the link completes it, signed in

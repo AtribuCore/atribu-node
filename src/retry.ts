@@ -42,7 +42,8 @@ export function deriveRetryHint(input: DeriveRetryInput): RetryHint {
   // #1771 — link-identity tokens are turned OFF on this deployment (no signing
   // secret). A 503, but a feature that is off, not an outage: a retry loop
   // would spin forever. Checked before the generic 5xx → retry below.
-  if (input.errorCode === "link_tokens_disabled") {
+  // A retired endpoint (410): gone on purpose, the message says what replaced it.
+  if (input.errorCode === "link_tokens_disabled" || input.errorCode === "feature_retired") {
     return { action: "do_not_retry" };
   }
   // An event retraction refused because the event was exported or is a

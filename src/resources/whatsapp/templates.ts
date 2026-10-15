@@ -8,6 +8,8 @@ type CreateBody = NonNullable<
 >["content"]["application/json"];
 type CreateResponse =
   paths["/api/v1/whatsapp/templates"]["post"]["responses"][201]["content"]["application/json"];
+type AnalyticsResponse =
+  paths["/api/v1/whatsapp/templates/{name}/analytics"]["get"]["responses"][200]["content"]["application/json"];
 type SyncResponse =
   paths["/api/v1/whatsapp/templates/sync"]["post"]["responses"][200]["content"]["application/json"];
 
@@ -15,6 +17,18 @@ export type WhatsAppTemplate = ListResponse["data"][number];
 export type WhatsAppTemplateCreateInput = CreateBody;
 export type WhatsAppTemplateCreateResult = CreateResponse["data"];
 export type WhatsAppTemplateSyncResult = SyncResponse;
+export type WhatsAppTemplateAnalytics = AnalyticsResponse["data"];
+
+export interface AnalyticsOptions {
+  connectionId: string;
+  /** Template language as Meta spells it (`es`, `es_CL`). Meta ids are per name + language. */
+  language: string;
+  /** First UTC day, `YYYY-MM-DD`, inclusive. */
+  start: string;
+  /** Last UTC day, `YYYY-MM-DD`, inclusive; `end - start` ≤ 90 days. */
+  end: string;
+  signal?: AbortSignal;
+}
 
 export interface ListOptions {
   connectionId: string;
@@ -82,6 +96,27 @@ export class WhatsAppTemplatesResource {
       path: "/api/v1/whatsapp/templates",
       body: input,
       idempotencyKey: opts.idempotencyKey,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Meta's own analytics for one template over a UTC day range (sent,
+   * delivered, read, clicks per button incl. URL buttons, cost; totals and
+   * per day). The first call on a WABA with insights off switches them on and
+   * throws `insights_enabling` (409) — retry after `retry_after_seconds`.
+   */
+  async analytics(name: string, opts: AnalyticsOptions): Promise<WhatsAppTemplateAnalytics> {
+    const qs = new URLSearchParams({
+      connection_id: opts.connectionId,
+      language: opts.language,
+      start: opts.start,
+      end: opts.end,
+    });
+    const res = await this.http.request<AnalyticsResponse>({
+      method: "GET",
+      path: `/api/v1/whatsapp/templates/${encodeURIComponent(name)}/analytics?${qs.toString()}`,
       signal: opts.signal,
     });
     return res.data;

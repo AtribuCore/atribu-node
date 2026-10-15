@@ -148,7 +148,7 @@ describe("type narrowing — message content union", () => {
 
   it("MessageSendInput.channel constrains the whole input shape", () => {
     expectTypeOf<MessageSendInput["channel"]>().toEqualTypeOf<
-      "whatsapp" | "instagram" | "email" | "messenger"
+      "whatsapp" | "instagram" | "email" | "messenger" | "tiktok_messaging"
     >();
     expectTypeOf<MessageSendInput["connection_id"]>().toEqualTypeOf<string>();
   });

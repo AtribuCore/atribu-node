@@ -17,6 +17,7 @@ import { WebhookDeliveriesResource } from "./resources/webhook-deliveries";
 import { OutcomesRecordedResource } from "./resources/outcomes-recorded";
 import { WhatsAppNamespace } from "./resources/whatsapp";
 import { InstagramNamespace } from "./resources/instagram";
+import { TikTokNamespace } from "./resources/tiktok";
 import { EventsResource } from "./resources/events";
 import { PaymentsResource } from "./resources/payments";
 import { AnalyticsResource } from "./resources/analytics";
@@ -108,6 +109,8 @@ interface ResourceBundle {
   };
   whatsapp: WhatsAppNamespace;
   instagram: InstagramNamespace;
+  /** TikTok Business Messaging conversation reads. */
+  tiktok: TikTokNamespace;
 }
 
 function buildResources(http: HttpClientLike): ResourceBundle {
@@ -153,6 +156,7 @@ function buildResources(http: HttpClientLike): ResourceBundle {
     },
     whatsapp: new WhatsAppNamespace(http),
     instagram: new InstagramNamespace(http),
+    tiktok: new TikTokNamespace(http),
   };
 }
 
@@ -194,6 +198,7 @@ export class AtribuClient {
   readonly webhooks: ResourceBundle["webhooks"];
   readonly whatsapp: WhatsAppNamespace;
   readonly instagram: InstagramNamespace;
+  readonly tiktok: TikTokNamespace;
 
   /** @internal — exposed for `withRetry` chaining; do not depend on this. */
   protected readonly _http: HttpClientLike;
@@ -238,6 +243,7 @@ export class AtribuClient {
     this.webhooks = r.webhooks;
     this.whatsapp = r.whatsapp;
     this.instagram = r.instagram;
+    this.tiktok = r.tiktok;
   }
 
   /**
@@ -330,6 +336,7 @@ export class AtribuClient {
       webhooks: r.webhooks,
       whatsapp: r.whatsapp,
       instagram: r.instagram,
+      tiktok: r.tiktok,
     });
     return proto as AtribuClient;
   }

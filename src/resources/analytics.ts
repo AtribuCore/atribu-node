@@ -80,6 +80,11 @@ export type CampaignStatusChangeInput = NonNullable<
 >["content"]["application/json"];
 export type CampaignStatusChangeResponse =
   paths["/api/v1/campaigns/{id}/pause"]["post"]["responses"][200]["content"]["application/json"];
+export type CampaignBudgetInput = NonNullable<
+  paths["/api/v1/campaigns/{id}/budget"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type CampaignBudgetResponse =
+  paths["/api/v1/campaigns/{id}/budget"]["post"]["responses"][200]["content"]["application/json"];
 
 type BreakdownQuery = paths["/api/v1/breakdown"]["get"]["parameters"]["query"];
 export type BreakdownResponse =
@@ -356,6 +361,29 @@ export class AnalyticsResource {
     return this.http.request<CampaignStatusChangeResponse>({
       method: "POST",
       path: `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resume`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Raise or lower one campaign's own (Advantage) budget — daily or lifetime,
+   * MINOR units, exactly one of `new_daily_budget_minor` /
+   * `new_lifetime_budget_minor`. Tier `money` (send `applied_by`, or use a key
+   * of the app that provisioned the profile). Held to ±50 % of the live budget
+   * per call (`422 budget_change_out_of_bounds`); a campaign whose ad sets own
+   * the budget is `409 invalid_state`. Undo with the conversion-sync rollback
+   * on `action_id`. Pass `idempotencyKey` (required). `campaigns:apply`.
+   */
+  async campaignBudget(
+    campaignId: string,
+    input: CampaignBudgetInput,
+    options: WriteExtras = {},
+  ): Promise<CampaignBudgetResponse> {
+    return this.http.request<CampaignBudgetResponse>({
+      method: "POST",
+      path: `/api/v1/campaigns/${encodeURIComponent(campaignId)}/budget`,
       body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,

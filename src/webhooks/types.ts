@@ -24,6 +24,7 @@ export const WEBHOOK_PROVIDERS = [
   "whatsapp",
   "instagram",
   "messenger",
+  "tiktok_messaging",
   "email",
   "google_calendar",
   "shopify",
@@ -76,6 +77,9 @@ export const WEBHOOK_EVENT_TYPES = [
   "export.failed",
   "profile.freshness.changed",
   "outcome.recorded",
+  // Meta Instant Form submission (Page `leadgen` webhook field), provider `atribu`.
+  // The Graph lead merged over the webhook value; see docs/content/en/api/webhooks.mdx.
+  "leadgen.received",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
@@ -377,6 +381,66 @@ export interface MessengerMessageDeliveryEvent extends BaseEvent {
 }
 
 /**
+ * A TikTok Business Messaging `message.received`. `kind` says which TikTok
+ * webhook event it came from:
+ *   - `message`  — `im_receive_msg` (the person wrote; `is_echo: false`) or
+ *                  `im_send_msg` (the business's own send from the TikTok app,
+ *                  TikTok web or the API; `is_echo: true`);
+ *   - `referral` — `im_referral_msg`: the person entered the conversation from
+ *                  a Click-to-Message ad or a TikTok.me link. No message
+ *                  (`message_id` and `text` are null); `referral` is TikTok's
+ *                  object verbatim — `{ source: "ad", ad: { advertiser_id,
+ *                  ad_id, timestamp, ad_name, embed_url, message_material_id } }`
+ *                  or `{ source: "short_link", short_link: { ref,
+ *                  prefilled_message, prefilled_message_audit_status } }`.
+ * `conversation_id` is the `to` of a reply (`messages.send({ channel:
+ * "tiktok_messaging", to: conversation_id, … })`), accepted within 48 hours of
+ * the person's last message, at most 10 messages. Messages from people in the
+ * EEA / Switzerland / UK are never delivered — TikTok sends no content for them.
+ */
+export interface TikTokMessagingMessageReceivedData {
+  kind: "message" | "referral";
+  /** The connected TikTok account's `open_id`. */
+  business_id: string;
+  conversation_id: string;
+  message_id: string | null;
+  sender_id: string | null;
+  /** `personal_account` | `business_account`. */
+  sender_role: string | null;
+  /** TikTok username. */
+  sender_username: string | null;
+  recipient_id: string | null;
+  recipient_role: string | null;
+  recipient_username: string | null;
+  /** The person's stable TikTok id in this conversation. */
+  unique_identifier: string | null;
+  is_follower: boolean | null;
+  is_echo: boolean;
+  /** `text` | `image` | `share_post` | `video` | `emoji` | `sticker` | `reaction` | `template`. */
+  message_type: string | null;
+  text: string | null;
+  /** Image or video media id (download through TikTok's media endpoint). */
+  media_id?: string | null;
+  share_post?: { embed_url?: string; video_id?: string } | null;
+  sticker_url?: string | null;
+  emoji_url?: string | null;
+  reaction?: unknown[] | null;
+  template?: unknown | null;
+  referenced_message_id?: string | null;
+  /** `WELCOME_MESSAGE` | `SUGGESTED_QUESTION` | `AUTO_REPLY` when TikTok sent it automatically. */
+  auto_message_type?: string | null;
+  /** `APP` | `WEB` | `API` | `OTHERS` | `UNKNOWN_SOURCE`. */
+  source?: string | null;
+  referral: unknown | null;
+}
+
+export interface TikTokMessagingMessageReceivedEvent extends BaseEvent {
+  type: "message.received";
+  provider: "tiktok_messaging";
+  data: TikTokMessagingMessageReceivedData;
+}
+
+/**
  * A comment landed on a connected IG post — ig_login `field=comments` or
  * fb_login `field=feed` (comments nested in the Page feed). Emitted for
  * EVERY inbound comment, unconditional on whether it matched an internal
@@ -490,23 +554,67 @@ export interface ShopifyCheckoutAbandonedEvent extends BaseEvent {
   };
 }
 
+/** One line of a Shopify order, as `order.status.changed` carries it. */
+export interface ShopifyOrderEventLine {
+  /** Shopify ids as numeric strings. */
+  line_item_id: string | null;
+  product_id: string | null;
+  /** The variant a cart permalink named — match it against your own variant ref. */
+  variant_id: string | null;
+  sku: string | null;
+  title: string | null;
+  quantity: number;
+  /** Unit price, a decimal string exactly as Shopify sends it. */
+  price: string | null;
+}
+
 /**
- * An order reached a fulfilment milestone — the WISMO ("where is my order")
- * signal.
+ * A Shopify order reached a new milestone.
  *
- * ONE EVENT PER (ORDER, STATUS): `orders/updated` fires for every order
- * mutation, so the event id is keyed on the pair and repeats collapse. The two
- * milestones are separate events, and `delivered` outranks `fulfilled` on an
- * order whose fulfilments report delivery.
+ * `status` is the order's CURRENT milestone, highest first: `cancelled` >
+ * `refunded` > `delivered` > `fulfilled` > `paid` > `created`. A store order
+ * fires the moment it is placed (`created`, or `paid` when it was paid at
+ * checkout) and again at each later milestone; `fulfilled` / `delivered` are
+ * the WISMO ("where is my order") signals they always were.
+ *
+ * ONE EVENT PER (ORDER, STATUS): Shopify sends `orders/create` and
+ * `orders/paid` for one paid order, and `orders/updated` for every edit, so the
+ * event id is keyed on the pair and repeats collapse. Delivery is still
+ * at-least-once — deduplicate on `event.id`.
+ *
+ * MATCHING: a cart permalink's `attributes[...]` arrive in `data.attributes`
+ * (Shopify's `note_attributes`), so `/cart/<variant>:<qty>?attributes[my_ref]=X`
+ * produces `data.attributes.my_ref === "X"`. `email` / `phone` are the buyer's,
+ * and are null when Shopify withholds them (the app receives buyer contact
+ * fields only under Protected Customer Data level 2) or the buyer gave none.
  */
 export interface ShopifyOrderStatusChangedEvent extends BaseEvent {
   type: "order.status.changed";
   provider: "shopify";
   data: {
     order_id: string | null;
-    status: "fulfilled" | "delivered";
+    status: "created" | "paid" | "fulfilled" | "delivered" | "refunded" | "cancelled";
+    /** The merchant-facing order name, e.g. `#1001`. */
+    name: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    cancelled_at: string | null;
+    /** Lowercase: pending, authorized, partially_paid, paid, partially_refunded, refunded, voided. */
+    financial_status: string | null;
+    /** Lowercase (`fulfilled`, `partial`, `restocked`), null when unfulfilled. */
+    fulfillment_status: string | null;
     email: string | null;
     phone: string | null;
+    /** Cart / note attributes, name → value. */
+    attributes: Record<string, string>;
+    note: string | null;
+    currency: string | null;
+    /** Decimal string. */
+    total_price: string | null;
+    customer_id: string | null;
+    cart_token: string | null;
+    checkout_token: string | null;
+    lines: ShopifyOrderEventLine[];
     /** The full Shopify order body. */
     raw: Record<string, unknown>;
   };
@@ -727,6 +835,8 @@ export interface WhatsAppChannelHealthSnapshot {
   webhookSubscribed: boolean;
   reconnectRequired: boolean;
   reconnectUrl: string | null;
+  /** Why the last live read did not verify this snapshot; null when it did. */
+  refreshError?: { code: number | string | null; message: string } | null;
   [key: string]: unknown;
 }
 
@@ -1187,6 +1297,37 @@ export interface OutcomeRecordedEvent extends BaseEvent {
   };
 }
 
+/**
+ * A Meta Instant Form submission on a Page the profile connected (Page
+ * `leadgen` webhook field). `data` is the Graph API lead merged over Meta's
+ * webhook value, plus `profile_id`. `id` is the `leadgen_id`: de-dupe on it.
+ * `connection_id` is the Meta Ads connection that owns the Page token.
+ */
+export interface LeadgenReceivedEvent extends BaseEvent {
+  type: "leadgen.received";
+  provider: "atribu";
+  data: {
+    profile_id: string;
+    page_id: string;
+    leadgen_id: string;
+    created_time: string | null;
+    form_id: string | null;
+    form_name?: string | null;
+    ad_id: string | null;
+    ad_name?: string | null;
+    /** Meta's webhook names the ad set `adgroup_id`; the Graph lead names it `adset_id`. */
+    adgroup_id?: string | null;
+    adset_id?: string | null;
+    adset_name?: string | null;
+    campaign_id?: string | null;
+    campaign_name?: string | null;
+    platform?: string | null;
+    is_organic?: boolean | null;
+    field_data: Array<{ name: string; values: string[] }>;
+    custom_disclaimer_responses?: Array<{ checkbox_key: string; is_checked?: boolean }>;
+  };
+}
+
 export type AtribuWebhookEvent =
   | WhatsAppMessageReceivedEvent
   | WhatsAppMessageDeliveryEvent
@@ -1204,6 +1345,7 @@ export type AtribuWebhookEvent =
   | InstagramMessageDeliveryEvent
   | MessengerMessageReceivedEvent
   | MessengerMessageDeliveryEvent
+  | TikTokMessagingMessageReceivedEvent
   | InstagramCommentReceivedEvent
   | EmailMessageReceivedEvent
   | CalendarEventChangedEvent
@@ -1222,4 +1364,5 @@ export type AtribuWebhookEvent =
   | ExportCompletedEvent
   | ExportFailedEvent
   | ProfileFreshnessChangedEvent
-  | OutcomeRecordedEvent;
+  | OutcomeRecordedEvent
+  | LeadgenReceivedEvent;

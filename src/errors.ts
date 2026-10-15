@@ -41,6 +41,8 @@ export type ApiErrorCode =
   | "adset_not_editable"
   // #1771 / #1770 — link tokens and partner erasure by customer_key.
   | "link_tokens_disabled"
+  // 2026-10-10 — a retired endpoint (410), e.g. the in-app chat routes.
+  | "feature_retired"
   | "api_key_required"
   | "customer_not_found"
   | "account_connected_elsewhere"
@@ -52,6 +54,11 @@ export type ApiErrorCode =
   | "event_linked_to_conversation"
   // #1776 — campaign pause/resume refusals specific to the campaign.
   | "campaign_not_found"
+  // GET /api/v1/whatsapp/templates/{name}/analytics (Vitrina ADR 0137).
+  | "template_not_found"
+  | "insights_enabling"
+  | "insights_unsupported"
+  | "meta_unavailable"
   | "campaign_not_pausable"
   | "campaign_not_resumable"
   // Partner historical ad referrals — the ad is not one of the profile's Meta ads.

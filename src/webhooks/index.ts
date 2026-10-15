@@ -28,6 +28,8 @@ export {
   type MessengerMessageReceivedEvent,
   type MessengerMessageDeliveryEvent,
   type MessengerMessageReceivedData,
+  type TikTokMessagingMessageReceivedEvent,
+  type TikTokMessagingMessageReceivedData,
   type InstagramCommentReceivedEvent,
   type InstagramMessageReceivedData,
   type InstagramFbLoginMessageData,
@@ -52,6 +54,7 @@ export {
   type ShopifyProductPriceChangedEvent,
   type ShopifyCheckoutAbandonedEvent,
   type ShopifyOrderStatusChangedEvent,
+  type ShopifyOrderEventLine,
   // Platform lifecycle (#1049) — provider `atribu`.
   type AtribuReconnectAction,
   type ConnectionConnectedEvent,

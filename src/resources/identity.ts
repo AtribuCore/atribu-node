@@ -102,6 +102,19 @@ export type CustomerErasureInput = NonNullable<
 export type CustomerErasureReceiptResponse =
   paths["/api/v1/customers/erasures/{erasure_id}"]["get"]["responses"][200]["content"]["application/json"];
 
+/** #2055 — `GET /api/v1/identity/links`, the «Vínculos inferidos» review list. */
+type IdentityLinksQuery = NonNullable<paths["/api/v1/identity/links"]["get"]["parameters"]["query"]>;
+export type IdentityLinksResponse =
+  paths["/api/v1/identity/links"]["get"]["responses"][200]["content"]["application/json"];
+export type IdentityLinksOptions = IdentityLinksQuery & ReadExtras;
+
+/** #2055 — `POST /api/v1/identity/links/{id}/decide`. */
+export type IdentityLinkDecisionInput = NonNullable<
+  paths["/api/v1/identity/links/{id}/decide"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type IdentityLinkDecisionResponse =
+  paths["/api/v1/identity/links/{id}/decide"]["post"]["responses"][200]["content"]["application/json"];
+
 export class IdentityResource {
   constructor(private readonly http: HttpClientLike) {}
 
@@ -184,6 +197,44 @@ export class IdentityResource {
     return this.http.request<MergeProposalDecisionResponse>({
       method: "POST",
       path: `/api/v1/identity/merge-proposals/${encodeURIComponent(proposalId)}/decide`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2055 — links between two customers that Atribu made on its own, newest
+   * first: both people, the `method` and its `confidence`, and the cash the
+   * link currently carries. An inferred link is APPLIED when it is recorded;
+   * `pending` means awaiting review, not awaiting effect.
+   *
+   * Keyset paginated like {@link mergeProposals}; `status_counts` covers the
+   * whole list whatever `status` you asked for.
+   */
+  async links(options: IdentityLinksOptions = {}): Promise<IdentityLinksResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<IdentityLinksResponse>({
+      method: "GET",
+      path: "/api/v1/identity/links",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * #2055 — accept (keep the credit, leave the list) or reject (remove the
+   * credit; the link is never re-applied) one link. Idempotent: a link that
+   * already holds the decision answers `changed: false`.
+   */
+  async decideLink(
+    linkId: string,
+    input: IdentityLinkDecisionInput,
+    options: WriteExtras = {},
+  ): Promise<IdentityLinkDecisionResponse> {
+    return this.http.request<IdentityLinkDecisionResponse>({
+      method: "POST",
+      path: `/api/v1/identity/links/${encodeURIComponent(linkId)}/decide`,
       body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,

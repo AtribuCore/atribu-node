@@ -43,6 +43,12 @@ export type AdsTrendResponse =
   paths["/api/v1/ads/trend"]["get"]["responses"][200]["content"]["application/json"];
 export type AdsTrendOptions = AdsTrendQuery & ReadExtras;
 
+type AdsMetaReportedSkoolJoinsQuery =
+  paths["/api/v1/ads/meta-reported-skool-joins"]["get"]["parameters"]["query"];
+export type AdsMetaReportedSkoolJoinsResponse =
+  paths["/api/v1/ads/meta-reported-skool-joins"]["get"]["responses"][200]["content"]["application/json"];
+export type AdsMetaReportedSkoolJoinsOptions = AdsMetaReportedSkoolJoinsQuery & ReadExtras;
+
 type AdTrendQuery = paths["/api/v1/ads/{id}/trend"]["get"]["parameters"]["query"];
 export type AdTrendResponse =
   paths["/api/v1/ads/{id}/trend"]["get"]["responses"][200]["content"]["application/json"];
@@ -190,6 +196,24 @@ export class AdsResource {
     return this.http.request<AdsTrendResponse>({
       method: "GET",
       path: "/api/v1/ads/trend",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * META'S own count of Skool membership requests per entity (#2063) — what
+   * Skool's built-in Meta pixel reported. Platform-reported: never part of an
+   * attributed figure. Only measured entities are listed; `level` defaults to
+   * `ad`, `ids` (comma-separated, ≤1000) restricts the answer.
+   */
+  async metaReportedSkoolJoins(
+    options: AdsMetaReportedSkoolJoinsOptions,
+  ): Promise<AdsMetaReportedSkoolJoinsResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<AdsMetaReportedSkoolJoinsResponse>({
+      method: "GET",
+      path: "/api/v1/ads/meta-reported-skool-joins",
       query,
       signal,
     });

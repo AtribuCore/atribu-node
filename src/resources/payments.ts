@@ -95,6 +95,11 @@ export type PaymentsListResponse =
   paths["/api/v1/payments"]["get"]["responses"][200]["content"]["application/json"];
 export type PaymentsListOptions = PaymentsListQuery & ReadExtras;
 
+type PaymentsLinkageQuery = paths["/api/v1/payments/linkage"]["get"]["parameters"]["query"];
+export type PaymentsLinkageResponse =
+  paths["/api/v1/payments/linkage"]["get"]["responses"][200]["content"]["application/json"];
+export type PaymentsLinkageOptions = PaymentsLinkageQuery & ReadExtras;
+
 export type PaymentSetPayerInput = NonNullable<
   paths["/api/v1/payments/{payment_id}/payer"]["put"]["requestBody"]
 >["content"]["application/json"];
@@ -157,6 +162,23 @@ export class PaymentsResource {
     return this.http.request<PaymentsListResponse>({
       method: "GET",
       path: "/api/v1/payments",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * #2061 — «Cómo llega la plata»: each ad-sellable sale of the window and
+   * how it reached an ad (`ad`), by inference (`inferred`), or why nothing
+   * linked it (`unlinked`). `counts` are `GET /api/v1/trust`'s cash-coverage
+   * buckets for the same `date_from`/`date_to`/`model`, so they add up to
+   * `total`; `view` filters `rows` only. `customers:read`.
+   */
+  async linkage(options: PaymentsLinkageOptions): Promise<PaymentsLinkageResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<PaymentsLinkageResponse>({
+      method: "GET",
+      path: "/api/v1/payments/linkage",
       query,
       signal,
     });

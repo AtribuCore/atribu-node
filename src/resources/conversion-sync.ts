@@ -206,6 +206,14 @@ export type ConversionSyncDataSourcesResponse =
   paths["/api/v1/conversion-sync/data-sources"]["get"]["responses"][200]["content"]["application/json"];
 export type ConversionSyncDataSourceEnsureResponse =
   paths["/api/v1/conversion-sync/data-sources/{kind}/ensure"]["post"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncDataSourceOptionsResponse =
+  paths["/api/v1/conversion-sync/data-source-options"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncDataSourceOption = ConversionSyncDataSourceOptionsResponse["data"]["sources"][number];
+export type ConversionSyncCreateDatasetInput = NonNullable<
+  paths["/api/v1/conversion-sync/datasets"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type ConversionSyncCreatedDatasetResponse =
+  paths["/api/v1/conversion-sync/datasets"]["post"]["responses"][200]["content"]["application/json"];
 
 // ---------------------------------------------------------------------------
 // Campaign Blueprints (#489 phase 6)
@@ -724,6 +732,38 @@ export class ConversionSyncResource {
       method: "POST",
       path: `/api/v1/conversion-sync/data-sources/${encodeURIComponent(kind)}/ensure`,
       ...(input.dataset_id !== undefined ? { body: input } : {}),
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #1764 — every connectable Meta data source on the profile (WhatsApp,
+   * Messenger, Instagram, website), with its asset and any dataset already
+   * wired. Step 1 of «Connect a data source». Never calls Meta.
+   */
+  async dataSourceOptions(options: ReadExtras = {}): Promise<ConversionSyncDataSourceOptionsResponse> {
+    return this.http.request<ConversionSyncDataSourceOptionsResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/data-source-options",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #1764 — create (201) or retrieve (200) the Meta dataset for one data
+   * source and wire it as a Conversions API destination. `website` creates a
+   * NEW pixel named `name`; `manual_dataset_id` skips Meta. Idempotent on the
+   * stored dataset id.
+   */
+  async createDataset(
+    input: ConversionSyncCreateDatasetInput,
+    options: WriteExtras = {},
+  ): Promise<ConversionSyncCreatedDatasetResponse> {
+    return this.http.request<ConversionSyncCreatedDatasetResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/datasets",
+      body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
     });

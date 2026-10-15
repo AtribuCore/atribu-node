@@ -10,6 +10,10 @@ import type { ReadExtras, WriteExtras } from "./common";
 export type ExportDestinationsResponse =
   paths["/api/v1/exports/destinations"]["get"]["responses"][200]["content"]["application/json"];
 
+/** `window` / `from` / `to` set the period `delivery_stats` counts; all optional. */
+type ExportRulesQuery = NonNullable<paths["/api/v1/exports/rules"]["get"]["parameters"]["query"]>;
+export type ExportRulesOptions = ExportRulesQuery & ReadExtras;
+
 type LedgerQuery = NonNullable<
   paths["/api/v1/exports/ledger"]["get"]["parameters"]["query"]
 >;
@@ -229,11 +233,13 @@ export class ExportsResource {
    * which platform event. A profile with no enabled rule produces no export
    * candidates at all — there is no default mapping.
    */
-  async rules(options: ReadExtras = {}): Promise<ExportRulesResponse> {
+  async rules(options: ExportRulesOptions = {}): Promise<ExportRulesResponse> {
+    const { signal, ...query } = options;
     return this.http.request<ExportRulesResponse>({
       method: "GET",
       path: "/api/v1/exports/rules",
-      signal: options.signal,
+      query,
+      signal,
     });
   }
 

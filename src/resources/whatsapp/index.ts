@@ -62,6 +62,7 @@ export class WhatsAppNamespace {
 
 export type {
   WhatsAppTemplate,
+  WhatsAppTemplateAnalytics,
   WhatsAppTemplateCreateInput,
   WhatsAppTemplateCreateResult,
   WhatsAppTemplateSyncResult,

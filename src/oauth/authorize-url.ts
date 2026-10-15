@@ -27,7 +27,8 @@ export type OauthScope =
   | "analytics_pii"
   | "attribution_write"
   | "connections"
-  | "attribution";
+  | "attribution"
+  | "commerce";
 
 export interface BuildAuthorizeUrlInput {
   baseUrl?: string;

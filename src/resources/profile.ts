@@ -181,6 +181,19 @@ export type AttributionSettingsUpdateInput = NonNullable<
 export type AttributionSettingsUpdateResult =
   paths["/api/v1/profile/attribution-settings"]["patch"]["responses"][200]["content"]["application/json"]["data"];
 
+// #2062 — the windows the profile's own first-ad-touch → first-payment lag calls for.
+export type AttributionWindowRecommendation =
+  paths["/api/v1/profile/attribution-settings/recommendation"]["get"]["responses"][200]["content"]["application/json"]["data"];
+
+// #2054 — «Qué vendes con anuncios».
+export type RevenueScope =
+  paths["/api/v1/profile/revenue-scope"]["get"]["responses"][200]["content"]["application/json"]["data"];
+export type RevenueScopeUpdateInput = NonNullable<
+  paths["/api/v1/profile/revenue-scope"]["patch"]["requestBody"]
+>["content"]["application/json"];
+export type RevenueScopeUpdateResult =
+  paths["/api/v1/profile/revenue-scope"]["patch"]["responses"][200]["content"]["application/json"]["data"];
+
 export class ProfileResource {
   constructor(private readonly http: HttpClientLike) {}
 
@@ -561,6 +574,57 @@ export class ProfileResource {
       path: "/api/v1/profile/attribution-settings",
       body: input,
       idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #2062 — the windows the profile's OWN sales cycle calls for: per paying
+   * customer (first cash payment in the trailing 365 days), the days from
+   * their first ad touch to that payment; a first-touch window covering 80%
+   * of them (cap 365) and a click window covering the median (cap 90). Never
+   * narrower than the current windows. Read-only — apply it with
+   * {@link updateAttributionSettings}, which queues the replay.
+   */
+  /**
+   * #2054 — the profile's Stripe products with Atribu's «sold by ads» proposal,
+   * the owner's answer and the cash of the last 90 days.
+   */
+  async revenueScope(options: ReadExtras = {}): Promise<RevenueScope> {
+    const res = await this.http.request<{ data: RevenueScope }>({
+      method: "GET",
+      path: "/api/v1/profile/revenue-scope",
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #2054 — answer whether ads sell one product (`status: null` hands it back
+   * to the proposal). Re-classifies the profile's Stripe conversions and queues
+   * the recompute when anything moved.
+   */
+  async updateRevenueScope(
+    input: RevenueScopeUpdateInput,
+    options: WriteExtras = {},
+  ): Promise<RevenueScopeUpdateResult> {
+    const res = await this.http.request<{ data: RevenueScopeUpdateResult }>({
+      method: "PATCH",
+      path: "/api/v1/profile/revenue-scope",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  async attributionWindowRecommendation(
+    options: ReadExtras = {},
+  ): Promise<AttributionWindowRecommendation> {
+    const res = await this.http.request<{ data: AttributionWindowRecommendation }>({
+      method: "GET",
+      path: "/api/v1/profile/attribution-settings/recommendation",
       signal: options.signal,
     });
     return res.data;
