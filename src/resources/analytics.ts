@@ -72,6 +72,13 @@ export type CampaignConversionsResponse =
   paths["/api/v1/campaigns/{id}/conversions"]["get"]["responses"][200]["content"]["application/json"];
 export type CampaignConversionsOptions = CampaignConversionsQuery & ReadExtras;
 
+// #2117 — every conversion's winning campaign, one keyset walk.
+type ConversionAttributionQuery =
+  paths["/api/v1/conversions/attribution"]["get"]["parameters"]["query"];
+export type ConversionAttributionResponse =
+  paths["/api/v1/conversions/attribution"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionAttributionOptions = ConversionAttributionQuery & ReadExtras;
+
 // #1776 — campaign-level pause / resume and the live status read before them.
 export type CampaignStatusResponse =
   paths["/api/v1/campaigns/{id}/status"]["get"]["responses"][200]["content"]["application/json"];
@@ -302,6 +309,24 @@ export class AnalyticsResource {
     return this.http.request<CampaignConversionsResponse>({
       method: "GET",
       path: `/api/v1/campaigns/${encodeURIComponent(campaignId)}/conversions`,
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * Every conversion of the window with the campaign that wins its credit
+   * (highest `credited_weight`, a direct credit beating an inherited one on a
+   * tie) — one page; while `pagination.has_next` pass `pagination.cursor`
+   * back as `cursor`. `analytics:read` or `campaigns:read`.
+   */
+  async conversionAttribution(
+    options: ConversionAttributionOptions,
+  ): Promise<ConversionAttributionResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<ConversionAttributionResponse>({
+      method: "GET",
+      path: "/api/v1/conversions/attribution",
       query,
       signal,
     });

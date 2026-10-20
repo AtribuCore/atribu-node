@@ -22076,6 +22076,117 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversions/attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every conversion's winning campaign, in one paginated walk
+         * @description One row per conversion in the window that is credited to at least one campaign under `model`, with the campaign that wins its credit — the fold a caller would otherwise build by reading GET /api/v1/campaigns/{id}/conversions for every campaign.
+         *
+         *     **The winner.** Per campaign, the conversion's credit is grouped exactly as the per-campaign read groups it (`credited_weight` = the sum of that campaign's touchpoint credit). The winner is the campaign with the highest `credited_weight`; on a tie a direct credit beats an inherited one (`is_inherited`), then the most recent `last_touch_time`, then the lowest `campaign_external_id`.
+         *
+         *     **Which conversions.** Every conversion of the window (profile timezone days) that holds a credited touch with a campaign — exactly the union of the per-campaign read over all campaigns. A conversion credited only to touches without a campaign is not returned.
+         *
+         *     **Paging.** Newest first (`event_time` descending, ties by `conversion_id`), `limit` conversions a page (default 500, max 1000). While `pagination.has_next` is true pass `pagination.cursor` back as `cursor`, keeping the other parameters. A `limit` outside 1–1000 or a cursor this endpoint did not issue is `400 invalid_parameter`.
+         *
+         *     **Freshness.** `meta.recomputed_at` is when the profile's attribution was last recomputed (null when never, or on an empty page). There is no `updated_since`: a recompute re-credits conversions without changing them, so re-walk the window instead — a year of a busy clinic is a few pages.
+         *
+         *     Either `analytics:read` or `campaigns:read` admits the call; the row carries no name or email.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description First day, `YYYY-MM-DD`, profile timezone. */
+                    date_from: string;
+                    /** @description Last day, inclusive. At most 366 days after `date_from`. */
+                    date_to: string;
+                    /** @description The attribution model, as on every attribution read. Defaults to `last_touch`. */
+                    model?: string;
+                    /** @description Conversions per page, an integer from 1 to 1000. Default 500. Anything else is `400 invalid_parameter`. */
+                    limit?: number;
+                    /** @description `pagination.cursor` from the previous page, unchanged. Omit for the first page. */
+                    cursor?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description One page of conversions with their winning campaign, newest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConversionAttributionResponse"];
+                    };
+                };
+                /** @description `invalid_parameter` (missing or malformed date, bad `model`, `limit` outside 1–1000, a cursor this endpoint did not issue) or `invalid_date_range` (from after to, span over 366 days) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `insufficient_scope`: the key holds neither `analytics:read` nor `campaigns:read` */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/overview": {
         parameters: {
             query?: never;
@@ -25310,6 +25421,30 @@ export interface paths {
                                 id: string;
                                 /** @description Button label (20 char max). */
                                 title: string;
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "interactive_list";
+                            /** @description Body text shown above the list button (1024 char max). */
+                            body: string;
+                            /** @description Optional text header (60 char max). */
+                            header?: string;
+                            /** @description Optional footer (60 char max). */
+                            footer?: string;
+                            /** @description Label of the button that opens the list (20 char max). */
+                            button_text: string;
+                            /** @description List sections — at most 10 rows in total across all sections. */
+                            sections: {
+                                /** @description Section title (24 char max); required when there is more than one section. */
+                                title?: string;
+                                rows: {
+                                    /** @description Postback ID returned when the row is selected (200 char max). */
+                                    id: string;
+                                    /** @description Row title (24 char max). */
+                                    title: string;
+                                    /** @description Optional row description (72 char max). */
+                                    description?: string;
+                                }[];
                             }[];
                         } | {
                             /** @enum {string} */
@@ -32409,7 +32544,7 @@ export interface paths {
                          * @description HTTPS URL where Atribu will POST signed events. Must be a public DNS name (#1150): no literal IPs, no internal namespaces (.internal/.local/.ts.net/…), no embedded credentials, and every resolved address must be publicly routable — loopback, RFC 1918, link-local (169.254.169.254), CGNAT 100.64/10, unique-local (fd00:ec2::254), multicast and their IPv6-mapped forms are refused with 422. Re-checked before every delivery; redirects are not followed.
                          */
                         url: string;
-                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated" | "call.status.updated" | "call.permission.updated" | "whatsapp.flow.status" | "whatsapp.flow.alert" | "comment.received" | "catalog.updated" | "product.stock.changed" | "product.price.changed" | "checkout.abandoned" | "order.status.changed" | "connection.connected" | "connection.reconnect_required" | "connection.revoked" | "handoff.completed" | "recompute.completed" | "conversion.attributed" | "export.completed" | "export.failed" | "profile.freshness.changed" | "outcome.recorded" | "leadgen.received")[];
+                        events: ("message.received" | "message.delivery" | "conversation.started" | "calendar.event.changed" | "message.echo" | "message.history" | "contacts.sync" | "template.updated" | "channel.health.updated" | "call.status.updated" | "call.permission.updated" | "whatsapp.flow.status" | "whatsapp.flow.alert" | "comment.received" | "catalog.updated" | "product.stock.changed" | "product.price.changed" | "checkout.abandoned" | "order.status.changed" | "customer.redacted" | "shop.redacted" | "connection.connected" | "connection.reconnect_required" | "connection.revoked" | "handoff.completed" | "recompute.completed" | "conversion.attributed" | "export.completed" | "export.failed" | "profile.freshness.changed" | "outcome.recorded" | "leadgen.received")[];
                         /** @description Channel providers, plus `atribu` for the platform lifecycle events (connection.*, handoff.completed, recompute.completed, conversion.attributed, export.*, profile.freshness.changed, outcome.recorded, leadgen.received). Delivery matches on providers AND events, so those eleven are opt-in: without `atribu` here you receive none of them. */
                         providers: ("whatsapp" | "instagram" | "messenger" | "tiktok_messaging" | "email" | "google_calendar" | "shopify" | "atribu")[];
                     };
@@ -78046,6 +78181,133 @@ export interface components {
              * @example 2026-10-14T13:05:00Z
              */
             fetched_at: string;
+        };
+        /**
+         * @example {
+         *       "data": [
+         *         {
+         *           "conversion_id": "00000000-0000-4000-8000-000000000001",
+         *           "outcome_event_id": "00000000-0000-4000-8000-000000000002",
+         *           "campaign_external_id": "120200000000000001",
+         *           "campaign_name": "Implantes — Leads",
+         *           "credited_weight": 1,
+         *           "credited_value": "50000",
+         *           "touch_count": 3,
+         *           "campaign_touch_count": 1,
+         *           "path_length": 3,
+         *           "event_time": "2026-09-30T14:03:11.123+00:00",
+         *           "first_touch_time": "2026-09-21T22:10:05+00:00",
+         *           "last_touch_time": "2026-09-21T22:10:05+00:00",
+         *           "is_inherited": false,
+         *           "event_type": "payment_received",
+         *           "revenue_type": "cash",
+         *           "value_amount": "50000",
+         *           "currency": "CLP",
+         *           "customer_key": "ghl_contact_0001",
+         *           "is_first_payment": true
+         *         }
+         *       ],
+         *       "pagination": {
+         *         "has_next": true,
+         *         "cursor": "eyJrIjoiY2EiLCJ0IjoiLi4uIiwiaWQiOiIuLi4ifQ"
+         *       },
+         *       "meta": {
+         *         "date_from": "2026-01-01",
+         *         "date_to": "2026-10-15",
+         *         "profile_id": "00000000-0000-4000-8000-0000000000aa",
+         *         "model": "last_touch",
+         *         "recomputed_at": "2026-10-15T12:00:00+00:00"
+         *       }
+         *     }
+         */
+        ConversionAttributionResponse: {
+            data: components["schemas"]["ConversionAttribution"][];
+            pagination: {
+                /** @description True when another page exists: request it with `cursor`. */
+                has_next: boolean;
+                /** @description Opaque. Pass it back unchanged as `?cursor=`. Absent on the last page. */
+                cursor?: string;
+            };
+            meta: {
+                date_from: string;
+                date_to: string;
+                profile_id: string;
+                /** @example last_touch */
+                model: string;
+                /** @description When the profile's attribution was last recomputed; null when never or on an empty page. */
+                recomputed_at: string | null;
+            };
+        };
+        ConversionAttribution: {
+            /** @example 00000000-0000-4000-8000-000000000001 */
+            conversion_id: string;
+            /**
+             * @description The outcome event this conversion was extracted from — the id Atribu returns at ingest (e.g. POST /api/v1/events). Null when the conversion has no outcome event behind it. `outcome_event_id ?? conversion_id` is a stable per-conversion key.
+             * @example 00000000-0000-4000-8000-000000000002
+             */
+            outcome_event_id: string | null;
+            /**
+             * @description The winning campaign's platform id (the `campaign_external_id` of GET /api/v1/campaigns).
+             * @example 120200000000000001
+             */
+            campaign_external_id: string;
+            /**
+             * @description The campaign's current name, else the name on the touch, else its id.
+             * @example Implantes — Leads
+             */
+            campaign_name: string;
+            /**
+             * @description The winning campaign's share of the conversion, 0–1: the sum of its touchpoints' credit, exactly the `credited_weight` GET /api/v1/campaigns/{id}/conversions returns for it.
+             * @example 1
+             */
+            credited_weight: number;
+            /**
+             * Format: decimal
+             * @description The winning campaign's credited share of the value, reporting currency.
+             * @example 1234.56
+             */
+            credited_value: string | null;
+            /**
+             * @description Touches in the conversion's whole path (`path_length`); `campaign_touch_count` when the path length is unknown.
+             * @example 3
+             */
+            touch_count: number;
+            /**
+             * @description Credited touches on the winning campaign (the drill's `touch_count`).
+             * @example 1
+             */
+            campaign_touch_count: number;
+            path_length: number | null;
+            /**
+             * @description When the conversion happened.
+             * @example 2026-09-30T14:03:11.123+00:00
+             */
+            event_time: string;
+            /** @description Earliest credited touch on the winning campaign. */
+            first_touch_time: string | null;
+            /** @description Latest credited touch on the winning campaign. */
+            last_touch_time: string | null;
+            /** @description True when the winning campaign's credit came via a bridged lead→cash touch, not a directly-tracked click — never counted in ROAS. */
+            is_inherited: boolean;
+            /** @example payment_received */
+            event_type: string;
+            /** @example cash */
+            revenue_type: string;
+            /**
+             * Format: decimal
+             * @description The conversion's full value (all of it, not the campaign's share), reporting currency.
+             * @example 1234.56
+             */
+            value_amount: string | null;
+            /**
+             * @description The reporting currency (ISO 4217).
+             * @example CLP
+             */
+            currency: string | null;
+            /** @description CRM contact id (not name/email) — the same field the per-campaign drill returns. */
+            customer_key: string | null;
+            /** @description Whether this payment is the customer's first. Null unless `revenue_type` is `cash`. */
+            is_first_payment: boolean | null;
         };
         OverviewResponse: {
             data: components["schemas"]["OverviewTotals"] | components["schemas"]["OverviewDays"];

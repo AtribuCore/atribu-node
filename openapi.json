@@ -33907,6 +33907,248 @@
           "fetched_at"
         ]
       },
+      "ConversionAttributionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConversionAttribution"
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "has_next": {
+                "type": "boolean",
+                "description": "True when another page exists: request it with `cursor`."
+              },
+              "cursor": {
+                "type": "string",
+                "description": "Opaque. Pass it back unchanged as `?cursor=`. Absent on the last page."
+              }
+            },
+            "required": [
+              "has_next"
+            ]
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "date_from": {
+                "type": "string"
+              },
+              "date_to": {
+                "type": "string"
+              },
+              "profile_id": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string",
+                "example": "last_touch"
+              },
+              "recomputed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When the profile's attribution was last recomputed; null when never or on an empty page."
+              }
+            },
+            "required": [
+              "date_from",
+              "date_to",
+              "profile_id",
+              "model",
+              "recomputed_at"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "pagination",
+          "meta"
+        ],
+        "example": {
+          "data": [
+            {
+              "conversion_id": "00000000-0000-4000-8000-000000000001",
+              "outcome_event_id": "00000000-0000-4000-8000-000000000002",
+              "campaign_external_id": "120200000000000001",
+              "campaign_name": "Implantes — Leads",
+              "credited_weight": 1,
+              "credited_value": "50000",
+              "touch_count": 3,
+              "campaign_touch_count": 1,
+              "path_length": 3,
+              "event_time": "2026-09-30T14:03:11.123+00:00",
+              "first_touch_time": "2026-09-21T22:10:05+00:00",
+              "last_touch_time": "2026-09-21T22:10:05+00:00",
+              "is_inherited": false,
+              "event_type": "payment_received",
+              "revenue_type": "cash",
+              "value_amount": "50000",
+              "currency": "CLP",
+              "customer_key": "ghl_contact_0001",
+              "is_first_payment": true
+            }
+          ],
+          "pagination": {
+            "has_next": true,
+            "cursor": "eyJrIjoiY2EiLCJ0IjoiLi4uIiwiaWQiOiIuLi4ifQ"
+          },
+          "meta": {
+            "date_from": "2026-01-01",
+            "date_to": "2026-10-15",
+            "profile_id": "00000000-0000-4000-8000-0000000000aa",
+            "model": "last_touch",
+            "recomputed_at": "2026-10-15T12:00:00+00:00"
+          }
+        }
+      },
+      "ConversionAttribution": {
+        "type": "object",
+        "properties": {
+          "conversion_id": {
+            "type": "string",
+            "example": "00000000-0000-4000-8000-000000000001"
+          },
+          "outcome_event_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "00000000-0000-4000-8000-000000000002",
+            "description": "The outcome event this conversion was extracted from — the id Atribu returns at ingest (e.g. POST /api/v1/events). Null when the conversion has no outcome event behind it. `outcome_event_id ?? conversion_id` is a stable per-conversion key."
+          },
+          "campaign_external_id": {
+            "type": "string",
+            "example": "120200000000000001",
+            "description": "The winning campaign's platform id (the `campaign_external_id` of GET /api/v1/campaigns)."
+          },
+          "campaign_name": {
+            "type": "string",
+            "example": "Implantes — Leads",
+            "description": "The campaign's current name, else the name on the touch, else its id."
+          },
+          "credited_weight": {
+            "type": "number",
+            "example": 1,
+            "description": "The winning campaign's share of the conversion, 0–1: the sum of its touchpoints' credit, exactly the `credited_weight` GET /api/v1/campaigns/{id}/conversions returns for it."
+          },
+          "credited_value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "The winning campaign's credited share of the value, reporting currency."
+          },
+          "touch_count": {
+            "type": "integer",
+            "example": 3,
+            "description": "Touches in the conversion's whole path (`path_length`); `campaign_touch_count` when the path length is unknown."
+          },
+          "campaign_touch_count": {
+            "type": "integer",
+            "example": 1,
+            "description": "Credited touches on the winning campaign (the drill's `touch_count`)."
+          },
+          "path_length": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "event_time": {
+            "type": "string",
+            "example": "2026-09-30T14:03:11.123+00:00",
+            "description": "When the conversion happened."
+          },
+          "first_touch_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Earliest credited touch on the winning campaign."
+          },
+          "last_touch_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Latest credited touch on the winning campaign."
+          },
+          "is_inherited": {
+            "type": "boolean",
+            "description": "True when the winning campaign's credit came via a bridged lead→cash touch, not a directly-tracked click — never counted in ROAS."
+          },
+          "event_type": {
+            "type": "string",
+            "example": "payment_received"
+          },
+          "revenue_type": {
+            "type": "string",
+            "example": "cash"
+          },
+          "value_amount": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "decimal",
+            "pattern": "^-?\\d+(\\.\\d+)?$",
+            "example": "1234.56",
+            "description": "The conversion's full value (all of it, not the campaign's share), reporting currency."
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "CLP",
+            "description": "The reporting currency (ISO 4217)."
+          },
+          "customer_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "CRM contact id (not name/email) — the same field the per-campaign drill returns."
+          },
+          "is_first_payment": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether this payment is the customer's first. Null unless `revenue_type` is `cash`."
+          }
+        },
+        "required": [
+          "conversion_id",
+          "outcome_event_id",
+          "campaign_external_id",
+          "campaign_name",
+          "credited_weight",
+          "credited_value",
+          "touch_count",
+          "campaign_touch_count",
+          "path_length",
+          "event_time",
+          "first_touch_time",
+          "last_touch_time",
+          "is_inherited",
+          "event_type",
+          "revenue_type",
+          "value_amount",
+          "currency",
+          "customer_key",
+          "is_first_payment"
+        ]
+      },
       "OverviewResponse": {
         "type": "object",
         "properties": {
@@ -83535,6 +83777,221 @@
         "x-atribu-scope-grain": "profile"
       }
     },
+    "/api/v1/conversions/attribution": {
+      "get": {
+        "summary": "Every conversion's winning campaign, in one paginated walk",
+        "description": "One row per conversion in the window that is credited to at least one campaign under `model`, with the campaign that wins its credit — the fold a caller would otherwise build by reading GET /api/v1/campaigns/{id}/conversions for every campaign.\n\n**The winner.** Per campaign, the conversion's credit is grouped exactly as the per-campaign read groups it (`credited_weight` = the sum of that campaign's touchpoint credit). The winner is the campaign with the highest `credited_weight`; on a tie a direct credit beats an inherited one (`is_inherited`), then the most recent `last_touch_time`, then the lowest `campaign_external_id`.\n\n**Which conversions.** Every conversion of the window (profile timezone days) that holds a credited touch with a campaign — exactly the union of the per-campaign read over all campaigns. A conversion credited only to touches without a campaign is not returned.\n\n**Paging.** Newest first (`event_time` descending, ties by `conversion_id`), `limit` conversions a page (default 500, max 1000). While `pagination.has_next` is true pass `pagination.cursor` back as `cursor`, keeping the other parameters. A `limit` outside 1–1000 or a cursor this endpoint did not issue is `400 invalid_parameter`.\n\n**Freshness.** `meta.recomputed_at` is when the profile's attribution was last recomputed (null when never, or on an empty page). There is no `updated_since`: a recompute re-credits conversions without changing them, so re-walk the window instead — a year of a busy clinic is a few pages.\n\nEither `analytics:read` or `campaigns:read` admits the call; the row carries no name or email.",
+        "tags": [
+          "Conversions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "2026-01-01",
+              "description": "First day, `YYYY-MM-DD`, profile timezone."
+            },
+            "required": true,
+            "description": "First day, `YYYY-MM-DD`, profile timezone.",
+            "name": "date_from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "2026-10-15",
+              "description": "Last day, inclusive. At most 366 days after `date_from`."
+            },
+            "required": true,
+            "description": "Last day, inclusive. At most 366 days after `date_from`.",
+            "name": "date_to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "last_touch",
+              "description": "The attribution model, as on every attribution read. Defaults to `last_touch`."
+            },
+            "required": false,
+            "description": "The attribution model, as on every attribution read. Defaults to `last_touch`.",
+            "name": "model",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "example": 500,
+              "description": "Conversions per page, an integer from 1 to 1000. Default 500. Anything else is `400 invalid_parameter`."
+            },
+            "required": false,
+            "description": "Conversions per page, an integer from 1 to 1000. Default 500. Anything else is `400 invalid_parameter`.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "`pagination.cursor` from the previous page, unchanged. Omit for the first page."
+            },
+            "required": false,
+            "description": "`pagination.cursor` from the previous page, unchanged. Omit for the first page.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of conversions with their winning campaign, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversionAttributionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_parameter` (missing or malformed date, bad `model`, `limit` outside 1–1000, a cursor this endpoint did not issue) or `invalid_date_range` (from after to, span over 366 days)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "invalid_parameter"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "invalid_parameter"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`insufficient_scope`: the key holds neither `analytics:read` nor `campaigns:read`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "example": "invalid_parameter"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        },
+                        "request_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "status",
+                        "request_id"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-atribu-scopes": [
+          "analytics:read",
+          "campaigns:read"
+        ],
+        "x-atribu-auth": [
+          "api_key",
+          "session",
+          "user_token"
+        ],
+        "x-atribu-idempotency": "none",
+        "x-atribu-scope-grain": "profile"
+      }
+    },
     "/api/v1/overview": {
       "get": {
         "summary": "Get dashboard overview",
@@ -91015,6 +91472,80 @@
                           "buttons"
                         ],
                         "description": "WhatsApp only — up to 3 reply buttons. Lands as an `interactive` message; tap returns the button `id` on the `messaging_postbacks` webhook field."
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "interactive_list"
+                            ]
+                          },
+                          "body": {
+                            "type": "string",
+                            "description": "Body text shown above the list button (1024 char max)."
+                          },
+                          "header": {
+                            "type": "string",
+                            "description": "Optional text header (60 char max)."
+                          },
+                          "footer": {
+                            "type": "string",
+                            "description": "Optional footer (60 char max)."
+                          },
+                          "button_text": {
+                            "type": "string",
+                            "description": "Label of the button that opens the list (20 char max)."
+                          },
+                          "sections": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string",
+                                  "description": "Section title (24 char max); required when there is more than one section."
+                                },
+                                "rows": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "description": "Postback ID returned when the row is selected (200 char max)."
+                                      },
+                                      "title": {
+                                        "type": "string",
+                                        "description": "Row title (24 char max)."
+                                      },
+                                      "description": {
+                                        "type": "string",
+                                        "description": "Optional row description (72 char max)."
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "rows"
+                              ]
+                            },
+                            "description": "List sections — at most 10 rows in total across all sections."
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "body",
+                          "button_text",
+                          "sections"
+                        ],
+                        "description": "WhatsApp only — a list message: a body, a button that opens a picker, and up to 10 rows in sections. A selected row returns its `id` as an inbound `interactive.list_reply`."
                       },
                       {
                         "type": "object",
@@ -102971,6 +103502,8 @@
                         "product.price.changed",
                         "checkout.abandoned",
                         "order.status.changed",
+                        "customer.redacted",
+                        "shop.redacted",
                         "connection.connected",
                         "connection.reconnect_required",
                         "connection.revoked",

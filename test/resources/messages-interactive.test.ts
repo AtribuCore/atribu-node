@@ -97,4 +97,28 @@ describe("messages.send — WhatsApp interactive_buttons", () => {
       expect(_check).toHaveLength(1);
     }
   });
+
+  it("sends interactive_list content with sections and rows", async () => {
+    const content = {
+      type: "interactive_list" as const,
+      body: "¿Qué tipología?",
+      button_text: "Ver tipologías",
+      sections: [
+        { title: "Parque Pocuro", rows: [{ id: "pp-1d", title: "1D1B", description: "32 m²" }] },
+        { title: "Torre Sur", rows: [{ id: "ts-2d", title: "2D1B" }] },
+      ],
+    };
+    await newClient().messages.send({
+      connection_id: fixtures.ids.connectionId,
+      channel: "whatsapp",
+      to: "+15551234567",
+      content,
+    });
+    expect(captured).toEqual({
+      connection_id: fixtures.ids.connectionId,
+      channel: "whatsapp",
+      to: "+15551234567",
+      content,
+    });
+  });
 });

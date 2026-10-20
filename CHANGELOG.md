@@ -5,7 +5,13 @@ All notable changes to `@atribu/node` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - 2026-10-20
+
+### Added
+
+- **`messages.send` accepts `content.type: "interactive_list"`** (WhatsApp only): a list message — `body`, `button_text` (≤ 20), optional `header` / `footer` (≤ 60) and `sections: [{ title?, rows: [{ id, title (≤ 24), description? (≤ 72) }] }]`, at most 10 rows in total and a `title` on every section when there is more than one. A selected row returns its `id` as an inbound `interactive.list_reply`. Free-form, so only inside the 24h customer-service window. Types derive from the regenerated OpenAPI spec; no new method.
+- `analytics.conversionAttribution({ date_from, date_to, model?, limit?, cursor? })` — `GET /api/v1/conversions/attribution` (#2117): every conversion's winning campaign in one keyset-paginated walk.
+- **`customer.redacted` / `shop.redacted` webhook events** (#2116), provider `shopify`: Shopify's GDPR `customers/redact` and `shop/redact`, forwarded by Atribu after it erases its own copy so the app erases the buyer data it stored from the store's orders. Types `ShopifyCustomerRedactedEvent` (`shop`, `customer_id`, `email`, `phone`, `orders_to_redact`) and `ShopifyShopRedactedEvent` (`shop`), both in `AtribuWebhookEvent`; `WEBHOOK_EVENT_TYPES` gains both.
 
 ## [2.1.0] - 2026-10-15
 

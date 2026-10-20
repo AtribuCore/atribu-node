@@ -66,6 +66,9 @@ export const WEBHOOK_EVENT_TYPES = [
   "product.price.changed",
   "checkout.abandoned",
   "order.status.changed",
+  // Shopify GDPR redactions forwarded to the app, provider shopify.
+  "customer.redacted",
+  "shop.redacted",
   // Platform lifecycle (#1049) — all carry provider `atribu`.
   "connection.connected",
   "connection.reconnect_required",
@@ -617,6 +620,50 @@ export interface ShopifyOrderStatusChangedEvent extends BaseEvent {
     lines: ShopifyOrderEventLine[];
     /** The full Shopify order body. */
     raw: Record<string, unknown>;
+  };
+}
+
+/**
+ * Shopify asked for a customer's data to be erased (its `customers/redact`
+ * GDPR webhook), and Atribu has erased its own copy. Erase the buyer's
+ * personal data you hold from this shop: the orders in `orders_to_redact`,
+ * and whatever you keyed on `customer_id`, `email` or `phone`.
+ *
+ * Shopify sends this 10 days after the request when the customer has no
+ * orders in the last six months, or once those orders age out. Delivery is
+ * at-least-once — deduplicate on `event.id`; the id is the same for a
+ * redelivery of the same request.
+ */
+export interface ShopifyCustomerRedactedEvent extends BaseEvent {
+  type: "customer.redacted";
+  provider: "shopify";
+  data: {
+    provider: "shopify";
+    /** The shop's `*.myshopify.com` domain. */
+    shop: string;
+    /** Shopify customer id, a numeric string. */
+    customer_id: string | null;
+    email: string | null;
+    phone: string | null;
+    /** Shopify order ids, numeric strings, whose buyer data must be erased. */
+    orders_to_redact: string[];
+  };
+}
+
+/**
+ * Shopify asked for all of a shop's data to be erased (its `shop/redact` GDPR
+ * webhook, 48 hours after the app was uninstalled), and Atribu has erased its
+ * own copy. Erase the buyer data you hold from every order of this shop.
+ * `connection_id` is the store connection the orders came through; it is
+ * deleted on Atribu's side right after this event is enqueued.
+ */
+export interface ShopifyShopRedactedEvent extends BaseEvent {
+  type: "shop.redacted";
+  provider: "shopify";
+  data: {
+    provider: "shopify";
+    /** The shop's `*.myshopify.com` domain. */
+    shop: string;
   };
 }
 
@@ -1355,6 +1402,8 @@ export type AtribuWebhookEvent =
   | ShopifyProductPriceChangedEvent
   | ShopifyCheckoutAbandonedEvent
   | ShopifyOrderStatusChangedEvent
+  | ShopifyCustomerRedactedEvent
+  | ShopifyShopRedactedEvent
   | ConnectionConnectedEvent
   | ConnectionReconnectRequiredEvent
   | ConnectionRevokedEvent
