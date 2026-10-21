@@ -51,6 +51,11 @@ export function deriveRetryHint(input: DeriveRetryInput): RetryHint {
   if (input.errorCode === "event_already_exported" || input.errorCode === "event_linked_to_conversation") {
     return { action: "do_not_retry" };
   }
+  // A Meta send whose outcome is unknown was usually delivered; retrying sends
+  // the customer a duplicate.
+  if (input.errorCode === "send_outcome_unknown") {
+    return { action: "do_not_retry" };
+  }
   if (input.status === 408) return { action: "retry" };
   if (input.status === 409) return { action: "fix_and_retry" };
   if (input.status === 422 || input.errorCode === "validation_error" || input.errorCode === "invalid_content") {

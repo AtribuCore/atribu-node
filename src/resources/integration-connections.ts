@@ -39,6 +39,10 @@ type ManyChatConnectionPostResponse =
   paths["/api/v1/integrations/manychat/connection"]["post"]["responses"][200]["content"]["application/json"];
 export type UpsertedManyChatConnection = ManyChatConnectionPostResponse["data"]["connection"];
 
+type ManyChatSecretRotateResponse =
+  paths["/api/v1/integrations/manychat/connection/rotate-secret"]["post"]["responses"][200]["content"]["application/json"];
+export type RotatedManyChatSecret = ManyChatSecretRotateResponse["data"]["connection"];
+
 // ---------------------------------------------------------------------------
 // Meta Pages
 // ---------------------------------------------------------------------------
@@ -142,6 +146,20 @@ export class IntegrationConnectionsResource {
       method: "POST",
       path: "/api/v1/integrations/manychat/connection",
       body: input,
+      idempotencyKey: opts.idempotencyKey,
+      signal: opts.signal,
+    });
+    return res.data.connection;
+  }
+
+  /**
+   * Regenerate the ManyChat webhook secret (the `Authorization: Bearer` value
+   * of every External Request). The old one stops working at once.
+   */
+  async manychatRotateSecret(opts: MutationOptions = {}): Promise<RotatedManyChatSecret> {
+    const res = await this.http.request<ManyChatSecretRotateResponse>({
+      method: "POST",
+      path: "/api/v1/integrations/manychat/connection/rotate-secret",
       idempotencyKey: opts.idempotencyKey,
       signal: opts.signal,
     });

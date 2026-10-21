@@ -4055,6 +4055,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/exports/rules/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create several conversion-export signal rules
+         * @description Create up to 50 rules in one call — what a review screen confirms after choosing several outcomes at once. Each row is the body `POST /api/v1/exports/rules` takes and is validated exactly as that route validates it.
+         *
+         *     **All-or-report, not all-or-nothing.** Every row is created or refused on its own and the answer carries one result per row, in request order: `created` with the rule, or `rejected` with the code and message the single create would have answered. One bad row never blocks the others, and no row is dropped. The status is 200 whatever the mix; only a malformed envelope is 422.
+         *
+         *     One export pass is queued for the whole batch, and only when at least one rule was created. Send an `Idempotency-Key` to make a retried confirm replay the first report instead of creating every rule again.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ExportRuleBulkRequest"];
+                };
+            };
+            responses: {
+                /** @description One result per row */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                results: components["schemas"]["ExportRuleBulkRow"][];
+                                created: number;
+                                rejected: number;
+                                /** @description Whether a standard export pass was queued so this change takes effect now rather than at the next hourly sweep. It says a pass was ASKED FOR — never that anything shipped. */
+                                replay_queued: boolean;
+                                /** @description Why the export pass could not be queued. Null when it was. The write itself succeeded either way. */
+                                replay_error: string | null;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the exports:write scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid body */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/exports/rules/preview": {
         parameters: {
             query?: never;
@@ -4355,6 +4484,7 @@ export interface paths {
                          * @description REQUIRED for a `conversion_definition` rule: the `conversion_definitions` id it maps.
                          */
                         source_ref_id?: string | null;
+                        /** @description Pipeline rule: a `stage_entered` rule fires on entering `to_stage` (required); an optional `from_stage` narrows it to entering FROM that stage, which must be another stage of the same pipeline (422 otherwise). A `stage_exited` rule fires on leaving `from_stage` (required); an optional `to_stage` narrows it to leaving towards that stage. `fixed_value` + `fixed_currency` on a `fixed_value` rule. */
                         source_config?: {
                             [key: string]: unknown;
                         };
@@ -4529,6 +4659,8 @@ export interface paths {
          *     It carries the `atribu_src` marker a production event carries, so it actually exercises the Custom Conversion a rule created — a test that skipped it would fire the pixel and not the conversion, which is the most misleading possible result while verifying a setup.
          *
          *     Returns Meta's response verbatim. `quality_warning` is non-null when this profile's match-quality policy would block a real event carrying only what a test carries (IP + user agent); the test still sends.
+         *
+         *     `test_event_code` is required: a send without one would be a real conversion on the live dataset, so it is refused with `422 validation_error` before Meta is called.
          *
          *     Capped at 5 sends per profile per minute. Blocked with `409 invalid_state` when the profile's privacy rules or legal gate refuse the payload — nothing reached Meta, and `error.reason` names the gate's reason (e.g. `dpa_not_accepted` for a Platform-Safe profile whose DPA is not accepted, `baa_not_approved` for HIPAA). A `502 provider_error` with `error.reason: meta_rejected` means the event DID reach Meta and Meta refused it.
          */
@@ -18272,6 +18404,8 @@ export interface paths {
                         manychat_account_id?: string;
                         /** @description Atribu `instagram_accounts.id`s of this profile. Omitted keeps the stored binding. An empty binding is filled automatically when the profile has exactly one Instagram account. */
                         instagram_account_ids?: string[];
+                        /** @description Omitted keeps the stored mapping; present REPLACES it. Each row sets exactly one of `flow_id` / `keyword` and a digits-only `ad_id`, or the request is a 422. */
+                        flow_mapping?: components["schemas"]["ManyChatFlowMappingEntry"][];
                     };
                 };
             };
@@ -18289,12 +18423,7 @@ export interface paths {
                                     id: string;
                                     webhook_secret: string;
                                     instagram_account_ids: string[];
-                                    flow_mapping: {
-                                        flow_id: string;
-                                        ad_id?: string;
-                                        adset_id?: string;
-                                        campaign_id?: string;
-                                    }[];
+                                    flow_mapping: components["schemas"]["ManyChatFlowMappingEntry"][];
                                 };
                             };
                             meta: {
@@ -18323,6 +18452,127 @@ export interface paths {
                 };
                 /** @description Missing scope, or the caller is an API key (these routes require a signed-in user) */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/manychat/connection/rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate the ManyChat webhook secret
+         * @description Replaces `webhook_secret`, the `Authorization: Bearer` value of every ManyChat External Request. The old secret stops working immediately, so every External Request block must be updated with the new one. The binding, the flow mapping and the tracked-link signing secret are unchanged. 404 when this profile has no ManyChat connection.
+         *
+         *     Scope: `instagram`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The new secret */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                connection: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    webhook_secret: string;
+                                };
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing scope, or the caller is an API key (these routes require a signed-in user) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description No such row on this profile */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -49291,6 +49541,7 @@ export interface paths {
         };
         /**
          * List the ad sets a rule can be wired to
+         * @deprecated
          * @description Every ad set on the destination's ad account that is NOT already optimizing for this event, with its 7-day spend, its live ad count, what it optimizes for today, and a validate_only probe of whether Meta will accept the re-point at all (#306).
          *
          *     Pass either `rule_id` (wire mode — the event name resolves from the rule) or `event_name` (create mode — the rule does not exist yet).
@@ -49480,6 +49731,237 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversion-sync/wiring/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List campaigns and ad sets with per-rule wiring compatibility
+         * @description The destination ad account's campaigns → ad sets (archived/deleted excluded, paused included and flagged), each with objective, 7-day spend and conversions, status and what it optimizes for today. For every Sync Rule sending to Meta (or just `rule_id`), each ad set says whether it can be connected (`selectable`), why not when it cannot (campaign objective × event per Meta's documented table, the optimization goal, the dataset), and whether connecting is an in-place edit or a Recreate (validate_only probe, capped at `probe_limit` ad sets).
+         */
+        get: {
+            parameters: {
+                query: {
+                    destination_id: string;
+                    /** @description Limit to one rule. Omit for every enabled rule that sends to Meta. */
+                    rule_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Campaigns, active and highest-spend first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                destination_id: string;
+                                pixel_id: string;
+                                currency: string;
+                                rules: {
+                                    rule_id: string;
+                                    rule_name: string;
+                                    event_name: string;
+                                }[];
+                                campaigns: {
+                                    campaign_id: string;
+                                    campaign_name: string;
+                                    objective: string | null;
+                                    effective_status: string | null;
+                                    is_active: boolean;
+                                    /**
+                                     * Format: decimal
+                                     * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                     * @example 1234.56
+                                     */
+                                    spend_7d: string;
+                                    conversions_7d: number;
+                                    rules: {
+                                        rule_id: string;
+                                        compatibility: components["schemas"]["ConversionSyncObjectiveCompatibility"];
+                                        available_count: number;
+                                        wired_count: number;
+                                    }[];
+                                    ad_sets: {
+                                        ad_set_id: string;
+                                        ad_set_name: string;
+                                        effective_status: string;
+                                        is_active: boolean;
+                                        /** @description Paused at ad-set or campaign level; UIs fold these. */
+                                        is_paused: boolean;
+                                        created_time: string | null;
+                                        optimization_goal: string | null;
+                                        current_custom_event_type: string | null;
+                                        current_custom_event_str: string | null;
+                                        current_custom_conversion_id: string | null;
+                                        pixel_id: string | null;
+                                        ad_count: number | null;
+                                        /**
+                                         * Format: decimal
+                                         * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                         * @example 1234.56
+                                         */
+                                        daily_budget: string | null;
+                                        /**
+                                         * Format: decimal
+                                         * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                         * @example 1234.56
+                                         */
+                                        lifetime_budget: string | null;
+                                        uses_campaign_budget_optimization: boolean;
+                                        /**
+                                         * Format: decimal
+                                         * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                                         * @example 1234.56
+                                         */
+                                        spend_7d: string;
+                                        conversions_7d: number;
+                                        rules: {
+                                            rule_id: string;
+                                            /** @enum {string} */
+                                            state: "available" | "wired" | "incompatible_objective" | "unsupported_optimization_goal" | "other_dataset" | "no_campaign";
+                                            selectable: boolean;
+                                            disabled_reason: string | null;
+                                            compatibility: components["schemas"]["ConversionSyncObjectiveCompatibility"];
+                                            /**
+                                             * @description Only for `available`: `in_place` — Meta accepts the promoted_object edit; `recreate` — Meta froze it at publish, a new ad set must carry the event; `unknown` — not probed (past `probe_limit`) or the probe answered otherwise (`edit_mode_error`).
+                                             * @enum {string|null}
+                                             */
+                                            edit_mode: "in_place" | "recreate" | "unknown" | null;
+                                            edit_mode_error: string | null;
+                                        }[];
+                                    }[];
+                                }[];
+                                probe_limit: number;
+                                checked_at: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized — either the Atribu credential, or the customer's Meta token. A Meta-token failure carries `reconnect_required: true` and a `reconnect` action. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope, or the customer's Meta grant lacks ads_management */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rule or destination not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The rule is archived, the destination is not a configured Meta CAPI destination, or Meta refused because the object already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta Marketing API failure */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversion-sync/wiring/ad-sets": {
         parameters: {
             query?: never;
@@ -49493,7 +49975,9 @@ export interface paths {
          * Point ad sets at this rule's conversion event
          * @description Re-points up to 20 ad sets' `promoted_object` at the event this rule sends, one at a time so a single failure cannot cancel the rest. Every write goes through the Meta action layer, so each one has an audit row, an idempotent replay key and a rollback.
          *
-         *     Ad sets Meta froze at publish come back in `needs_duplicate_swap` untouched. Re-sending with `confirm_duplicate_swap: true` and a `duplicate_swap_mode` rebuilds them (at most 5 per request): `switch` pauses the original once the replacement is live, `run_both` leaves both running. There is deliberately NO default — one pauses a running ad set and the other doubles the money on that audience.
+         *     Compatibility is re-checked first (#2145): if any requested ad set's campaign objective cannot optimize for the rule's event (Meta's objective × event table, the same verdict `GET /api/v1/conversion-sync/wiring/campaigns` reports as `incompatible`), the whole request answers `422 validation_error` naming those ad sets, and nothing is written.
+         *
+         *     Ad sets Meta froze at publish come back in `needs_duplicate_swap` untouched. Re-sending with `confirm_duplicate_swap: true` and a `duplicate_swap_mode` QUEUES their rebuild as one background job per ad set (#2143) and answers at once with `queued` and `operation`; follow it at `GET /api/v1/conversion-sync/operations/{id}`. `switch` pauses the original once the replacement is live, `run_both` leaves both running. There is deliberately NO default — one pauses a running ad set and the other doubles the money on that audience.
          *
          *     **Partners (#306 option B).** An API key or MCP user token that sends `confirm_duplicate_swap: true` must also send `consent: { version, text_hash, accepted_by, accepted_at }` for the CURRENT consent text, which your UI renders verbatim (Partners → Automated duplicate-and-swap). Missing, another version, another text or older than 24 hours → `409 consent_required` with `error.consent` naming the current version and hashes; nothing is read from or sent to Meta. Every rebuild is stated in `warnings` (new ad set ids, learning reset, double spend).
          */
@@ -49541,6 +50025,7 @@ export interface paths {
                                     ad_set_id: string;
                                     ad_set_name: string;
                                 }[];
+                                /** @description Rebuilds completed inside this request. Since #2143 rebuilds are QUEUED instead (`queued` + `operation`), so new requests leave this empty. */
                                 duplicated: {
                                     ad_set_id: string;
                                     ad_set_name: string;
@@ -49553,6 +50038,18 @@ export interface paths {
                                     run_both: boolean;
                                     copied_ad_count: number;
                                 }[];
+                                /** @description #2143 — frozen ad sets whose duplicate-and-switch was queued as a background job (one per ad set) in `operation`. */
+                                queued: {
+                                    ad_set_id: string;
+                                    ad_set_name: string;
+                                }[];
+                                /** @description #2143 — the background operation the Recreates were queued in, or null when none was needed. Read its progress at `GET /api/v1/conversion-sync/operations/{operation_id}`. */
+                                operation: {
+                                    /** Format: uuid */
+                                    operation_id: string;
+                                    /** @description Ad sets queued in this operation. */
+                                    queued_count: number;
+                                } | null;
                                 failed: {
                                     ad_set_id: string;
                                     ad_set_name: string;
@@ -50093,6 +50590,868 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent background ad-set move operations
+         * @description The profile's most recent background operations (newest first), each with per-ad-set progress: queued, working (with the engine's phase), done or failed with Meta's reason.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Default 5. */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Operations, newest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                operations: components["schemas"]["ConversionSyncMoveOperation"][];
+                                checked_at: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Operation not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/operations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one background ad-set move operation
+         * @description Per-ad-set progress of one operation, derived from the jobs and the Meta action log each attempt writes. Poll it while `status` is `running`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The operation */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ConversionSyncMoveOperation"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Operation not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/operations/{id}/items/{item_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry one failed ad set of an operation
+         * @description Re-queues ONLY this ad set, with a fresh attempt budget. Answers at once; the worker runs the Recreate. Only a `failed` ad set can be retried (`409 invalid_state` otherwise). A Platform-Safe go-live retry is owner/admin only when the caller is a person.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    item_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Queued */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** Format: uuid */
+                                operation_id: string;
+                                /** Format: uuid */
+                                item_id: string;
+                                /** @enum {string} */
+                                status: "requeued";
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Operation not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The ad set is not failed */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example not_found */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/wiring/rewire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the ad sets wired to a rule's Meta event, before changing it
+         * @description Read live from Meta: the active ad sets optimizing for the event this rule sends NOW, matched the way the wiring check counts them. Ask it before saving an edit that changes the rule's Meta event (or stops sending to Meta): changing the rule does not move these ad sets. With `to_event_name`, each ad set says whether that event can run on its campaign's objective.
+         */
+        get: {
+            parameters: {
+                query: {
+                    rule_id: string;
+                    destination_id: string;
+                    /** @description The event the edit will send instead. */
+                    to_event_name?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The wired ad sets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ConversionSyncRewirePreview"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Malformed query */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized — either the Atribu credential, or the customer's Meta token (`reconnect_required: true`). */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope, or the customer's Meta grant lacks ads_management */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rule or destination not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description The rule is archived, or the destination is not a configured Meta CAPI destination */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta Marketing API failure */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Re-wire a rule's ad sets to its new event, or decline
+         * @description Call it AFTER saving the edit. `rewire` moves the listed ad sets that Meta still reports on `from_event_name` onto the event the rule sends now, as ONE background operation (each is a Recreate: a new ad set, learning restarts, the original is paused last and keeps its history). Ad sets no longer on the old event, already on the new one, or whose campaign cannot run it are `skipped`, never moved. `decline` moves nothing and records the decision; the rule then appears in `GET …/wiring/rewires` until re-wired. An API key or MCP user token must send `consent` with `rewire`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        rule_id: string;
+                        /** Format: uuid */
+                        destination_id: string;
+                        /** @enum {string} */
+                        decision: "rewire" | "decline";
+                        /** @description The event the ad sets optimize for — the rule's event before the edit. */
+                        from_event_name: string;
+                        ad_sets: {
+                            ad_set_id: string;
+                            ad_set_name?: string | null;
+                        }[];
+                        consent?: components["schemas"]["SwapConsent"] & unknown;
+                    };
+                };
+            };
+            responses: {
+                /** @description What was queued and skipped, and the background operation */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["ConversionSyncRewireDecision"];
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized — either the Atribu credential, or the customer's Meta token (`reconnect_required: true`). */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope, or the customer's Meta grant lacks ads_management */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rule or destination not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `consent_required` (a key or MCP token re-wiring without a current consent), or `invalid_state`: the rule still sends `from_event_name` (save the edit first), no longer sends to Meta, or is archived. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /** @description Present on `consent_required`: the current consent version and text hashes. */
+                                consent?: {
+                                    /** @example 2026-09-23.duplicate-swap.v1 */
+                                    version: string;
+                                    text_hashes: {
+                                        en: string;
+                                        es: string;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description Malformed body */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta Marketing API failure */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/wiring/rewires": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List declined re-wires still owed
+         * @description Per rule, the latest declined re-wire whose ad sets still optimize for an event the rule no longer sends — settled by a re-wire, or by editing the rule back to that event.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Pending re-wires, newest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                rewires: {
+                                    /** Format: uuid */
+                                    rule_id: string;
+                                    destination_id: string | null;
+                                    from_event_name: string;
+                                    to_event_name: string | null;
+                                    ad_sets: {
+                                        ad_set_id: string;
+                                        ad_set_name: string | null;
+                                    }[];
+                                    decided_at: string;
+                                }[];
+                                checked_at: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized — either the Atribu credential, or the customer's Meta token (`reconnect_required: true`). */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope, or the customer's Meta grant lacks ads_management */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rule or destination not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Meta Marketing API failure */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -51004,7 +52363,10 @@ export interface paths {
         put?: never;
         /**
          * Apply the Platform-Safe go-live change
-         * @description Moves the named ad sets onto the Clean Dataset — its STANDARD event (`{pixel_id, custom_event_type}`) whenever the conversion is a standard Meta event, the neutral Custom Conversion only otherwise (#1669: a Custom Conversion's rule reads a custom parameter, which Meta's Core Setup strips). Each ad set's target is recomputed SERVER-SIDE and never trusted from the body, so a stale tab cannot send an ad set somewhere unexpected. The in-place re-point is always attempted first, even when a preview said it would fail — the attempt is the authoritative test and a preview is a snapshot; only Meta's frozen-ad-set refusal escalates to a rebuild, and only with `confirm_recreate`. Rides the action layer, so every write has pre-state, an audit row and a rollback. Workspace owners and admins only when the caller is a person: this switches which event campaigns optimize on and resets Meta's learning.
+         * @deprecated
+         * @description **Prefer `POST /api/v1/conversion-sync/platform-safe/go-live` (#2152)**, which moves any number of ad sets as ONE background operation with no Meta write in the request; the Atribu console no longer calls this route.
+         *
+         *     Moves the named ad sets onto the Clean Dataset — its STANDARD event (`{pixel_id, custom_event_type}`) whenever the conversion is a standard Meta event, the neutral Custom Conversion only otherwise (#1669: a Custom Conversion's rule reads a custom parameter, which Meta's Core Setup strips). Each ad set's target is recomputed SERVER-SIDE and never trusted from the body, so a stale tab cannot send an ad set somewhere unexpected. The in-place re-point is always attempted first, even when a preview said it would fail — the attempt is the authoritative test and a preview is a snapshot; only Meta's frozen-ad-set refusal escalates to a rebuild, and only with `confirm_recreate` — which QUEUES the rebuild as a background job per ad set (#2143) and answers at once with `queued` and `operation`. Rides the action layer, so every write has pre-state, an audit row and a rollback. Workspace owners and admins only when the caller is a person: this switches which event campaigns optimize on and resets Meta's learning.
          *
          *     **Partners (#306 option B).** An API key or MCP user token that sends `confirm_recreate: true` must also send `consent: { version, text_hash, accepted_by, accepted_at }` for the CURRENT consent text, which your UI renders verbatim (Partners → Automated duplicate-and-swap). Missing, another version, another text or older than 24 hours → `409 consent_required` with `error.consent` naming the current version and hashes; nothing is sent to Meta. Every rebuild is stated in `warnings` (new ad set ids, learning reset, double-spend window). A partner rebuild needs `platform_safe_target: clean`; under `existing` it is `409 invalid_state` naming the `switch_to_clean_dataset` remediation (`POST /api/v1/conversion-sync/platform-safe/target`).
          */
@@ -51045,6 +52407,18 @@ export interface paths {
                                     new_ad_set_id: string | null;
                                     new_ad_set_name: string | null;
                                 }[];
+                                /** @description #2143 — ad sets whose rebuild was QUEUED as a background job (one per ad set) in `operation`. `recreated` stays empty for new requests. */
+                                queued: {
+                                    ad_set_id: string;
+                                    ad_set_name: string;
+                                }[];
+                                /** @description #2143 — the background operation the Recreates were queued in, or null when none was needed. Read its progress at `GET /api/v1/conversion-sync/operations/{operation_id}`. */
+                                operation: {
+                                    /** Format: uuid */
+                                    operation_id: string;
+                                    /** @description Ad sets queued in this operation. */
+                                    queued_count: number;
+                                } | null;
                                 already_wired: {
                                     ad_set_id: string;
                                     ad_set_name: string;
@@ -51173,6 +52547,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversion-sync/platform-safe/go-live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start the Platform-Safe go-live as one background operation
+         * @description Moves the named ad sets onto the Clean Dataset as ONE background operation on the Recreate engine (#2152, ADR 0024) and answers at once. The request makes Meta READS only — the same resolution as `GET /api/v1/conversion-sync/platform-safe/repoint`, so each target is recomputed server-side and never trusted from the body. In the operation, every ad set first tries the in-place edit (same ad set, its history kept); only when Meta answers that it froze the ad set at publish (code 100 / subcode 3260011) is it recreated — and only with `confirm_recreate`. One call is one operation whatever the ad-set count; a rebuild runs per ad set with a lock, cleans up its own copy on failure, and waits out Meta's rate limits for minutes when it has to.
+         *
+         *     Prefer this over `POST …/platform-safe/repoint`, which edits in the request at most 20 ad sets per call.
+         *
+         *     Workspace owners and admins only when the caller is a person. **Partners (#306 option B):** `confirm_recreate: true` from an API key or MCP user token needs `consent` for the current consent text, and `platform_safe_target: clean`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Every ad set to move, in ONE call — usually the preview's `affected` rows that are not `blocked`. Nothing Meta-facing runs in the request, so there is no per-call latency budget; the 500 cap only bounds one operation. */
+                        ad_set_ids: string[];
+                        /** @description Consent to REBUILD the ad sets Meta froze at publish (new ad set id, learning reset, the original paused last). Without it every ad set Meta allows is still edited in place, and a frozen one fails in the operation as `needs_recreate_consent` with nothing built. */
+                        confirm_recreate?: boolean;
+                        consent?: components["schemas"]["SwapConsent"] & unknown;
+                    };
+                };
+            };
+            responses: {
+                /** @description The operation was queued */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                /** @description The ONE background operation this go-live runs as. Progress per ad set — edited in place (`outcome: repointed`), recreated, or failed with its reason — at `GET /api/v1/conversion-sync/operations/{operation_id}`. */
+                                operation: {
+                                    /** Format: uuid */
+                                    operation_id: string;
+                                    /** @description Ad sets queued in this operation. */
+                                    queued_count: number;
+                                };
+                                queued: {
+                                    ad_set_id: string;
+                                    ad_set_name: string;
+                                }[];
+                                /** @description Requested ad sets that were NOT queued. `not_offered` — not a live conversion ad set still off the Clean Dataset (already on it, already replaced, or unknown to the ad account). `unmappable` — the Clean Dataset has no conversion for its event. */
+                                skipped: {
+                                    ad_set_id: string;
+                                    /** @enum {string} */
+                                    reason: "not_offered" | "unmappable";
+                                }[];
+                                checked_at: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope, or (on the write) not a workspace owner/admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description `consent_required` — a key or MCP token confirmed rebuilds without a current consent. `invalid_state` — no Clean Dataset yet, none of the requested ad sets can be moved, a go-live is already running on the profile, or a partner confirmed rebuilds while `platform_safe_target` is `existing`. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example consent_required */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                                /** @description Present on `consent_required`: the current consent version and text hashes. */
+                                consent?: {
+                                    /** @example 2026-09-23.duplicate-swap.v1 */
+                                    version: string;
+                                    text_hashes: {
+                                        en: string;
+                                        es: string;
+                                    };
+                                };
+                            };
+                        };
+                    };
+                };
+                /** @description `ad_set_ids` is empty, longer than 500 or holds a malformed id; or `confirm_recreate` / `consent` is malformed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversion-sync/platform-safe/target": {
         parameters: {
             query?: never;
@@ -51188,7 +52734,7 @@ export interface paths {
          *
          *     `existing` (the default) sends to the profile's ordinary Meta CAPI destination(s) — the dataset its live ad sets already optimize on, so nothing is recreated. Meta classifies a data SOURCE (domain + business), not single events, so the scrubbed feed adds nothing a restriction reacts to.
          *
-         *     `clean` is the remediation once Meta restricts that dataset (Events Manager shows Lead / Schedule / Purchase blocked). It runs the provision (idempotent), flips the target ONLY when a Clean Dataset exists afterwards, and lists the ad sets to recreate on it — apply them with `POST /api/v1/conversion-sync/platform-safe/repoint`. When the provision answers `action_required`, the target stays `existing` (`switched: false`) so the profile keeps sending rather than sending nothing.
+         *     `clean` is the remediation once Meta restricts that dataset (Events Manager shows Lead / Schedule / Purchase blocked). It runs the provision (idempotent), flips the target ONLY when a Clean Dataset exists afterwards, and lists the ad sets to recreate on it — move them with `POST /api/v1/conversion-sync/platform-safe/go-live` (one background operation). When the provision answers `action_required`, the target stays `existing` (`switched: false`) so the profile keeps sending rather than sending nothing.
          *
          *     Back to `existing` is refused with `409 clean_dataset_has_live_ad_sets` while ad sets on the Clean Dataset are still delivering (or when Meta cannot be read to check), unless `confirm_live_ad_sets: true`.
          *
@@ -51325,7 +52871,7 @@ export interface paths {
                                         platform_safe_target: "existing" | "clean";
                                     };
                                 } | null;
-                                /** @description `clean` only: live ad sets still optimizing on the old dataset, each with its Clean Dataset target. Each one must be recreated (new id, learning reset); apply with `POST /api/v1/conversion-sync/platform-safe/repoint`. Null when not read — see `ad_sets_error`. */
+                                /** @description `clean` only: live ad sets still optimizing on the old dataset, each with its Clean Dataset target. Each one must be recreated (new id, learning reset); move them with `POST /api/v1/conversion-sync/platform-safe/go-live`. Null when not read — see `ad_sets_error`. */
                                 ad_sets_to_recreate: {
                                     ad_set_id: string;
                                     ad_set_name: string;
@@ -53311,6 +54857,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversion-sync/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check that Meta accepted a real event for every Sync Rule
+         * @description Per live rule that sends to Meta: `accepted` when a delivery Meta accepted (with its trace id) exists in the last 7 days, `failing` when deliveries failed and none was accepted, else `waiting`. Plus each Meta destination's Event Match Quality, from the cache — no Meta call.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Per-rule verify state and match quality */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                window_days: number;
+                                since: string;
+                                /** @description One row per live rule that sends to Meta (enabled, not archived). */
+                                rules: {
+                                    rule_id: string;
+                                    name: string;
+                                    /**
+                                     * @description `accepted`: Meta accepted at least one real event in the window (trace id present). `failing`: none accepted and at least one delivery failed. `waiting`: neither — no event has been sent yet, which is not a failure.
+                                     * @enum {string}
+                                     */
+                                    state: "accepted" | "waiting" | "failing";
+                                    last_accepted_at: string | null;
+                                    /** @description Meta's `fbtrace_id` for that delivery. */
+                                    trace_id: string | null;
+                                    platform_event_name: string | null;
+                                    destination_config_id: string | null;
+                                    failed_count: number;
+                                    last_failed_at: string | null;
+                                    /**
+                                     * @description The newest failure, as a PII-free class. Null when nothing failed.
+                                     * @enum {string|null}
+                                     */
+                                    error_class: "auth" | "rate_limit" | "timeout" | "partial" | "bad_request" | "generic" | null;
+                                    /** @description Meta's Event Match Quality for the accepted event on its dataset, from the cache. Null when no score is known or the dataset is a messaging one Meta does not score. */
+                                    match_quality: {
+                                        score: number;
+                                        bucket: string;
+                                    } | null;
+                                }[];
+                                destinations: {
+                                    destination_config_id: string;
+                                    dataset_id: string | null;
+                                    /** @description `website`, or a messaging kind Meta does not score. */
+                                    kind: string;
+                                    emq: {
+                                        status: string;
+                                        checked_at: string | null;
+                                        events: {
+                                            event_name: string;
+                                            composite_score: number | null;
+                                            bucket: string | null;
+                                        }[];
+                                    } | null;
+                                }[];
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversion-sync/blueprints": {
         parameters: {
             query?: never;
@@ -54867,6 +56554,175 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversion-sync/outcome-catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the Outcome Catalog: what this profile can send, by Source
+         * @description The profile's outcomes (conversion definitions), each with its Sources — Web, CRM, payments, messages, derived from the ingestion path of every row in the last 30 days and from the event names that feed it — and the 7- and 30-day volume per Source. Every CRM pipeline stage is its own item, grouped by pipeline, with its enter/leave volume and the outcome it already counts as (a stage whose event key an outcome lists). Each item carries the Meta event and value a new Sync Rule would start from; an item no standard event fits carries none, only ranked suggestions. Volumes fail SOFT and visibly: a failed volume read returns null volumes and `volume_status: unavailable`, never zeros.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The Outcome Catalog */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: {
+                                windows: {
+                                    short_days: number;
+                                    long_days: number;
+                                };
+                                volume_status: {
+                                    /** @enum {string} */
+                                    events: "ok" | "unavailable";
+                                    /** @enum {string} */
+                                    stages: "ok" | "unavailable";
+                                };
+                                outcomes: {
+                                    id: string;
+                                    conversion_key: string;
+                                    display_name: string;
+                                    source_event_names: string[];
+                                    revenue_type: string;
+                                    /**
+                                     * @description The Source the outcome is listed under: its busiest, else its first event name's.
+                                     * @enum {string}
+                                     */
+                                    primary_source: "web" | "crm" | "payments" | "messages";
+                                    /** @description Every Source the outcome is observed in (from each row's ingestion path) or fed by (from its event names, plus `crm` when a pipeline stage counts as it), busiest first. A multi-Source outcome is ONE item with one entry per Source. */
+                                    sources: {
+                                        /** @enum {string} */
+                                        source: "web" | "crm" | "payments" | "messages";
+                                        /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                        volume_7d: number | null;
+                                        /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                        volume_30d: number | null;
+                                    }[];
+                                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                    volume_7d: number | null;
+                                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                    volume_30d: number | null;
+                                    includes_stages: {
+                                        stage_id: string;
+                                        stage_name: string;
+                                        pipeline_name: string | null;
+                                    }[];
+                                    proposal: components["schemas"]["ConversionSyncOutcomeProposal"];
+                                    /** @description Two or three ranked Meta events, only when `proposal` is null. */
+                                    suggested_events: string[];
+                                }[];
+                                pipelines: {
+                                    pipeline_id: string | null;
+                                    /** @description Null for stages that name no pipeline (GoHighLevel's default stage set). */
+                                    pipeline_name: string | null;
+                                    stages: {
+                                        id: string;
+                                        name: string;
+                                        event_key: string | null;
+                                        pipeline_id: string | null;
+                                        pipeline_name: string | null;
+                                        /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                        volume_enter_7d: number | null;
+                                        /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                        volume_enter_30d: number | null;
+                                        /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                        volume_leave_7d: number | null;
+                                        /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                                        volume_leave_30d: number | null;
+                                        /** @description The outcome this stage already counts as. A rule on both reports one fact twice. */
+                                        counts_as: {
+                                            outcome_id: string;
+                                            display_name: string;
+                                            conversion_key: string;
+                                        } | null;
+                                        proposal: components["schemas"]["ConversionSyncOutcomeProposal"] & unknown;
+                                        suggested_events: string[];
+                                    }[];
+                                }[];
+                                generated_at: string;
+                            };
+                            meta: {
+                                /** @example uuid */
+                                profile_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Missing the required scope */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Rate limited */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                /** @example invalid_parameter */
+                                code: string;
+                                message: string;
+                                status: number;
+                                request_id: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -62227,6 +64083,8 @@ export interface paths {
          *
          *     **A sync in flight is a 409.** Wait for it: the connector's rows are mid-write.
          *
+         *     **A connection other records still depend on is a 409, with nothing changed.** The delete is checked before any provider-side step runs, so a refused disconnect never leaves the connection half torn down. Records that outlive their connection by design (calendar booking intentions) do not block it: they are kept, with the connection reference cleared.
+         *
          *     Scope: `attribution:write`.
          */
         post: {
@@ -62289,7 +64147,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description A sync is in progress */
+                /** @description A sync is in progress, or other records still depend on the connection (nothing was changed) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -67995,6 +69853,7 @@ export interface components {
              * @description REQUIRED for a `conversion_definition` rule: the `conversion_definitions` id it maps.
              */
             source_ref_id?: string | null;
+            /** @description Pipeline rule: a `stage_entered` rule fires on entering `to_stage` (required); an optional `from_stage` narrows it to entering FROM that stage, which must be another stage of the same pipeline (422 otherwise). A `stage_exited` rule fires on leaving `from_stage` (required); an optional `to_stage` narrows it to leaving towards that stage. `fixed_value` + `fixed_currency` on a `fixed_value` rule. */
             source_config?: {
                 [key: string]: unknown;
             };
@@ -68076,10 +69935,10 @@ export interface components {
              */
             destination_id?: string | null;
             /**
-             * @description From Events Manager → Test Events. Without it the event is a real (if synthetic) event on the dataset rather than a test one.
+             * @description REQUIRED (since #2154). From Events Manager → Test Events. Without it Meta would file the event on the live dataset as a real conversion, so the route refuses with `422 validation_error` and never calls Meta.
              * @example TEST12345
              */
-            test_event_code?: string;
+            test_event_code: string;
             /**
              * Format: uuid
              * @description Borrow this rule's Meta event name and privacy override, so the test exercises the rule you are verifying.
@@ -72316,6 +74175,103 @@ export interface components {
             repointability: string;
             repointability_error: string | null;
         };
+        ConversionSyncCampaignWiringResponse: {
+            destination_id: string;
+            pixel_id: string;
+            currency: string;
+            rules: {
+                rule_id: string;
+                rule_name: string;
+                event_name: string;
+            }[];
+            campaigns: {
+                campaign_id: string;
+                campaign_name: string;
+                objective: string | null;
+                effective_status: string | null;
+                is_active: boolean;
+                /**
+                 * Format: decimal
+                 * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                 * @example 1234.56
+                 */
+                spend_7d: string;
+                conversions_7d: number;
+                rules: {
+                    rule_id: string;
+                    compatibility: components["schemas"]["ConversionSyncObjectiveCompatibility"];
+                    available_count: number;
+                    wired_count: number;
+                }[];
+                ad_sets: {
+                    ad_set_id: string;
+                    ad_set_name: string;
+                    effective_status: string;
+                    is_active: boolean;
+                    /** @description Paused at ad-set or campaign level; UIs fold these. */
+                    is_paused: boolean;
+                    created_time: string | null;
+                    optimization_goal: string | null;
+                    current_custom_event_type: string | null;
+                    current_custom_event_str: string | null;
+                    current_custom_conversion_id: string | null;
+                    pixel_id: string | null;
+                    ad_count: number | null;
+                    /**
+                     * Format: decimal
+                     * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                     * @example 1234.56
+                     */
+                    daily_budget: string | null;
+                    /**
+                     * Format: decimal
+                     * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                     * @example 1234.56
+                     */
+                    lifetime_budget: string | null;
+                    uses_campaign_budget_optimization: boolean;
+                    /**
+                     * Format: decimal
+                     * @description Exact decimal string (ADR 0018). Unrounded, no thousands separator, no currency symbol — the currency is a separate field. Parse before doing arithmetic, and keep sorting and range filters server-side: a page of decimal strings sorted lexically gives `"9.00" > "10.00"`, and that failure is silent.
+                     * @example 1234.56
+                     */
+                    spend_7d: string;
+                    conversions_7d: number;
+                    rules: {
+                        rule_id: string;
+                        /** @enum {string} */
+                        state: "available" | "wired" | "incompatible_objective" | "unsupported_optimization_goal" | "other_dataset" | "no_campaign";
+                        selectable: boolean;
+                        disabled_reason: string | null;
+                        compatibility: components["schemas"]["ConversionSyncObjectiveCompatibility"];
+                        /**
+                         * @description Only for `available`: `in_place` — Meta accepts the promoted_object edit; `recreate` — Meta froze it at publish, a new ad set must carry the event; `unknown` — not probed (past `probe_limit`) or the probe answered otherwise (`edit_mode_error`).
+                         * @enum {string|null}
+                         */
+                        edit_mode: "in_place" | "recreate" | "unknown" | null;
+                        edit_mode_error: string | null;
+                    }[];
+                }[];
+            }[];
+            probe_limit: number;
+            checked_at: string;
+        };
+        ConversionSyncObjectiveCompatibility: {
+            /**
+             * @description Whether the campaign's objective can optimize for the rule's event, per Meta's published objective × conversion-event table. `unverified` = Meta's table is silent (a custom event, a legacy objective, no objective reported): offerable, with a warning.
+             * @enum {string}
+             */
+            status: "compatible" | "incompatible" | "unverified";
+            /** @enum {string} */
+            reason_code: "listed_for_objective" | "event_not_available_for_objective" | "objective_has_no_conversion_event" | "custom_event_not_documented" | "legacy_objective" | "objective_unknown";
+            /** @description One English sentence. UIs translate `reason_code`. */
+            reason: string;
+            /** @description The best event this objective DOES accept (e.g. `Lead`), when incompatible. */
+            suggested_event: string | null;
+            suggested_events: string[];
+            /** @description ODAX objectives whose campaigns accept this event (standard events only). */
+            compatible_objectives: string[];
+        };
         ConversionSyncWireAdSetsResponse: {
             wired: {
                 ad_set_id: string;
@@ -72330,6 +74286,7 @@ export interface components {
                 ad_set_id: string;
                 ad_set_name: string;
             }[];
+            /** @description Rebuilds completed inside this request. Since #2143 rebuilds are QUEUED instead (`queued` + `operation`), so new requests leave this empty. */
             duplicated: {
                 ad_set_id: string;
                 ad_set_name: string;
@@ -72342,6 +74299,18 @@ export interface components {
                 run_both: boolean;
                 copied_ad_count: number;
             }[];
+            /** @description #2143 — frozen ad sets whose duplicate-and-switch was queued as a background job (one per ad set) in `operation`. */
+            queued: {
+                ad_set_id: string;
+                ad_set_name: string;
+            }[];
+            /** @description #2143 — the background operation the Recreates were queued in, or null when none was needed. Read its progress at `GET /api/v1/conversion-sync/operations/{operation_id}`. */
+            operation: {
+                /** Format: uuid */
+                operation_id: string;
+                /** @description Ad sets queued in this operation. */
+                queued_count: number;
+            } | null;
             failed: {
                 ad_set_id: string;
                 ad_set_name: string;
@@ -72382,6 +74351,114 @@ export interface components {
             status: string;
             custom_conversion_id: string | null;
             name: string;
+        };
+        ConversionSyncMoveOperation: {
+            /** Format: uuid */
+            operation_id: string;
+            /** @description `rule_wiring`, `platform_safe_golive` or `rewire`. */
+            kind: string;
+            label: string | null;
+            /** @enum {string} */
+            status: "running" | "completed" | "completed_with_failures";
+            counts: {
+                total: number;
+                queued: number;
+                working: number;
+                done: number;
+                failed: number;
+            };
+            created_at: string;
+            completed_at: string | null;
+            items: {
+                /** Format: uuid */
+                item_id: string;
+                ad_set_id: string;
+                ad_set_name: string | null;
+                campaign_id: string | null;
+                campaign_name: string | null;
+                /** @enum {string} */
+                state: "queued" | "working" | "done" | "failed";
+                /**
+                 * @description Where a `working` move is, from the engine's own progress record.
+                 * @enum {string|null}
+                 */
+                phase: "creating_replacement" | "copying_ads" | "activating" | "pausing_original" | "waiting_rate_limit" | "cleaning_up" | "failed" | null;
+                /**
+                 * @description Why a `queued` ad set is waiting: not started yet, Meta asked us to slow down (the job comes back minutes later), or another run is building this ad set's replacement.
+                 * @enum {string|null}
+                 */
+                waiting_reason: "first_run" | "rate_limited" | "locked" | "retry" | null;
+                next_attempt_at: string | null;
+                attempt: number;
+                copied_ad_count: number | null;
+                source_ad_count: number | null;
+                replacement_ad_set_id: string | null;
+                replacement_ad_set_name: string | null;
+                /**
+                 * @description How a `done` ad set got there: `recreated` (a new ad set carries the event), `noop` (it already optimized for it) or `repointed` (#2152 — Meta accepted the edit on the ad set itself; no copy).
+                 * @enum {string|null}
+                 */
+                outcome: "recreated" | "noop" | "repointed" | null;
+                /** @description The replacement is live and the original could not be paused — both are spending. */
+                double_spend_risk: boolean;
+                error_code: string | null;
+                error_message: string | null;
+                /** @description A paused replacement the cleanup could not delete — delete it in Ads Manager. */
+                orphan_ad_set_id: string | null;
+                action_id: string | null;
+                finished_at: string | null;
+            }[];
+        };
+        ConversionSyncRewirePreview: {
+            /** Format: uuid */
+            rule_id: string;
+            /** Format: uuid */
+            destination_id: string;
+            /** @description The event the rule sends now — what `ad_sets` optimize for. */
+            event_name: string;
+            to_event_name: string | null;
+            ad_sets: {
+                ad_set_id: string;
+                ad_set_name: string;
+                campaign_id: string | null;
+                campaign_name: string | null;
+                effective_status: string;
+                /**
+                 * @description Set when `to_event_name` is documented as impossible on this ad set's campaign objective (#2144). Such an ad set cannot be re-wired to it.
+                 * @enum {string|null}
+                 */
+                incompatible_reason: "listed_for_objective" | "event_not_available_for_objective" | "objective_has_no_conversion_event" | "custom_event_not_documented" | "legacy_objective" | "objective_unknown" | null;
+                incompatible_message: string | null;
+            }[];
+            checked_at: string;
+        };
+        ConversionSyncRewireDecision: {
+            /** @enum {string} */
+            decision: "rewire" | "decline";
+            /** Format: uuid */
+            rule_id: string;
+            from_event_name: string;
+            /** @description What the rule sends now; null when it no longer sends to Meta. */
+            to_event_name: string | null;
+            queued: {
+                ad_set_id: string;
+                ad_set_name: string | null;
+            }[];
+            skipped: {
+                ad_set_id: string;
+                ad_set_name: string | null;
+                /** @enum {string} */
+                reason: "not_found" | "not_wired_to_previous_event" | "already_on_target" | "incompatible_objective";
+            }[];
+            /** @description #2143 — the background operation the Recreates were queued in, or null when none was needed. Read its progress at `GET /api/v1/conversion-sync/operations/{operation_id}`. */
+            operation: {
+                /** Format: uuid */
+                operation_id: string;
+                /** @description Ad sets queued in this operation. */
+                queued_count: number;
+            } | null;
+            /** @description True while the rule's row still warns that ad sets optimize for an event it no longer sends. */
+            warning_open: boolean;
         };
         PlatformSafeStatusResponse: {
             has_clean_dataset: boolean;
@@ -72613,6 +74690,18 @@ export interface components {
                 new_ad_set_id: string | null;
                 new_ad_set_name: string | null;
             }[];
+            /** @description #2143 — ad sets whose rebuild was QUEUED as a background job (one per ad set) in `operation`. `recreated` stays empty for new requests. */
+            queued: {
+                ad_set_id: string;
+                ad_set_name: string;
+            }[];
+            /** @description #2143 — the background operation the Recreates were queued in, or null when none was needed. Read its progress at `GET /api/v1/conversion-sync/operations/{operation_id}`. */
+            operation: {
+                /** Format: uuid */
+                operation_id: string;
+                /** @description Ad sets queued in this operation. */
+                queued_count: number;
+            } | null;
             already_wired: {
                 ad_set_id: string;
                 ad_set_name: string;
@@ -72630,6 +74719,26 @@ export interface components {
             }[];
             /** @description #306 — the consequences of every ad set this call rebuilt: new ad set ids, Meta's learning reset and any double-spend window. Empty when nothing was rebuilt. Show them to the merchant. */
             warnings: components["schemas"]["DuplicateSwapWarning"][];
+            checked_at: string;
+        };
+        PlatformSafeGoLiveResponse: {
+            /** @description The ONE background operation this go-live runs as. Progress per ad set — edited in place (`outcome: repointed`), recreated, or failed with its reason — at `GET /api/v1/conversion-sync/operations/{operation_id}`. */
+            operation: {
+                /** Format: uuid */
+                operation_id: string;
+                /** @description Ad sets queued in this operation. */
+                queued_count: number;
+            };
+            queued: {
+                ad_set_id: string;
+                ad_set_name: string;
+            }[];
+            /** @description Requested ad sets that were NOT queued. `not_offered` — not a live conversion ad set still off the Clean Dataset (already on it, already replaced, or unknown to the ad account). `unmappable` — the Clean Dataset has no conversion for its event. */
+            skipped: {
+                ad_set_id: string;
+                /** @enum {string} */
+                reason: "not_offered" | "unmappable";
+            }[];
             checked_at: string;
         };
         PlatformSafeTargetResponse: {
@@ -72733,7 +74842,7 @@ export interface components {
                     platform_safe_target: "existing" | "clean";
                 };
             } | null;
-            /** @description `clean` only: live ad sets still optimizing on the old dataset, each with its Clean Dataset target. Each one must be recreated (new id, learning reset); apply with `POST /api/v1/conversion-sync/platform-safe/repoint`. Null when not read — see `ad_sets_error`. */
+            /** @description `clean` only: live ad sets still optimizing on the old dataset, each with its Clean Dataset target. Each one must be recreated (new id, learning reset); move them with `POST /api/v1/conversion-sync/platform-safe/go-live`. Null when not read — see `ad_sets_error`. */
             ad_sets_to_recreate: {
                 ad_set_id: string;
                 ad_set_name: string;
@@ -73113,6 +75222,52 @@ export interface components {
             destination_id: string;
             /** @description true — Atribu's system user was granted access; false — the grant is pending; null — not attempted. */
             access_granted: boolean | null;
+        };
+        ConversionSyncVerifyResponse: {
+            window_days: number;
+            since: string;
+            /** @description One row per live rule that sends to Meta (enabled, not archived). */
+            rules: {
+                rule_id: string;
+                name: string;
+                /**
+                 * @description `accepted`: Meta accepted at least one real event in the window (trace id present). `failing`: none accepted and at least one delivery failed. `waiting`: neither — no event has been sent yet, which is not a failure.
+                 * @enum {string}
+                 */
+                state: "accepted" | "waiting" | "failing";
+                last_accepted_at: string | null;
+                /** @description Meta's `fbtrace_id` for that delivery. */
+                trace_id: string | null;
+                platform_event_name: string | null;
+                destination_config_id: string | null;
+                failed_count: number;
+                last_failed_at: string | null;
+                /**
+                 * @description The newest failure, as a PII-free class. Null when nothing failed.
+                 * @enum {string|null}
+                 */
+                error_class: "auth" | "rate_limit" | "timeout" | "partial" | "bad_request" | "generic" | null;
+                /** @description Meta's Event Match Quality for the accepted event on its dataset, from the cache. Null when no score is known or the dataset is a messaging one Meta does not score. */
+                match_quality: {
+                    score: number;
+                    bucket: string;
+                } | null;
+            }[];
+            destinations: {
+                destination_config_id: string;
+                dataset_id: string | null;
+                /** @description `website`, or a messaging kind Meta does not score. */
+                kind: string;
+                emq: {
+                    status: string;
+                    checked_at: string | null;
+                    events: {
+                        event_name: string;
+                        composite_score: number | null;
+                        bucket: string | null;
+                    }[];
+                } | null;
+            }[];
         };
         BlueprintContextResponse: {
             /** @description Non-null ⇒ this profile cannot reach Meta yet, and every list in the response is empty for THAT reason rather than because nothing exists. */
@@ -73562,6 +75717,87 @@ export interface components {
             export_meta_enabled: boolean;
             export_google_enabled: boolean;
         };
+        ConversionSyncOutcomeCatalogResponse: {
+            windows: {
+                short_days: number;
+                long_days: number;
+            };
+            volume_status: {
+                /** @enum {string} */
+                events: "ok" | "unavailable";
+                /** @enum {string} */
+                stages: "ok" | "unavailable";
+            };
+            outcomes: {
+                id: string;
+                conversion_key: string;
+                display_name: string;
+                source_event_names: string[];
+                revenue_type: string;
+                /**
+                 * @description The Source the outcome is listed under: its busiest, else its first event name's.
+                 * @enum {string}
+                 */
+                primary_source: "web" | "crm" | "payments" | "messages";
+                /** @description Every Source the outcome is observed in (from each row's ingestion path) or fed by (from its event names, plus `crm` when a pipeline stage counts as it), busiest first. A multi-Source outcome is ONE item with one entry per Source. */
+                sources: {
+                    /** @enum {string} */
+                    source: "web" | "crm" | "payments" | "messages";
+                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                    volume_7d: number | null;
+                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                    volume_30d: number | null;
+                }[];
+                /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                volume_7d: number | null;
+                /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                volume_30d: number | null;
+                includes_stages: {
+                    stage_id: string;
+                    stage_name: string;
+                    pipeline_name: string | null;
+                }[];
+                proposal: components["schemas"]["ConversionSyncOutcomeProposal"];
+                /** @description Two or three ranked Meta events, only when `proposal` is null. */
+                suggested_events: string[];
+            }[];
+            pipelines: {
+                pipeline_id: string | null;
+                /** @description Null for stages that name no pipeline (GoHighLevel's default stage set). */
+                pipeline_name: string | null;
+                stages: {
+                    id: string;
+                    name: string;
+                    event_key: string | null;
+                    pipeline_id: string | null;
+                    pipeline_name: string | null;
+                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                    volume_enter_7d: number | null;
+                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                    volume_enter_30d: number | null;
+                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                    volume_leave_7d: number | null;
+                    /** @description Null when the volume read failed (`volume_status`) — unknown, never 0. */
+                    volume_leave_30d: number | null;
+                    /** @description The outcome this stage already counts as. A rule on both reports one fact twice. */
+                    counts_as: {
+                        outcome_id: string;
+                        display_name: string;
+                        conversion_key: string;
+                    } | null;
+                    proposal: components["schemas"]["ConversionSyncOutcomeProposal"] & unknown;
+                    suggested_events: string[];
+                }[];
+            }[];
+            generated_at: string;
+        };
+        /** @description The Meta event and value a new rule would start from; null when no standard event fits. */
+        ConversionSyncOutcomeProposal: {
+            /** @example Schedule */
+            meta_event: string;
+            /** @enum {string} */
+            value_mode: "cash" | "event_value" | "none";
+        } | null;
         ConversionSyncCampaignListResponse: {
             /** @example act_1234567890 */
             ad_account_id: string;
@@ -75486,6 +77722,34 @@ export interface components {
             /** @description True when THIS caller may create or edit (rules, destinations, templates, schedules, audiences). False also when the verb does not exist for this resource. */
             can_edit: boolean;
         };
+        ExportRuleBulkRow: {
+            /** @description The row's position in the request's `rules`. */
+            index: number;
+            /** @enum {string} */
+            status: "created";
+            rule: components["schemas"]["ExportRule"];
+        } | {
+            /** @description The row's position in the request's `rules`. */
+            index: number;
+            /** @enum {string} */
+            status: "rejected";
+            error: {
+                /**
+                 * @description The error code `POST /api/v1/exports/rules` would have answered this row with.
+                 * @example validation_error
+                 */
+                code: string;
+                message: string;
+                /**
+                 * @description A stable token for a refusal the caller can fix: `value_required` — Meta requires a value for this row's event and the row sends none. Null otherwise.
+                 * @example value_required
+                 */
+                reason: string | null;
+            };
+        };
+        ExportRuleBulkRequest: {
+            rules: components["schemas"]["ExportRuleWriteRequest"][];
+        };
         PendingConnection: {
             /**
              * @description The `connection_provider` value — the same string `GET /api/v1/connections` returns as `channel` and the same one stored on the connection. Only these four have a consent-then-pick flow; Google Calendar finalizes inside its own callback.
@@ -77171,11 +79435,15 @@ export interface components {
                 /** @description Most frequent rejection in the window: `instagram_account_not_bound`, `invalid_payload`, `invalid_json` or `conversation_upsert_failed`. */
                 top_rejection_reason: string | null;
             } | null;
-            flow_mapping: {
-                flow_id: string;
-                ad_id?: string;
-                adset_id?: string;
-                campaign_id?: string;
+            flow_mapping: components["schemas"]["ManyChatFlowMappingEntry"][];
+            /** @description The latest events the endpoint logged for this connection (newest first, at most 10). Metadata only. */
+            recent_events: {
+                received_at: string;
+                accepted: boolean;
+                reason: string | null;
+                event_type: string | null;
+                /** @description A test event: shown here, never counted in `events`. */
+                dry_run: boolean;
             }[];
             /** @description Only populated with `?reveal_secret=1`. */
             webhook_secret: string | null;
@@ -77183,6 +79451,17 @@ export interface components {
             created_at: string;
             updated_at: string;
         } | null;
+        /** @description One key → one ad. A key naming several ads is several rows. A match is MODELED attribution (`native_conversation_model`), never exact: a keyword also fires for people who never saw the ad. */
+        ManyChatFlowMappingEntry: {
+            /** @description A ManyChat flow id, matched against an event's `flow_id`. Set this OR `keyword`. */
+            flow_id?: string;
+            /** @description An automation keyword / ice breaker, matched (case-insensitive) against `selected_intent` and `ad_ref`. */
+            keyword?: string;
+            /** @description Meta ad id (digits only). */
+            ad_id?: string;
+            adset_id?: string;
+            campaign_id?: string;
+        };
         MetaPageRow: {
             /** Format: uuid */
             id: string;

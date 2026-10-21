@@ -65,6 +65,12 @@ export type ExportRuleCreateInput = NonNullable<
 export type ExportRuleCreateResponse =
   paths["/api/v1/exports/rules"]["post"]["responses"][201]["content"]["application/json"];
 
+export type ExportRulesBulkCreateInput = NonNullable<
+  paths["/api/v1/exports/rules/bulk"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type ExportRulesBulkCreateResponse =
+  paths["/api/v1/exports/rules/bulk"]["post"]["responses"][200]["content"]["application/json"];
+
 export type ExportRuleUpdateInput = NonNullable<
   paths["/api/v1/exports/rules/{id}"]["patch"]["requestBody"]
 >["content"]["application/json"];
@@ -257,6 +263,24 @@ export class ExportsResource {
     });
   }
 
+  /**
+   * Create up to 50 rules at once (#2147). All-or-report: one result per row,
+   * `created` or `rejected` with its reason — a bad row never blocks the rest.
+   * Pass an `idempotencyKey` so a retried confirm replays the first report.
+   */
+  async createRules(
+    input: ExportRulesBulkCreateInput,
+    options: WriteExtras = {},
+  ): Promise<ExportRulesBulkCreateResponse> {
+    return this.http.request<ExportRulesBulkCreateResponse>({
+      method: "POST",
+      path: "/api/v1/exports/rules/bulk",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
   /** Partial update. `source_kind` is immutable; set `archived_at` to retire. */
   async updateRule(
     id: string,
@@ -312,9 +336,13 @@ export class ExportsResource {
    * One synthetic event to the configured Meta dataset with a
    * `test_event_code`, so it lands in Events Manager → Test Events. Returns
    * Meta's response verbatim. Capped at 5 per profile per minute.
+   *
+   * `test_event_code` is REQUIRED (#2154): without it Meta would file the event
+   * on the live dataset as a real conversion, so the API answers
+   * `validation_error` (422) and never calls Meta.
    */
   async test(
-    input: ExportTestSendInput = {},
+    input: ExportTestSendInput,
     options: WriteExtras = {},
   ): Promise<ExportTestSendResponse> {
     return this.http.request<ExportTestSendResponse>({

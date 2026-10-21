@@ -72,6 +72,38 @@ export type ConversionSyncCandidateAdSetsResponse =
   paths["/api/v1/conversion-sync/wiring/candidate-ad-sets"]["get"]["responses"][200]["content"]["application/json"];
 export type ConversionSyncCandidateAdSetsOptions = CandidateAdSetsQuery & ReadExtras;
 
+type CampaignWiringQuery = NonNullable<
+  paths["/api/v1/conversion-sync/wiring/campaigns"]["get"]["parameters"]["query"]
+>;
+export type ConversionSyncCampaignWiringResponse =
+  paths["/api/v1/conversion-sync/wiring/campaigns"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncCampaignWiringOptions = CampaignWiringQuery & ReadExtras;
+
+// #2143 — background ad-set move operations.
+export type ConversionSyncOperationsResponse =
+  paths["/api/v1/conversion-sync/operations"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncOperationsOptions = NonNullable<
+  paths["/api/v1/conversion-sync/operations"]["get"]["parameters"]["query"]
+> &
+  ReadExtras;
+export type ConversionSyncOperationResponse =
+  paths["/api/v1/conversion-sync/operations/{id}"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncOperationItemRetryResponse =
+  paths["/api/v1/conversion-sync/operations/{id}/items/{item_id}/retry"]["post"]["responses"][202]["content"]["application/json"];
+
+type RewirePreviewQuery = NonNullable<
+  paths["/api/v1/conversion-sync/wiring/rewire"]["get"]["parameters"]["query"]
+>;
+export type ConversionSyncRewirePreviewResponse =
+  paths["/api/v1/conversion-sync/wiring/rewire"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncRewirePreviewOptions = RewirePreviewQuery & ReadExtras;
+export type ConversionSyncRewireInput =
+  paths["/api/v1/conversion-sync/wiring/rewire"]["post"]["requestBody"]["content"]["application/json"];
+export type ConversionSyncRewireResponse =
+  paths["/api/v1/conversion-sync/wiring/rewire"]["post"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncPendingRewiresResponse =
+  paths["/api/v1/conversion-sync/wiring/rewires"]["get"]["responses"][200]["content"]["application/json"];
+
 export type ConversionSyncWireAdSetsInput =
   paths["/api/v1/conversion-sync/wiring/ad-sets"]["post"]["requestBody"]["content"]["application/json"];
 export type ConversionSyncWireAdSetsResponse =
@@ -99,6 +131,10 @@ export type ConversionSyncCatalogWriteInput =
 export type ConversionSyncCatalogWriteResponse =
   paths["/api/v1/conversion-sync/catalog"]["put"]["responses"][200]["content"]["application/json"];
 
+/** #2146 — the Outcome Catalog behind «Qué enviar». */
+export type ConversionSyncOutcomeCatalogResponse =
+  paths["/api/v1/conversion-sync/outcome-catalog"]["get"]["responses"][200]["content"]["application/json"];
+
 export type ConversionSyncCampaignsResponse =
   paths["/api/v1/conversion-sync/campaigns"]["get"]["responses"][200]["content"]["application/json"];
 export type ConversionSyncCampaignCreateInput =
@@ -123,6 +159,10 @@ export type PlatformSafeRepointApplyInput =
   paths["/api/v1/conversion-sync/platform-safe/repoint"]["post"]["requestBody"]["content"]["application/json"];
 export type PlatformSafeRepointApplyResponse =
   paths["/api/v1/conversion-sync/platform-safe/repoint"]["post"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeGoLiveInput =
+  paths["/api/v1/conversion-sync/platform-safe/go-live"]["post"]["requestBody"]["content"]["application/json"];
+export type PlatformSafeGoLiveResponse =
+  paths["/api/v1/conversion-sync/platform-safe/go-live"]["post"]["responses"][200]["content"]["application/json"];
 export type PlatformSafeTargetInput =
   paths["/api/v1/conversion-sync/platform-safe/target"]["post"]["requestBody"]["content"]["application/json"];
 export type PlatformSafeTargetResponse =
@@ -186,6 +226,10 @@ type MatchQualityQuery = NonNullable<
 export type ConversionSyncMatchQualityResponse =
   paths["/api/v1/conversion-sync/match-quality"]["get"]["responses"][200]["content"]["application/json"];
 export type ConversionSyncMatchQualityOptions = MatchQualityQuery & ReadExtras;
+
+/** #2151 — the setup checklist's «Verificar» step. */
+export type ConversionSyncVerifyResponse =
+  paths["/api/v1/conversion-sync/verify"]["get"]["responses"][200]["content"]["application/json"];
 
 export type ConversionSyncEmqRecommendationsResponse =
   paths["/api/v1/conversion-sync/emq-recommendations"]["get"]["responses"][200]["content"]["application/json"];
@@ -407,6 +451,10 @@ export class ConversionSyncResource {
   /**
    * The ad sets a rule can be wired to. Pass `rule_id` (wire mode) or
    * `event_name` (create mode, before the rule exists).
+   *
+   * @deprecated Since 2026-10-21 (#2154). Use {@link campaignWiring}: campaigns
+   * → ad sets with Meta's objective × event verdict, which this read never
+   * checked. Still served; no removal date yet.
    */
   async candidateAdSets(
     options: ConversionSyncCandidateAdSetsOptions,
@@ -415,6 +463,23 @@ export class ConversionSyncResource {
     return this.http.request<ConversionSyncCandidateAdSetsResponse>({
       method: "GET",
       path: "/api/v1/conversion-sync/wiring/candidate-ad-sets",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * Campaigns → ad sets with, per rule, whether each ad set can be connected
+   * (objective × event compatibility, with reason and suggested event) and
+   * whether connecting is an in-place edit or a Recreate (#2144).
+   */
+  async campaignWiring(
+    options: ConversionSyncCampaignWiringOptions,
+  ): Promise<ConversionSyncCampaignWiringResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<ConversionSyncCampaignWiringResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/wiring/campaigns",
       query,
       signal,
     });
@@ -443,6 +508,86 @@ export class ConversionSyncResource {
       method: "POST",
       path: "/api/v1/conversion-sync/wiring/ad-sets",
       body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * The ad sets optimizing for a rule's Meta event NOW (#2150) — ask before
+   * saving an edit that changes the event; the edit does not move them.
+   */
+  async rewirePreview(
+    options: ConversionSyncRewirePreviewOptions,
+  ): Promise<ConversionSyncRewirePreviewResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<ConversionSyncRewirePreviewResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/wiring/rewire",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * After saving the edit (#2150): re-wire the accepted ad sets to the rule's
+   * new event as one background operation (Recreates), or record the decline.
+   */
+  async rewire(
+    input: ConversionSyncRewireInput,
+    options: WriteExtras = {},
+  ): Promise<ConversionSyncRewireResponse> {
+    return this.http.request<ConversionSyncRewireResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/wiring/rewire",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Declined re-wires each rule still owes (#2150). */
+  async pendingRewires(options: ReadExtras = {}): Promise<ConversionSyncPendingRewiresResponse> {
+    return this.http.request<ConversionSyncPendingRewiresResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/wiring/rewires",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * The profile's recent background ad-set move operations (#2143), newest
+   * first, each with per-ad-set progress.
+   */
+  async operations(options: ConversionSyncOperationsOptions = {}): Promise<ConversionSyncOperationsResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<ConversionSyncOperationsResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/operations",
+      query,
+      signal,
+    });
+  }
+
+  /** One background operation's per-ad-set progress (#2143). Poll while `running`. */
+  async operation(operationId: string, options: ReadExtras = {}): Promise<ConversionSyncOperationResponse> {
+    return this.http.request<ConversionSyncOperationResponse>({
+      method: "GET",
+      path: `/api/v1/conversion-sync/operations/${encodeURIComponent(operationId)}`,
+      signal: options.signal,
+    });
+  }
+
+  /** Re-queue ONE failed ad set of an operation (#2143). */
+  async retryOperationItem(
+    operationId: string,
+    itemId: string,
+    options: WriteExtras = {},
+  ): Promise<ConversionSyncOperationItemRetryResponse> {
+    return this.http.request<ConversionSyncOperationItemRetryResponse>({
+      method: "POST",
+      path: `/api/v1/conversion-sync/operations/${encodeURIComponent(operationId)}/items/${encodeURIComponent(itemId)}/retry`,
+      body: {},
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
     });
@@ -653,6 +798,19 @@ export class ConversionSyncResource {
       path: "/api/v1/conversion-sync/match-quality",
       query,
       signal,
+    });
+  }
+
+  /**
+   * Per live Sync Rule that sends to Meta: did Meta accept a real event (trace
+   * id present) in the last 7 days — `accepted` / `waiting` / `failing` — plus
+   * each Meta destination's cached Event Match Quality. No Meta call.
+   */
+  async verify(options: ReadExtras = {}): Promise<ConversionSyncVerifyResponse> {
+    return this.http.request<ConversionSyncVerifyResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/verify",
+      signal: options.signal,
     });
   }
 
@@ -973,6 +1131,19 @@ export class ConversionSyncResource {
   }
 
   /**
+   * The Outcome Catalog (#2146): the profile's outcomes by Source (web, CRM,
+   * payments, messaging) with 7/30-day volume per Source, and every CRM
+   * pipeline stage grouped by pipeline with the outcome it already counts as.
+   */
+  async outcomeCatalog(options: ReadExtras = {}): Promise<ConversionSyncOutcomeCatalogResponse> {
+    return this.http.request<ConversionSyncOutcomeCatalogResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/outcome-catalog",
+      signal: options.signal,
+    });
+  }
+
+  /**
    * Replace the profile's privacy and export settings.
    *
    * `privacy_config` is REQUIRED and the write REPLACES it — send the config
@@ -1180,6 +1351,11 @@ export class ConversionSyncResource {
    * the current consent text, or it throws `consent_required` (409) with
    * `error.consent` naming the current version. Every rebuild is stated in
    * `warnings`.
+   *
+   * @deprecated Since 2026-10-21 (#2154). Use {@link startPlatformSafeGoLive}:
+   * the whole selection (up to 500 ad sets) as ONE background operation, with
+   * the same `confirm_recreate` + `consent` contract. Still served; no removal
+   * date yet.
    */
   async applyPlatformSafeRepoint(
     input: PlatformSafeRepointApplyInput,
@@ -1188,6 +1364,26 @@ export class ConversionSyncResource {
     return this.http.request<PlatformSafeRepointApplyResponse>({
       method: "POST",
       path: "/api/v1/conversion-sync/platform-safe/repoint",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2152 — start the go-live as ONE background operation and return at once.
+   * Every ad set tries the in-place edit first; only those Meta froze are
+   * recreated, and only with `confirm_recreate: true` (plus `consent` from an
+   * API key or MCP user token, as for `applyPlatformSafeRepoint`). Follow it
+   * with `operation(data.operation.operation_id)`.
+   */
+  async startPlatformSafeGoLive(
+    input: PlatformSafeGoLiveInput,
+    options: WriteExtras = {},
+  ): Promise<PlatformSafeGoLiveResponse> {
+    return this.http.request<PlatformSafeGoLiveResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/platform-safe/go-live",
       body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,

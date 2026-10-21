@@ -5,6 +5,31 @@ All notable changes to `@atribu/node` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [3.0.0] - 2026-10-21
+
+Conversion Sync redesign (#2140). Major because of the one breaking change below; everything else is additive.
+
+### Changed (breaking)
+
+- **`exports.test(input)` requires `test_event_code`** (#2154). `input` is no longer optional and the API answers `validation_error` (422) without a code, before Meta is called: a send without one landed on the live dataset as a real conversion. Copy the code from Events Manager → Test Events.
+
+### Added
+
+- `exports.createRules({ rules })` — `POST /api/v1/exports/rules/bulk` (#2147): up to 50 Sync Rules in one call, one result per row (`created` or `rejected` with its reason).
+- `conversionSync.outcomeCatalog()` — `GET /api/v1/conversion-sync/outcome-catalog` (#2146): outcomes by Source with volume, CRM stages by pipeline, and the proposed Meta event per item.
+- `conversionSync.campaignWiring({ destination_id })` — `GET /api/v1/conversion-sync/wiring/campaigns` (#2144): campaigns → ad sets with Meta's objective × event verdict per rule and in-place vs Recreate.
+- `conversionSync.operations()`, `.operation(id)`, `.retryOperationItem(id, itemId)` (#2143): background ad-set move operations with per-ad-set progress.
+- `conversionSync.rewirePreview()`, `.rewire()`, `.pendingRewires()` (#2150): re-wiring the ad sets of a rule whose Meta event changed.
+- `conversionSync.verify()` (#2151): per rule, whether Meta accepted a real event in the last 7 days.
+- `conversionSync.startPlatformSafeGoLive(input)` — `POST /api/v1/conversion-sync/platform-safe/go-live` (#2152): the Platform-Safe go-live as ONE background operation.
+
+### Deprecated
+
+- `conversionSync.candidateAdSets()` — use `campaignWiring()`. Still served; no removal date yet.
+- `conversionSync.applyPlatformSafeRepoint()` — use `startPlatformSafeGoLive()`. Still served; no removal date yet.
+
 ## [2.2.0] - 2026-10-20
 
 ### Added
