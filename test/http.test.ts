@@ -200,9 +200,10 @@ describe("HttpClient via AtribuClient.messages.send", () => {
     const client = new AtribuClient({ apiKey: "atb_live_k", fetch: fetchSpy });
     let caught: unknown;
     try {
-      await client.conversionSync.applyPlatformSafeRepoint({
+      await client.conversionSync.wireAdSets({
+        rule_id: "22222222-2222-4222-8222-222222222222",
+        destination_id: "11111111-1111-4111-8111-111111111111",
         ad_set_ids: ["120200000000001"],
-        confirm_recreate: true,
       });
     } catch (err) {
       caught = err;

@@ -280,6 +280,29 @@ type AccountTriggerDeleteResponse =
 type AccountTriggerTestDmResponse =
   paths["/api/v1/instagram/accounts/{account_id}/comment-triggers/{trigger_id}/test-dm"]["post"]["responses"][200]["content"]["application/json"];
 
+type MediaCommentsResponse =
+  paths["/api/v1/instagram/accounts/{account_id}/media/{media_id}/comments"]["get"]["responses"][200]["content"]["application/json"];
+type CommentReplyResponse =
+  paths["/api/v1/instagram/accounts/{account_id}/comments/{comment_id}/replies"]["post"]["responses"][200]["content"]["application/json"];
+type CommentHideResponse =
+  paths["/api/v1/instagram/accounts/{account_id}/comments/{comment_id}/hide"]["post"]["responses"][200]["content"]["application/json"];
+type CommentDeleteResponse =
+  paths["/api/v1/instagram/accounts/{account_id}/comments/{comment_id}"]["delete"]["responses"][200]["content"]["application/json"];
+
+/** One page of a post's comments: `data` + `meta.next_after` / `meta.has_next`. */
+export type IgMediaCommentsPage = MediaCommentsResponse;
+export type IgComment = MediaCommentsResponse["data"][number];
+export type IgCommentReplyResult = CommentReplyResponse["data"];
+export type IgCommentHiddenResult = CommentHideResponse["data"];
+export type IgCommentDeleteResult = CommentDeleteResponse["data"];
+
+export interface IgMediaCommentsOptions extends ReadExtras {
+  /** 1–50, default 25. */
+  limit?: number;
+  /** The previous page's `meta.next_after`. */
+  after?: string;
+}
+
 export type IgAccount = AccountsListResponse["data"][number];
 export type IgAccountMediaPage = AccountMediaResponse["data"];
 export type IgAccountCommentTrigger = AccountTriggersResponse["data"][number];
@@ -425,6 +448,87 @@ export class InstagramAccountsResource {
       path: `/api/v1/instagram/accounts/${encodeURIComponent(accountId)}/comment-triggers/${encodeURIComponent(triggerId)}/test-dm`,
       body: { recipient_igsid: recipientIgsid },
       idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  // --- comment moderation (live Graph reads/writes; nothing is stored) -----
+
+  /**
+   * One page of the comments on one of the account's posts, read live from
+   * Meta, top-level comments with their replies nested. Page with
+   * `meta.next_after` while `meta.has_next` is true.
+   *
+   * `mediaId` is the Instagram media id (`ig_media_id`), not an Atribu uuid.
+   */
+  async listMediaComments(
+    accountId: string,
+    mediaId: string,
+    options: IgMediaCommentsOptions = {},
+  ): Promise<IgMediaCommentsPage> {
+    const { signal, ...query } = options;
+    return this.http.request<MediaCommentsResponse>({
+      method: "GET",
+      path: `/api/v1/instagram/accounts/${encodeURIComponent(accountId)}/media/${encodeURIComponent(mediaId)}/comments`,
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * Reply publicly to a comment as the connected account. Pass an
+   * `idempotencyKey` to make a retry safe — without one, a retried request
+   * posts a second reply. A `send_outcome_unknown` error (422) means Meta did
+   * not confirm the reply and it may already be live: check the post before
+   * sending again; the same key replays that answer for 24 hours.
+   */
+  async replyToComment(
+    accountId: string,
+    commentId: string,
+    text: string,
+    options: WriteExtras = {},
+  ): Promise<IgCommentReplyResult> {
+    const res = await this.http.request<CommentReplyResponse>({
+      method: "POST",
+      path: `/api/v1/instagram/accounts/${encodeURIComponent(accountId)}/comments/${encodeURIComponent(commentId)}/replies`,
+      body: { text },
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Hide (`true`) or unhide (`false`) a comment. Meta always displays comments
+   * the account itself wrote (`is_own`), whatever is asked here.
+   */
+  async setCommentHidden(
+    accountId: string,
+    commentId: string,
+    hidden: boolean,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<IgCommentHiddenResult> {
+    // No idempotencyKey: the route ignores one, and hiding is idempotent at Meta.
+    const res = await this.http.request<CommentHideResponse>({
+      method: "POST",
+      path: `/api/v1/instagram/accounts/${encodeURIComponent(accountId)}/comments/${encodeURIComponent(commentId)}/hide`,
+      body: { hidden },
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** Delete a comment on the account's post. Cannot be undone. */
+  async deleteComment(
+    accountId: string,
+    commentId: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<IgCommentDeleteResult> {
+    // No idempotencyKey: the route ignores one; a repeated delete is refused by Meta, never doubled.
+    const res = await this.http.request<CommentDeleteResponse>({
+      method: "DELETE",
+      path: `/api/v1/instagram/accounts/${encodeURIComponent(accountId)}/comments/${encodeURIComponent(commentId)}`,
       signal: options.signal,
     });
     return res.data;

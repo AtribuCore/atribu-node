@@ -12,6 +12,7 @@ import { ShopifyResource } from "./resources/shopify";
 import { IntegrationConnectionsResource } from "./resources/integration-connections";
 import { HandoffsResource } from "./resources/handoffs";
 import { LegalResource } from "./resources/legal";
+import { OnboardingResource } from "./resources/onboarding";
 import { WebhookSubscriptionsResource } from "./resources/webhook-subscriptions";
 import { WebhookDeliveriesResource } from "./resources/webhook-deliveries";
 import { OutcomesRecordedResource } from "./resources/outcomes-recorded";
@@ -42,6 +43,7 @@ import { CommerceNamespace } from "./resources/commerce";
 import { FiltersResource } from "./resources/filters";
 import { AppointmentsResource } from "./resources/appointments";
 import { RecommendationsResource } from "./resources/recommendations";
+import { AdBuilderResource } from "./resources/ad-builder";
 import { ExportsResource } from "./resources/exports";
 import { TrackingResource } from "./resources/tracking";
 // #489 — the Conversion Sync console's read surface. Named `conversionSync`,
@@ -74,6 +76,7 @@ interface ResourceBundle {
   handoffs: HandoffsResource;
   /** #1051 — DPA/BAA signing: mint a hand-off, or accept as a signed-in admin. */
   legal: LegalResource;
+  onboarding: OnboardingResource;
   events: EventsResource;
   payments: PaymentsResource;
   analytics: AnalyticsResource;
@@ -94,6 +97,8 @@ interface ResourceBundle {
   filters: FiltersResource;
   appointments: AppointmentsResource;
   recommendations: RecommendationsResource;
+  /** #2307 / #2308 — create PAUSED Meta objects one at a time; ad-account limits. */
+  adBuilder: AdBuilderResource;
   exports: ExportsResource;
   tracking: TrackingResource;
   conversionSync: ConversionSyncResource;
@@ -125,6 +130,7 @@ function buildResources(http: HttpClientLike): ResourceBundle {
     integrationConnections: new IntegrationConnectionsResource(http),
     handoffs: new HandoffsResource(http),
     legal: new LegalResource(http),
+    onboarding: new OnboardingResource(http),
     events: new EventsResource(http),
     payments: new PaymentsResource(http),
     analytics: new AnalyticsResource(http),
@@ -143,6 +149,7 @@ function buildResources(http: HttpClientLike): ResourceBundle {
     filters: new FiltersResource(http),
     appointments: new AppointmentsResource(http),
     recommendations: new RecommendationsResource(http),
+    adBuilder: new AdBuilderResource(http),
     exports: new ExportsResource(http),
     tracking: new TrackingResource(http),
     conversionSync: new ConversionSyncResource(http),
@@ -171,6 +178,7 @@ export class AtribuClient {
   readonly integrationConnections: IntegrationConnectionsResource;
   readonly handoffs: HandoffsResource;
   readonly legal: LegalResource;
+  readonly onboarding: OnboardingResource;
   readonly events: EventsResource;
   readonly payments: PaymentsResource;
   readonly analytics: AnalyticsResource;
@@ -189,6 +197,7 @@ export class AtribuClient {
   readonly filters: FiltersResource;
   readonly appointments: AppointmentsResource;
   readonly recommendations: RecommendationsResource;
+  readonly adBuilder: AdBuilderResource;
   readonly exports: ExportsResource;
   readonly tracking: TrackingResource;
   readonly conversionSync: ConversionSyncResource;
@@ -216,6 +225,7 @@ export class AtribuClient {
     this.integrationConnections = r.integrationConnections;
     this.handoffs = r.handoffs;
     this.legal = r.legal;
+    this.onboarding = r.onboarding;
     this.events = r.events;
     this.payments = r.payments;
     this.analytics = r.analytics;
@@ -234,6 +244,7 @@ export class AtribuClient {
     this.filters = r.filters;
     this.appointments = r.appointments;
     this.recommendations = r.recommendations;
+    this.adBuilder = r.adBuilder;
     this.exports = r.exports;
     this.tracking = r.tracking;
     this.conversionSync = r.conversionSync;
@@ -281,6 +292,7 @@ export class AtribuClient {
       integrationConnections: r.integrationConnections,
       handoffs: r.handoffs,
       legal: r.legal,
+      onboarding: r.onboarding,
       events: r.events,
       // The fourth resource this block forgot, after `dmAds`, `channelRules`
       // and `commerce`: #960's Webpay route added `payments` to
@@ -324,6 +336,7 @@ export class AtribuClient {
       filters: r.filters,
       appointments: r.appointments,
       recommendations: r.recommendations,
+      adBuilder: r.adBuilder,
       exports: r.exports,
       tracking: r.tracking,
       conversionSync: r.conversionSync,

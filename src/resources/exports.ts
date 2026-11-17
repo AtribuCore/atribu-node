@@ -56,6 +56,17 @@ export type ExportDestinationUpdateResponse =
 export type ExportDestinationDisableResponse =
   paths["/api/v1/exports/destinations/{id}"]["delete"]["responses"][200]["content"]["application/json"];
 
+// «Enviar solo leads atribuidos a tus anuncios de Meta» (2026-10-26).
+export type MetaAttributionScopeResponse =
+  paths["/api/v1/exports/meta-attribution-scope"]["get"]["responses"][200]["content"]["application/json"];
+export type MetaAttributionScopeInput = NonNullable<
+  paths["/api/v1/exports/meta-attribution-scope"]["put"]["requestBody"]
+>["content"]["application/json"];
+export type MetaAttributionScopeWriteResponse =
+  paths["/api/v1/exports/meta-attribution-scope"]["put"]["responses"][200]["content"]["application/json"];
+export type WhatsappUnattributedLeadsResponse =
+  paths["/api/v1/exports/whatsapp-unattributed-leads"]["get"]["responses"][200]["content"]["application/json"];
+
 export type ExportRulesResponse =
   paths["/api/v1/exports/rules"]["get"]["responses"][200]["content"]["application/json"];
 
@@ -77,6 +88,11 @@ export type ExportRuleUpdateInput = NonNullable<
 export type ExportRuleUpdateResponse =
   paths["/api/v1/exports/rules/{id}"]["patch"]["responses"][200]["content"]["application/json"];
 
+export type ExportRulePlatformValueInput = NonNullable<
+  paths["/api/v1/exports/rules/{id}/platform-value"]["put"]["requestBody"]
+>["content"]["application/json"];
+export type ExportRulePlatformValueResponse =
+  paths["/api/v1/exports/rules/{id}/platform-value"]["put"]["responses"][200]["content"]["application/json"];
 export type ExportRuleDeleteResponse =
   paths["/api/v1/exports/rules/{id}"]["delete"]["responses"][200]["content"]["application/json"];
 
@@ -85,6 +101,14 @@ export type ExportRulePreviewInput = NonNullable<
 >["content"]["application/json"];
 export type ExportRulePreviewResponse =
   paths["/api/v1/exports/rules/preview"]["post"]["responses"][200]["content"]["application/json"];
+
+/** #2303 — the booking calendars a rule's booking filter can name. */
+export type ExportRuleBookingCalendarsResponse =
+  paths["/api/v1/exports/rules/booking-calendars"]["get"]["responses"][200]["content"]["application/json"];
+
+/** #2688 — the GHL contact fields a rule's qualification filter can name. */
+export type ExportRuleBookingFieldsResponse =
+  paths["/api/v1/exports/rules/booking-fields"]["get"]["responses"][200]["content"]["application/json"];
 
 export type ExportTestSendInput = NonNullable<
   paths["/api/v1/exports/test"]["post"]["requestBody"]
@@ -281,6 +305,46 @@ export class ExportsResource {
     });
   }
 
+  /**
+   * «Enviar solo leads atribuidos a tus anuncios de Meta»: whether this
+   * profile's Meta rules send only what Atribu attributes to a Meta ad.
+   * `state` is read from the rules (`mixed` when they disagree).
+   */
+  async metaAttributionScope(options: ReadExtras = {}): Promise<MetaAttributionScopeResponse> {
+    return this.http.request<MetaAttributionScopeResponse>({
+      method: "GET",
+      path: "/api/v1/exports/meta-attribution-scope",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Move every Meta-enabled conversion rule to `attributed_to_platform`
+   * (`attributed_only: true`) or `all`, through the rule update path; later
+   * rules inherit the choice. Owners and admins only.
+   */
+  async setMetaAttributionScope(
+    input: MetaAttributionScopeInput,
+    options: WriteExtras = {},
+  ): Promise<MetaAttributionScopeWriteResponse> {
+    return this.http.request<MetaAttributionScopeWriteResponse>({
+      method: "PUT",
+      path: "/api/v1/exports/meta-attribution-scope",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** WhatsApp-origin leads (30 days) no ad of this Meta ad account explains, and whether WhatsApp is connected. */
+  async whatsappUnattributedLeads(options: ReadExtras = {}): Promise<WhatsappUnattributedLeadsResponse> {
+    return this.http.request<WhatsappUnattributedLeadsResponse>({
+      method: "GET",
+      path: "/api/v1/exports/whatsapp-unattributed-leads",
+      signal: options.signal,
+    });
+  }
+
   /** Partial update. `source_kind` is immutable; set `archived_at` to retire. */
   async updateRule(
     id: string,
@@ -291,6 +355,25 @@ export class ExportsResource {
       method: "PATCH",
       path: `/api/v1/exports/rules/${encodeURIComponent(id)}`,
       body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2452 — set (`{ amount, currency }`) or clear (`null`) a rule's fixed
+   * Platform Value: what the ad platform is told each conversion of this rule
+   * is worth. Never revenue; ROAS never reads it.
+   */
+  async setRulePlatformValue(
+    id: string,
+    platformValue: ExportRulePlatformValueInput["platform_value"],
+    options: WriteExtras = {},
+  ): Promise<ExportRulePlatformValueResponse> {
+    return this.http.request<ExportRulePlatformValueResponse>({
+      method: "PUT",
+      path: `/api/v1/exports/rules/${encodeURIComponent(id)}/platform-value`,
+      body: { platform_value: platformValue },
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
     });
@@ -324,6 +407,32 @@ export class ExportsResource {
       method: "POST",
       path: "/api/v1/exports/rules/preview",
       body: input,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2303 — the calendars this profile booked on in the last 90 days: the
+   * values a rule's booking filter (`source_config.calendar_ids`) can take,
+   * each with a label, its counts, and how many bookings staff created in GHL.
+   */
+  async bookingCalendars(options: ReadExtras = {}): Promise<ExportRuleBookingCalendarsResponse> {
+    return this.http.request<ExportRuleBookingCalendarsResponse>({
+      method: "GET",
+      path: "/api/v1/exports/rules/booking-calendars",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2688 — the GoHighLevel contact custom fields a rule's qualification
+   * filter (`source_config.contact_field_conditions`) can name: GHL's name,
+   * type and option labels, and how many booking contacts answered each.
+   */
+  async bookingFields(options: ReadExtras = {}): Promise<ExportRuleBookingFieldsResponse> {
+    return this.http.request<ExportRuleBookingFieldsResponse>({
+      method: "GET",
+      path: "/api/v1/exports/rules/booking-fields",
       signal: options.signal,
     });
   }

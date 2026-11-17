@@ -30,10 +30,29 @@ export type AdCreativeAnalysisResponse =
 export type AdCreativeAnalysisJobResponse =
   paths["/api/v1/ads/{id}/creative-analysis"]["post"]["responses"][202]["content"]["application/json"];
 
+/** #2570 — the body of a Label Override change: `{ labels: { hook_type: "listicle", cta_type: null } }`. */
+export type AdCreativeLabelsUpdateInput = NonNullable<
+  paths["/api/v1/ads/{id}/creative-analysis"]["patch"]["requestBody"]
+>["content"]["application/json"];
+
+/** One Creative Label as the analysis read publishes it. */
+export type AdCreativeLabel = AdCreativeAnalysisResponse["data"]["labels"]["hook_type"];
+
 type AdsLevelCountsQuery = paths["/api/v1/ads/level-counts"]["get"]["parameters"]["query"];
 export type AdsLevelCountsResponse =
   paths["/api/v1/ads/level-counts"]["get"]["responses"][200]["content"]["application/json"];
 export type AdsLevelCountsOptions = AdsLevelCountsQuery & ReadExtras;
+
+type AdsBudgetPacingQuery = paths["/api/v1/ads/budget-pacing"]["get"]["parameters"]["query"];
+export type AdsBudgetPacingResponse =
+  paths["/api/v1/ads/budget-pacing"]["get"]["responses"][200]["content"]["application/json"];
+export type AdsBudgetPacingOptions = AdsBudgetPacingQuery & ReadExtras;
+
+export type GoalStepResponse =
+  paths["/api/v1/goal-step"]["get"]["responses"][200]["content"]["application/json"];
+
+export type PeerBenchmarksResponse =
+  paths["/api/v1/peer-benchmarks"]["get"]["responses"][200]["content"]["application/json"];
 
 export type AdsSignalsResponse =
   paths["/api/v1/ads/signals"]["get"]["responses"][200]["content"]["application/json"];
@@ -48,6 +67,28 @@ type AdsMetaReportedSkoolJoinsQuery =
 export type AdsMetaReportedSkoolJoinsResponse =
   paths["/api/v1/ads/meta-reported-skool-joins"]["get"]["responses"][200]["content"]["application/json"];
 export type AdsMetaReportedSkoolJoinsOptions = AdsMetaReportedSkoolJoinsQuery & ReadExtras;
+
+type AdsFunnelQuery = paths["/api/v1/ads/funnel"]["get"]["parameters"]["query"];
+export type AdsFunnelResponse =
+  paths["/api/v1/ads/funnel"]["get"]["responses"][200]["content"]["application/json"];
+export type AdsFunnelOptions = AdsFunnelQuery & ReadExtras;
+
+type AdsFunnelStepsPath = paths["/api/v1/ads/funnel/steps"];
+export type AdsFunnelStepsResponse = AdsFunnelStepsPath["get"]["responses"][200]["content"]["application/json"];
+export type AdsFunnelStepsInput = NonNullable<AdsFunnelStepsPath["put"]["requestBody"]>["content"]["application/json"];
+
+type AdAnglesPath = paths["/api/v1/ads/angles"];
+export type AdAnglesResponse = AdAnglesPath["get"]["responses"][200]["content"]["application/json"];
+export type AdAngleCreateInput = NonNullable<AdAnglesPath["post"]["requestBody"]>["content"]["application/json"];
+export type AdAngleRenameInput = NonNullable<
+  paths["/api/v1/ads/angles/{id}"]["patch"]["requestBody"]
+>["content"]["application/json"];
+export type AdAngleMergeInput = NonNullable<
+  paths["/api/v1/ads/angles/{id}/merge"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type AdAngleMoveInput = NonNullable<
+  paths["/api/v1/ads/angles/{id}/ads"]["post"]["requestBody"]
+>["content"]["application/json"];
 
 type AdTrendQuery = paths["/api/v1/ads/{id}/trend"]["get"]["parameters"]["query"];
 export type AdTrendResponse =
@@ -155,6 +196,27 @@ export class AdsResource {
   }
 
   /**
+   * Change one or more of the ad's Creative Labels (#2570). Each change is a
+   * Label Override — recorded with who made it and when, kept across every
+   * re-analysis, and the value every report uses. `null` clears one. Runs no
+   * model. Answers the analysis as {@link creativeAnalysis} would afterwards.
+   * Needs `creatives:label` (every signed-in member with profile access).
+   */
+  async updateCreativeLabels(
+    id: string,
+    input: AdCreativeLabelsUpdateInput,
+    options: WriteExtras = {},
+  ): Promise<AdCreativeAnalysisResponse> {
+    return this.http.request<AdCreativeAnalysisResponse>({
+      method: "PATCH",
+      path: `/api/v1/ads/${encodeURIComponent(id)}/creative-analysis`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
    * How many campaigns, ad sets and ads had delivery in the window — the
    * cheapest way to find out whether a level is worth asking
    * `analytics.campaigns({ level })` for.
@@ -165,6 +227,52 @@ export class AdsResource {
       method: "GET",
       path: "/api/v1/ads/level-counts",
       query,
+      signal,
+    });
+  }
+
+  /**
+   * Each Meta budget holder's budget against its spend in the window, with a
+   * pacing state (`under` / `on_track` / `over`). The holder is the ad set, or
+   * the campaign for a CBO budget. Money is native to the ad account.
+   */
+  async budgetPacing(options: AdsBudgetPacingOptions): Promise<AdsBudgetPacingResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<AdsBudgetPacingResponse>({
+      method: "GET",
+      path: "/api/v1/ads/budget-pacing",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * The Funnel Step this profile's ads are ranked and judged by (ADR 0032):
+   * `booking` when the profile averaged >= 20 Bookings a week over the trailing
+   * 4 weeks (up immediately, down only after 4 consecutive weeks below), else
+   * `lead` — with the weekly Booking average it was decided on and its history.
+   */
+  async goalStep(options: ReadExtras = {}): Promise<GoalStepResponse> {
+    const { signal } = options;
+    return this.http.request<GoalStepResponse>({
+      method: "GET",
+      path: "/api/v1/goal-step",
+      signal,
+    });
+  }
+
+  /**
+   * #2593 — where this profile's cost per Lead, cost per Booking and CTR over
+   * the trailing 28 days sit among profiles of the same confirmed vertical
+   * across Atribu: the quarter (`band`) and the group size, nothing about any
+   * other profile. `band` and `peer_count` are `null` below the minimum group
+   * (5 profiles from 3 workspaces) — withheld, never zero.
+   */
+  async peerBenchmarks(options: ReadExtras = {}): Promise<PeerBenchmarksResponse> {
+    const { signal } = options;
+    return this.http.request<PeerBenchmarksResponse>({
+      method: "GET",
+      path: "/api/v1/peer-benchmarks",
       signal,
     });
   }
@@ -216,6 +324,110 @@ export class AdsResource {
       path: "/api/v1/ads/meta-reported-skool-joins",
       query,
       signal,
+    });
+  }
+
+  /**
+   * The Funnel per campaign, ad set or ad (#2297): per step, people who
+   * Reached it, step rate, Drop-off and cost per step. Each person is credited
+   * to their Entry Ad (the ad that brought them), not to an attribution model.
+   * `level` defaults to `campaign`; `ids` (comma-separated, ≤1000) narrows it
+   * and drops the «Sin anuncio» group.
+   */
+  async funnel(options: AdsFunnelOptions): Promise<AdsFunnelResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<AdsFunnelResponse>({
+      method: "GET",
+      path: "/api/v1/ads/funnel",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * «Editar pasos» (#2298): the profile's Funnel steps: the chain in force
+   * (`steps`, `chain_source` saved or default), the default (`suggested`) and
+   * what can be added (`available`).
+   */
+  async funnelSteps(options: ReadExtras = {}): Promise<AdsFunnelStepsResponse> {
+    return this.http.request<AdsFunnelStepsResponse>({
+      method: "GET",
+      path: "/api/v1/ads/funnel/steps",
+      signal: options.signal,
+    });
+  }
+
+  /** Saves the profile's own ordered Funnel chain; every Funnel surface counts it from then on. */
+  async saveFunnelSteps(input: AdsFunnelStepsInput, options: WriteExtras = {}): Promise<AdsFunnelStepsResponse> {
+    return this.http.request<AdsFunnelStepsResponse>({
+      method: "PUT",
+      path: "/api/v1/ads/funnel/steps",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** «Restaurar sugeridos»: forget the saved chain and go back to the default one. */
+  async restoreFunnelSteps(options: WriteExtras = {}): Promise<AdsFunnelStepsResponse> {
+    return this.http.request<AdsFunnelStepsResponse>({
+      method: "DELETE",
+      path: "/api/v1/ads/funnel/steps",
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Angles (#2300): the profile's ads grouped by the idea they pitch, the ads
+   * in each, and the analysed ads waiting for one. The Funnel per Angle is
+   * `funnel({ level: "angle", … })`.
+   */
+  async angles(options: ReadExtras = {}): Promise<AdAnglesResponse> {
+    return this.http.request<AdAnglesResponse>({ method: "GET", path: "/api/v1/ads/angles", signal: options.signal });
+  }
+
+  /** A new Angle the user names, with the given ads moved into it. */
+  async createAngle(input: AdAngleCreateInput, options: WriteExtras = {}): Promise<AdAnglesResponse> {
+    return this.http.request<AdAnglesResponse>({
+      method: "POST",
+      path: "/api/v1/ads/angles",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Renames an Angle; the AI never renames it afterwards. */
+  async renameAngle(id: string, input: AdAngleRenameInput, options: WriteExtras = {}): Promise<AdAnglesResponse> {
+    return this.http.request<AdAnglesResponse>({
+      method: "PATCH",
+      path: `/api/v1/ads/angles/${encodeURIComponent(id)}`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Merges Angle `id` into `input.into_angle_id`. */
+  async mergeAngle(id: string, input: AdAngleMergeInput, options: WriteExtras = {}): Promise<AdAnglesResponse> {
+    return this.http.request<AdAnglesResponse>({
+      method: "POST",
+      path: `/api/v1/ads/angles/${encodeURIComponent(id)}/merge`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Moves ads into Angle `id`; a re-cluster never moves them back. */
+  async moveToAngle(id: string, input: AdAngleMoveInput, options: WriteExtras = {}): Promise<AdAnglesResponse> {
+    return this.http.request<AdAnglesResponse>({
+      method: "POST",
+      path: `/api/v1/ads/angles/${encodeURIComponent(id)}/ads`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
     });
   }
 

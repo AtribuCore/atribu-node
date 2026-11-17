@@ -79,10 +79,28 @@ export type ProfileBrandingLogoResponse =
 export type ProfileBrandingLogoDeleteResponse =
   paths["/api/v1/profile/branding/logo"]["delete"]["responses"][200]["content"]["application/json"];
 
+export type ProfileVerticalResponse =
+  paths["/api/v1/profile/vertical"]["get"]["responses"][200]["content"]["application/json"];
+export type ProfileVerticalUpdateBody = NonNullable<
+  paths["/api/v1/profile/vertical"]["put"]["requestBody"]
+>["content"]["application/json"];
+
 export type ProfilePacingResponse =
   paths["/api/v1/profile/pacing"]["get"]["responses"][200]["content"]["application/json"];
 export type ProfilePacingUpdateBody = NonNullable<
   paths["/api/v1/profile/pacing"]["put"]["requestBody"]
+>["content"]["application/json"];
+
+export type ProfileBudgetAcceptanceResponse =
+  paths["/api/v1/profile/budget-acceptance"]["get"]["responses"][200]["content"]["application/json"];
+export type ProfileBudgetAcceptanceUpdateBody = NonNullable<
+  paths["/api/v1/profile/budget-acceptance"]["put"]["requestBody"]
+>["content"]["application/json"];
+
+export type ProfileSuggestionRulesResponse =
+  paths["/api/v1/profile/suggestion-rules"]["get"]["responses"][200]["content"]["application/json"];
+export type ProfileSuggestionRulesUpdateBody = NonNullable<
+  paths["/api/v1/profile/suggestion-rules"]["put"]["requestBody"]
 >["content"]["application/json"];
 
 export type ProfileBioPageResponse =
@@ -156,6 +174,10 @@ export type OutcomeDefinitionsReplaceInput = NonNullable<
 export type OutcomeDefinitionsReplaceResult =
   paths["/api/v1/profile/outcome-definitions"]["put"]["responses"][200]["content"]["application/json"]["data"];
 
+export type StageMappingProposal =
+  paths["/api/v1/stage-mapping-proposals"]["get"]["responses"][200]["content"]["application/json"]["data"][number];
+export type StageMappingProposalStatus = StageMappingProposal["status"];
+
 export type ProfileAuditEventType =
   ProfileAuditEventInput["event_type"];
 type ProfileAuditEventInput = NonNullable<
@@ -193,6 +215,18 @@ export type RevenueScopeUpdateInput = NonNullable<
 >["content"]["application/json"];
 export type RevenueScopeUpdateResult =
   paths["/api/v1/profile/revenue-scope"]["patch"]["responses"][200]["content"]["application/json"]["data"];
+
+// #2453 — the GoHighLevel field holding a broker's collected commission.
+export type CommissionSettings =
+  paths["/api/v1/profile/commission-settings"]["get"]["responses"][200]["content"]["application/json"]["data"];
+export type CommissionSettingsUpdateInput = NonNullable<
+  paths["/api/v1/profile/commission-settings"]["patch"]["requestBody"]
+>["content"]["application/json"];
+// Marketplace v6.1 — the clinic's «Monto abono» deposit field in GoHighLevel.
+export type GhlDepositFieldOptions =
+  paths["/api/v1/profile/commission-settings/deposit-field"]["get"]["responses"][200]["content"]["application/json"]["data"];
+export type GhlDepositFieldEnsure =
+  paths["/api/v1/profile/commission-settings/deposit-field"]["post"]["responses"][200]["content"]["application/json"]["data"];
 
 export class ProfileResource {
   constructor(private readonly http: HttpClientLike) {}
@@ -477,6 +511,50 @@ export class ProfileResource {
   }
 
   /**
+   * The stage classifier's (Jev) proposed changes to an EXISTING stage
+   * mapping, newest first. A mapping someone already has is never changed by
+   * the classifier; each proposal carries Jev's reason and waits here.
+   */
+  async listStageMappingProposals(
+    params: { status?: StageMappingProposalStatus } = {},
+    options: { signal?: AbortSignal } = {},
+  ): Promise<StageMappingProposal[]> {
+    const res = await this.http.request<{ data: StageMappingProposal[] }>({
+      method: "GET",
+      path: "/api/v1/stage-mapping-proposals",
+      query: params.status ? { status: params.status } : undefined,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Approve one proposal: writes the proposed key onto the stage only if the
+   * stage still holds the mapping the proposal was made against (else it
+   * comes back `superseded`). Idempotent.
+   */
+  async approveStageMappingProposal(id: string, options: WriteExtras = {}): Promise<StageMappingProposal> {
+    const res = await this.http.request<{ data: StageMappingProposal }>({
+      method: "POST",
+      path: `/api/v1/stage-mapping-proposals/${encodeURIComponent(id)}/approve`,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** Reject one proposal; the mapping is untouched and it is not proposed again. Idempotent. */
+  async rejectStageMappingProposal(id: string, options: WriteExtras = {}): Promise<StageMappingProposal> {
+    const res = await this.http.request<{ data: StageMappingProposal }>({
+      method: "POST",
+      path: `/api/v1/stage-mapping-proposals/${encodeURIComponent(id)}/reject`,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
    * Delete-then-insert one WHOLE family (`pipeline_stage` | `order_event`) of
    * this profile's `outcome_definitions`, replacing it with the given list —
    * the shape onboarding's finish/skip step and the settings page's
@@ -619,6 +697,72 @@ export class ProfileResource {
     return res.data;
   }
 
+  /**
+   * #2453 — the GoHighLevel opportunity custom field holding the commission a
+   * broker COLLECTED for a deal (recorded as cash; the property price never
+   * is). `null` when not set.
+   */
+  async commissionSettings(options: ReadExtras = {}): Promise<CommissionSettings> {
+    const res = await this.http.request<{ data: CommissionSettings }>({
+      method: "GET",
+      path: "/api/v1/profile/commission-settings",
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #2453 — set (or, with `null`, clear) the commission field. From the next
+   * opportunity sync on, each deal whose field holds a positive number becomes
+   * ONE cash conversion worth it, keyed per deal. Also sets the booking-deposit
+   * field (`deposit_paid`, pipeline) and `ghl_won_is_payment` (a won deal's
+   * value as one cash conversion); keys left out are unchanged.
+   */
+  async updateCommissionSettings(
+    input: CommissionSettingsUpdateInput,
+    options: WriteExtras = {},
+  ): Promise<CommissionSettings> {
+    const res = await this.http.request<{ data: CommissionSettings }>({
+      method: "PATCH",
+      path: "/api/v1/profile/commission-settings",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * The GoHighLevel location's OPPORTUNITY custom fields, to pick the one
+   * holding the booking deposit. `state: "needs_reconnect"` (with
+   * `missing_scopes`) when the location's grant predates the custom-field
+   * scopes — connect GoHighLevel again, or type the field id by hand.
+   */
+  async depositFieldOptions(options: ReadExtras = {}): Promise<GhlDepositFieldOptions> {
+    const res = await this.http.request<{ data: GhlDepositFieldOptions }>({
+      method: "GET",
+      path: "/api/v1/profile/commission-settings/deposit-field",
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Adopt the location's «Monto abono» opportunity field, or create it, and
+   * save it as `ghl_deposit_field_id`. Idempotent. Every GoHighLevel outcome is
+   * an `outcome` (`created` / `adopted` / `already_set` / `needs_reconnect` /
+   * `no_ghl_connection` / `failed`), never a thrown error.
+   */
+  async ensureDepositField(options: WriteExtras = {}): Promise<GhlDepositFieldEnsure> {
+    const res = await this.http.request<{ data: GhlDepositFieldEnsure }>({
+      method: "POST",
+      path: "/api/v1/profile/commission-settings/deposit-field",
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
   async attributionWindowRecommendation(
     options: ReadExtras = {},
   ): Promise<AttributionWindowRecommendation> {
@@ -688,6 +832,28 @@ export class ProfileResource {
     });
   }
 
+  /** #2588 — the profile's vertical: Jev's proposal or a person's choice. */
+  async vertical(options: ReadExtras = {}): Promise<ProfileVerticalResponse> {
+    return this.http.request<ProfileVerticalResponse>({
+      method: "GET",
+      path: "/api/v1/profile/vertical",
+      signal: options.signal,
+    });
+  }
+
+  /** #2588 — confirm or change the vertical (a person's value wins); `null` clears it back to Jev. */
+  async updateVertical(
+    body: ProfileVerticalUpdateBody,
+    options: ReadExtras = {},
+  ): Promise<ProfileVerticalResponse> {
+    return this.http.request<ProfileVerticalResponse>({
+      method: "PUT",
+      path: "/api/v1/profile/vertical",
+      body,
+      signal: options.signal,
+    });
+  }
+
   /** The monthly budget + outcome goal behind the spend-pacing card. */
   async pacing(options: ReadExtras = {}): Promise<ProfilePacingResponse> {
     return this.http.request<ProfilePacingResponse>({
@@ -705,6 +871,50 @@ export class ProfileResource {
     return this.http.request<ProfilePacingResponse>({
       method: "PUT",
       path: "/api/v1/profile/pacing",
+      body,
+      signal: options.signal,
+    });
+  }
+
+  /** #2449 — when a budget counts as accepted («presupuesto aceptado»). */
+  async budgetAcceptance(options: ReadExtras = {}): Promise<ProfileBudgetAcceptanceResponse> {
+    return this.http.request<ProfileBudgetAcceptanceResponse>({
+      method: "GET",
+      path: "/api/v1/profile/budget-acceptance",
+      signal: options.signal,
+    });
+  }
+
+  /** Replace the «presupuesto aceptado» rule; `basis: "closed_won"` restores the default. */
+  async updateBudgetAcceptance(
+    body: ProfileBudgetAcceptanceUpdateBody,
+    options: ReadExtras = {},
+  ): Promise<ProfileBudgetAcceptanceResponse> {
+    return this.http.request<ProfileBudgetAcceptanceResponse>({
+      method: "PUT",
+      path: "/api/v1/profile/budget-acceptance",
+      body,
+      signal: options.signal,
+    });
+  }
+
+  /** #2592 — the Goal Step suggestion rules (pause / scale thresholds) in force. */
+  async suggestionRules(options: ReadExtras = {}): Promise<ProfileSuggestionRulesResponse> {
+    return this.http.request<ProfileSuggestionRulesResponse>({
+      method: "GET",
+      path: "/api/v1/profile/suggestion-rules",
+      signal: options.signal,
+    });
+  }
+
+  /** Set any of the four values, or `{ reset: true }` for the defaults. */
+  async updateSuggestionRules(
+    body: ProfileSuggestionRulesUpdateBody,
+    options: ReadExtras = {},
+  ): Promise<ProfileSuggestionRulesResponse> {
+    return this.http.request<ProfileSuggestionRulesResponse>({
+      method: "PUT",
+      path: "/api/v1/profile/suggestion-rules",
       body,
       signal: options.signal,
     });

@@ -52,6 +52,8 @@ export interface CalendarCreateEventInput {
   attendees?: CalendarAttendeeInput[];
   extended_private?: Record<string, string>;
   send_updates?: CalendarSendUpdates;
+  /** Ask Google for a fresh Meet room on the event; read it back as `hangout_link`. */
+  conference?: "google_meet";
 }
 
 /**
@@ -87,6 +89,8 @@ export interface CalendarEvent {
   calendar_id: string;
   status: string;
   html_link: string | null;
+  /** The event's Google Meet link, or null when it has none. */
+  hangout_link: string | null;
   ical_uid: string | null;
   updated: string | null;
   start: CalendarEventDateTime | null;

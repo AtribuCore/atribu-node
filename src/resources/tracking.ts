@@ -94,6 +94,38 @@ export type VerifyTrackingDomainResponse =
 export type DeleteTrackingDomainResponse =
   paths["/api/v1/tracking/custom-domains/{id}"]["delete"]["responses"][200]["content"]["application/json"];
 
+// SPEC 2026-10-24 — Namecheap tracking-domain automation.
+type DnsDetectQuery = NonNullable<
+  paths["/api/v1/tracking/dns-detect"]["get"]["parameters"]["query"]
+>;
+export type TrackingDnsDetectResponse =
+  paths["/api/v1/tracking/dns-detect"]["get"]["responses"][200]["content"]["application/json"];
+export type TrackingDnsAccountsResponse =
+  paths["/api/v1/tracking/dns-accounts"]["get"]["responses"][200]["content"]["application/json"];
+export type CreateTrackingDnsAccountInput = NonNullable<
+  paths["/api/v1/tracking/dns-accounts"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type CreateTrackingDnsAccountResponse =
+  paths["/api/v1/tracking/dns-accounts"]["post"]["responses"][201]["content"]["application/json"];
+export type DeleteTrackingDnsAccountResponse =
+  paths["/api/v1/tracking/dns-accounts/{id}"]["delete"]["responses"][200]["content"]["application/json"];
+export type ApplyNamecheapInput = NonNullable<
+  paths["/api/v1/tracking/custom-domains/{id}/namecheap"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type ApplyNamecheapResponse =
+  paths["/api/v1/tracking/custom-domains/{id}/namecheap"]["post"]["responses"][200]["content"]["application/json"];
+
+export type StartTrackingNamecheapMcpInput = NonNullable<
+  paths["/api/v1/tracking/dns-accounts/namecheap-mcp/start"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type StartTrackingNamecheapMcpResponse =
+  paths["/api/v1/tracking/dns-accounts/namecheap-mcp/start"]["post"]["responses"][200]["content"]["application/json"];
+export type CompleteTrackingNamecheapMcpInput = NonNullable<
+  paths["/api/v1/tracking/dns-accounts/namecheap-mcp/complete"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type CompleteTrackingNamecheapMcpResponse =
+  paths["/api/v1/tracking/dns-accounts/namecheap-mcp/complete"]["post"]["responses"][201]["content"]["application/json"];
+
 export class TrackingResource {
   constructor(private readonly http: HttpClientLike) {}
 
@@ -322,6 +354,109 @@ export class TrackingResource {
     return this.http.request<DeleteTrackingDomainResponse>({
       method: "DELETE",
       path: `/api/v1/tracking/custom-domains/${encodeURIComponent(domainId)}`,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Who hosts a domain's DNS (an NS lookup on its registrable root): whether
+   * the CNAME can be added automatically (Namecheap BasicDNS), needs
+   * Namecheap's manual steps (PremiumDNS/FreeDNS), or belongs elsewhere.
+   */
+  async dnsDetect(
+    query: DnsDetectQuery,
+    options: ReadExtras = {},
+  ): Promise<TrackingDnsDetectResponse> {
+    return this.http.request<TrackingDnsDetectResponse>({
+      method: "GET",
+      path: "/api/v1/tracking/dns-detect",
+      query,
+      signal: options.signal,
+    });
+  }
+
+  /** DNS-provider accounts this profile can use (workspace-shared + its own). Never the key. */
+  async dnsAccounts(options: ReadExtras = {}): Promise<TrackingDnsAccountsResponse> {
+    return this.http.request<TrackingDnsAccountsResponse>({
+      method: "GET",
+      path: "/api/v1/tracking/dns-accounts",
+      signal: options.signal,
+    });
+  }
+
+  /** Connect a Namecheap account. Test-called first; stored (sealed) only on success. */
+  async createDnsAccount(
+    input: CreateTrackingDnsAccountInput,
+    options: WriteExtras = {},
+  ): Promise<CreateTrackingDnsAccountResponse> {
+    return this.http.request<CreateTrackingDnsAccountResponse>({
+      method: "POST",
+      path: "/api/v1/tracking/dns-accounts",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Start connecting Namecheap through its MCP server (OAuth — no API key).
+   * Open `authorize_url`; after approving, the browser lands on a page that
+   * does not load: pass that full address to {@link completeNamecheapMcp}.
+   */
+  async startNamecheapMcp(
+    input: StartTrackingNamecheapMcpInput = {},
+    options: WriteExtras = {},
+  ): Promise<StartTrackingNamecheapMcpResponse> {
+    return this.http.request<StartTrackingNamecheapMcpResponse>({
+      method: "POST",
+      path: "/api/v1/tracking/dns-accounts/namecheap-mcp/start",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Finish the Namecheap MCP connection with the pasted callback address. */
+  async completeNamecheapMcp(
+    input: CompleteTrackingNamecheapMcpInput,
+    options: WriteExtras = {},
+  ): Promise<CompleteTrackingNamecheapMcpResponse> {
+    return this.http.request<CompleteTrackingNamecheapMcpResponse>({
+      method: "POST",
+      path: "/api/v1/tracking/dns-accounts/namecheap-mcp/complete",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Disconnect a DNS-provider account. The audit ledger is kept. */
+  async deleteDnsAccount(
+    accountId: string,
+    options: WriteExtras = {},
+  ): Promise<DeleteTrackingDnsAccountResponse> {
+    return this.http.request<DeleteTrackingDnsAccountResponse>({
+      method: "DELETE",
+      path: `/api/v1/tracking/dns-accounts/${encodeURIComponent(accountId)}`,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Add a domain's tracking CNAME through a connected Namecheap account, with
+   * the zone-write safety contract. Every DNS outcome is a 200 — read `outcome`.
+   */
+  async applyNamecheap(
+    domainId: string,
+    input: ApplyNamecheapInput,
+    options: WriteExtras = {},
+  ): Promise<ApplyNamecheapResponse> {
+    return this.http.request<ApplyNamecheapResponse>({
+      method: "POST",
+      path: `/api/v1/tracking/custom-domains/${encodeURIComponent(domainId)}/namecheap`,
+      body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
     });

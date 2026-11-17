@@ -6,7 +6,10 @@ export { AtribuPublicClient, type PublicClientConfig } from "./public-client";
 export {
   PublicNamespace,
   PublicReportsResource,
+  PublicReportUnsubscribeResource,
+  type PublicReportUnsubscribeResponse,
   type PublicSharedReportResponse,
+  type PublicSharedReportViewResponse,
 } from "./resources/public";
 export { SDK_VERSION } from "./version";
 export { detectRuntime, runtimeTag, type Runtime } from "./runtime";
@@ -125,6 +128,8 @@ export type {
 } from "./resources/outcomes-recorded";
 
 export type {
+  AdAccountBilling,
+  AdAccountBillingCharge,
   Connection,
   ConnectionChannel,
   ConnectionKind,
@@ -155,6 +160,17 @@ export type {
   LegalDocument,
 } from "./resources/legal";
 
+// #2438 — onboarding plans. Same indexing rule as every type above it.
+export type {
+  OnboardingPlan,
+  OnboardingPlanList,
+  OnboardingPlanProposeInput,
+  OnboardingPlanUpdateInput,
+  OnboardingBatch,
+  OnboardingBatchList,
+  OnboardingBatchProposeInput,
+} from "./resources/onboarding";
+
 // The analytics-area resources (#590). Every type here is indexed out of the
 // generated OpenAPI `paths` — none is hand-written, so they cannot drift.
 export type { ReadExtras, WriteExtras } from "./resources/common";
@@ -177,8 +193,12 @@ export type {
   BreakdownResponse,
   DrillOptions,
   DrillResponse,
+  DrillPeopleOptions,
+  DrillPeopleResponse,
   FunnelsOptions,
   FunnelsResponse,
+  OutcomeFunnelOptions,
+  OutcomeFunnelResponse,
   NewVsReturningOptions,
   NewVsReturningResponse,
   LtvOptions,
@@ -261,6 +281,11 @@ export type {
   RevenueScope,
   RevenueScopeUpdateInput,
   RevenueScopeUpdateResult,
+  // #2453 — commission as cash.
+  CommissionSettings,
+  CommissionSettingsUpdateInput,
+  GhlDepositFieldOptions,
+  GhlDepositFieldEnsure,
   // #489 (#1233) — "Analyze history".
   CreativeAnalysisBackfillInput,
   CreativeAnalysisBackfillPlan,
@@ -274,10 +299,14 @@ export type {
   WorkspaceCreativePatternsOptions,
   WorkspaceCreativePatternsResponse,
   WorkspaceProfilesListResponse,
+  WorkspaceDatasetBlockRateResponse,
+  WorkspaceOutcomeFunnelOptions,
+  WorkspaceOutcomeFunnelResponse,
   WorkspaceAuditOptions,
   WorkspaceAuditResponse,
   // #488 (PR-2) — the workspace subscription read.
   WorkspaceSubscription,
+  WorkspaceUsage,
   // #1052 — the plan-checkout hand-off.
   CheckoutSessionInput,
   CheckoutHandoff,
@@ -285,6 +314,11 @@ export type {
   BillingPortalSession,
   ShopifyPlanSelectionInput,
   ShopifyPlanSelection,
+  // #2258 — the in-app plan change.
+  PlanChangePreviewInput,
+  PlanChangePreview,
+  PlanChangeInput,
+  PlanChangeResult,
   // #488 — the workspace MCP privacy panel.
   McpSettings,
   McpSettingsUpdateInput,
@@ -420,6 +454,29 @@ export type {
 } from "./resources/recommendations";
 
 export type {
+  AdBuilderImageInput,
+  AdBuilderImageResponse,
+  AdBuilderVideoInput,
+  AdBuilderVideoResponse,
+  AdBuilderCampaignInput,
+  AdBuilderCampaignResponse,
+  AdBuilderAdSetInput,
+  AdBuilderAdSetResponse,
+  AdBuilderCreativeInput,
+  AdBuilderCreativeResponse,
+  AdBuilderAdInput,
+  AdBuilderAdResponse,
+  AdBuilderObjectResponse,
+  AdBuilderObjectLevel,
+  AdBuilderRollbackResponse,
+  AdAccountLimitsResponse,
+  AdAccountPixelsResponse,
+  AdAccountPixelCreateInput,
+  AdAccountPixelCreateResponse,
+} from "./resources/ad-builder";
+export { AdBuilderResource } from "./resources/ad-builder";
+
+export type {
   ExportDestinationsResponse,
   ExportLedgerOptions,
   ExportRulesOptions,
@@ -466,6 +523,18 @@ export type {
   CreateTrackingDomainResponse,
   VerifyTrackingDomainResponse,
   DeleteTrackingDomainResponse,
+  // SPEC 2026-10-24 — Namecheap tracking-domain automation.
+  TrackingDnsDetectResponse,
+  TrackingDnsAccountsResponse,
+  CreateTrackingDnsAccountInput,
+  CreateTrackingDnsAccountResponse,
+  DeleteTrackingDnsAccountResponse,
+  ApplyNamecheapInput,
+  ApplyNamecheapResponse,
+  StartTrackingNamecheapMcpInput,
+  StartTrackingNamecheapMcpResponse,
+  CompleteTrackingNamecheapMcpInput,
+  CompleteTrackingNamecheapMcpResponse,
 } from "./resources/tracking";
 
 export type {
@@ -648,6 +717,10 @@ export type {
   IgAccountMediaOptions,
   IgAccountMediaPage,
   IgBioMediaVisibility,
+  IgComment,
+  IgCommentDeleteResult,
+  IgCommentHiddenResult,
+  IgCommentReplyResult,
   IgCompetitorMedia,
   IgCompetitorRefreshResult,
   IgCompetitorSource,
@@ -660,6 +733,8 @@ export type {
   IgFollowerAttribution,
   IgIdentityReviewDecision,
   IgIdentityReviews,
+  IgMediaCommentsOptions,
+  IgMediaCommentsPage,
   IgShortLink,
   IgShortLinkCreateInput,
   IgShortLinkCreated,

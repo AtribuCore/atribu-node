@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-11-17
+
+Major because of the plan-catalog renames below (#2253, #2263). Also carries everything from 4.0.0, which was never published to npm.
+
+### Added
+
+- **Instagram comment moderation on `instagram.accounts`** — `listMediaComments(accountId, mediaId, { limit?, after? })` (`GET /api/v1/instagram/accounts/{account_id}/media/{media_id}/comments`, read live from Meta; returns `{ data, meta: { next_after, has_next } }`), `replyToComment(accountId, commentId, text, { idempotencyKey? })` (`POST …/comments/{comment_id}/replies`; a `send_outcome_unknown` 422 means Meta did not confirm the reply — check the post before resending, the same key replays that answer), `setCommentHidden(accountId, commentId, hidden)` (`POST …/comments/{comment_id}/hide`) and `deleteComment(accountId, commentId)` (`DELETE …/comments/{comment_id}`). Scope `instagram`. Types `IgComment`, `IgMediaCommentsPage`, `IgMediaCommentsOptions`, `IgCommentReplyResult`, `IgCommentHiddenResult`, `IgCommentDeleteResult`. Map a `connection_id` to its `account_id` with `instagram.accounts.list()`.
+- **`ConnectionPixel.optimizing_ad_sets_count` / `optimizing_events`** (#1787) — on `connections.pixels(id)`: how many of the ad account's active ad sets optimize on each dataset, and on which events. `null` (never 0) when Meta refused the ad-set read. Types regenerated; no method signature changed.
+- **`profile.depositFieldOptions()` and `profile.ensureDepositField()`** — `GET` / `POST /api/v1/profile/commission-settings/deposit-field`: list the GoHighLevel location's opportunity custom fields, or adopt-or-create the «Monto abono» money field and save it as `ghl_deposit_field_id` (idempotent). A location whose grant predates the custom-field scopes answers `needs_reconnect` with `missing_scopes`, never an error. Types `GhlDepositFieldOptions`, `GhlDepositFieldEnsure`.
+- **`messaging_readiness.click_window_days`** (ADR 0036) — on `conversionSync.catalog()` destinations: the profile's click attribution window in days, which `stale_click_30d` and `click_outside_window_30d` are now measured against (no longer a fixed 7 days). Types regenerated; no method signature changed.
+- **`connections.adsBilling({ date_from, date_to })`** (#2545) — `GET /api/v1/partner/ads/billing`: per ad account connected to the profile, the daily spend and, for Meta, every billing event (charge, refund, chargeback, decline) with amount and transaction id. New `OauthScope` value `ads_billing` (mints `ads_billing:read`). Types `AdAccountBilling`, `AdAccountBillingCharge`.
+- **`audio` message content: `voice`, Instagram** (#2381, #2382) — `messages.send` accepts `content: { type: 'audio', media, voice?: true }`: with `voice: true` an OGG/Opus audio lands on WhatsApp as a native voice note; Instagram now sends `audio` by `media.link` (aac, m4a, wav, mp4; 25 MB). Types regenerated; no method signature changed.
+- **`IngestEventBody.contents` / `content_type`** (#2334) — optional `[{ id, quantity?, item_price? }]` and `product | product_group` on a sale outcome of `events.ingest`: sent to Meta as `contents`, `content_ids`, `content_type`, `num_items`. Types regenerated; no method signature changed.
+- **`IngestEventBody.payment_source`** (#2334) — optional `manual | gateway` on a payment outcome of `events.ingest`: a `manual` payment is held 6 hours before Meta and never sent if its sale is reversed in that time. Types regenerated; no method signature changed.
+- **`adBuilder`** (#2307, #2308) — `uploadImage`, `uploadVideo`, `createCampaign`, `createAdSet`, `createCreative`, `createAd` create one PAUSED Meta object per call (`POST /api/v1/ad-builder/*`, `campaigns:apply`, `idempotencyKey` required); `rollback(actionId)` deletes what one create made; `object(id)` reads its live state and `edited_since_creation`; `adAccount()` returns Meta's daily spending limit, today's spend and the account cap (`GET /api/v1/ad-account`).
+- **`workspaces.previewPlanChange(workspaceId, { plan, interval })` and `workspaces.changePlan(workspaceId, { plan, interval, prorated_at })`** (#2258) — `POST /api/v1/workspaces/{workspaceId}/plan-change/preview` and `…/plan-change`: switch a workspace that already pays through Stripe among Esencial / Pro / Scale / Agency and monthly / quarterly / annual, on its existing subscription with prorations. The preview (`PlanChangePreview`) quotes Stripe's own amounts: `charged_now`, `due_now_amount`, `credit_amount`, `recurring_amount`, `next_invoice_amount`. `changePlan` is for signed-in sessions only.
+- **`workspaces.usage(workspaceId)`** (#2254) — `GET /api/v1/workspaces/{workspaceId}/usage`: events and Attributable Conversions used this billing period, pooled across the workspace's Profiles, each beside the plan's Allowance (`WorkspaceUsage`). `used: null` is "unavailable", never 0; `allowance: null` is a contract plan with no published Allowance.
+
+### Changed (breaking)
+
+- **The plan catalog is Esencial / Pro / Scale / Agency / Reseller / Enterprise** (#2253). Plan ids `starter` and `growth` no longer exist: `starter` became `esencial` and `growth` became `pro` (`agency` and `enterprise` keep their ids). `workspaces.create({ plan })` accepts `esencial | pro | scale | agency`; `workspaces.startCheckout({ plan })` accepts the same four and answers `409 invalid_state` for a plan with no online price yet; `workspaces.selectShopifyPlan({ plan })` accepts `esencial | pro | agency` (`free` is gone). `plan_tier` / `plan.id` / `plan_id` in every response carry the new ids. `limits.active_profiles.max` is `null` on Agency, which has no profile ceiling.
+- **`workspaces.selectShopifyPlan({ plan })` accepts `esencial | pro | scale`** (#2263) — the plans Shopify sells. `agency` is no longer sold on Shopify and answers `422`. Every plan now answers with Shopify's hosted plan page: `esencial` no longer provisions an unbilled subscription or returns an in-app path, and the `409` it could answer is gone. `profile_id` is still accepted and is unused.
+
+## [4.0.0] - 2026-10-23
+
+Major because of the removal below (#2208) and the required `pause_original` (#2207).
+
+### Removed (breaking)
+
+- **`conversionSync.platformSafeRepointPreview()`, `conversionSync.applyPlatformSafeRepoint()` and `conversionSync.startPlatformSafeGoLive()`**, with the `GET`/`POST /api/v1/conversion-sync/platform-safe/repoint` and `POST /api/v1/conversion-sync/platform-safe/go-live` endpoints behind them — deleted, not deprecated; the API answers `404`. Ad sets move onto a Clean Dataset from any Source dataset through Conectar campañas: `conversionSync.campaignWiring({ destination_id })` and `conversionSync.wireAdSets(input)`, whose Recreates run as one background operation (`conversionSync.operation(id)`). `setPlatformSafeTarget({ target: "clean" })` still lists `ad_sets_to_recreate`. The types `PlatformSafeRepointPreviewResponse`, `PlatformSafeRepointApplyInput`, `PlatformSafeRepointApplyResponse`, `PlatformSafeGoLiveInput` and `PlatformSafeGoLiveResponse` are removed with them.
+
+### Changed (breaking)
+
+- **`pause_original` is required on every ad set a request recreates** (#2207), with no default: `true` pauses the original once its replacement is live, `false` leaves it running. A missing answer throws `validation_error` (400) naming the ad sets; nothing is queued. In-place edits need no answer.
+  - `conversionSync.wireAdSets(input)`: `pause_original: { [adSetId]: boolean }` alongside `confirm_duplicate_swap: true`. **`duplicate_swap_mode` is removed** (the API answers 400 if it is sent).
+  - `conversionSync.rewire(input)`: `ad_sets[].pause_original` on every ad set a `rewire` moves.
+
+
+### Added
+
+- `conversionSync.answerHealthDataQuestion({ answer })` — `POST /api/v1/conversion-sync/health-data-answer` (#2209): records «does this business handle health data?» as `privacy_mode` / `platform_safe_target` plus `health_data_answered_at`. The catalog settings gain `health_data_answered_at`.
+
 ## [3.0.0] - 2026-10-21
 
 Conversion Sync redesign (#2140). Major because of the one breaking change below; everything else is additive.

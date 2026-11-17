@@ -32,6 +32,12 @@ export interface TrackEventInput {
     phone?: string;
     first_name?: string;
     last_name?: string;
+    /**
+     * The name as one string (e.g. a WhatsApp name) when you hold no split.
+     * Split by word count: 2 → first + last, 4 → first + 3rd word, else first
+     * only. Explicit first_name / last_name win.
+     */
+    full_name?: string;
     /** YOUR customer id. Read-only match key — never enough on its own to create a profile. */
     external_id?: string;
     /** A government id (e.g. a Chilean RUT). Unlike external_id, creates a profile on its own. */

@@ -1114,6 +1114,12 @@ export interface ConnectionConnectedEvent extends BaseEvent {
     external_account_name: string | null;
     /** `true` when a live connection for this account already existed. */
     reconnected: boolean;
+    /**
+     * Present only when the account was MOVED here from another profile: the
+     * source connection, whose `connection.revoked` carries
+     * `reason: "moved_to_another_profile"`. Pair the two on it.
+     */
+    moved_from_connection_id?: string;
   };
 }
 
@@ -1153,6 +1159,12 @@ export interface ConnectionRevokedEvent extends BaseEvent {
     external_account_id: string | null;
     /** Why it ended, e.g. `disconnected_by_user`. */
     reason: string;
+    /**
+     * Present only with `reason: "moved_to_another_profile"`: the connection
+     * the account moved to (its `connection.connected` carries
+     * `moved_from_connection_id`).
+     */
+    moved_to_connection_id?: string;
   };
 }
 

@@ -88,6 +88,8 @@ export type ReportResponse =
 export type ReportSendInput = NonNullable<
   paths["/api/v1/reports/{id}/send"]["post"]["requestBody"]
 >["content"]["application/json"];
+export type ReportShareResponse =
+  paths["/api/v1/reports/{id}/share"]["patch"]["responses"][200]["content"]["application/json"];
 export type ReportSendResponse =
   paths["/api/v1/reports/{id}/send"]["post"]["responses"][200]["content"]["application/json"];
 
@@ -343,6 +345,26 @@ export class ReportsResource {
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
       expectEmpty: true,
+    });
+  }
+
+  /**
+   * Revoke (`revoked: true`) or restore (`false`) a report's hosted share link
+   * (#2579). A revoked link answers «este enlace fue revocado» instead of the
+   * report, including in emails already sent. Needs `reports:write`; 404s when
+   * the id does not resolve in your tenant.
+   */
+  async setShareRevoked(
+    id: string,
+    revoked: boolean,
+    options: WriteExtras = {},
+  ): Promise<ReportShareResponse> {
+    return this.http.request<ReportShareResponse>({
+      method: "PATCH",
+      path: `/api/v1/reports/${encodeURIComponent(id)}/share`,
+      body: { revoked },
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
     });
   }
 

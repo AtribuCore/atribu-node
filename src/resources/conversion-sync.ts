@@ -79,6 +79,13 @@ export type ConversionSyncCampaignWiringResponse =
   paths["/api/v1/conversion-sync/wiring/campaigns"]["get"]["responses"][200]["content"]["application/json"];
 export type ConversionSyncCampaignWiringOptions = CampaignWiringQuery & ReadExtras;
 
+type CampaignWiringEditModesQuery = NonNullable<
+  paths["/api/v1/conversion-sync/wiring/campaigns/edit-modes"]["get"]["parameters"]["query"]
+>;
+export type ConversionSyncCampaignWiringEditModesResponse =
+  paths["/api/v1/conversion-sync/wiring/campaigns/edit-modes"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncCampaignWiringEditModesOptions = CampaignWiringEditModesQuery & ReadExtras;
+
 // #2143 — background ad-set move operations.
 export type ConversionSyncOperationsResponse =
   paths["/api/v1/conversion-sync/operations"]["get"]["responses"][200]["content"]["application/json"];
@@ -119,6 +126,13 @@ export type ConversionSyncNewCustomerPurchaseConversionInput =
 export type ConversionSyncNewCustomerPurchaseConversionResponse =
   paths["/api/v1/conversion-sync/wiring/new-customer-purchase-conversion"]["post"]["responses"][201]["content"]["application/json"];
 
+export type ConversionSyncMessagingOptimizationResponse =
+  paths["/api/v1/conversion-sync/messaging-optimization"]["get"]["responses"][200]["content"]["application/json"];
+export type ConversionSyncMessagingBookingConversionInput =
+  paths["/api/v1/conversion-sync/messaging-optimization/booking-conversion"]["post"]["requestBody"]["content"]["application/json"];
+export type ConversionSyncMessagingBookingConversionResponse =
+  paths["/api/v1/conversion-sync/messaging-optimization/booking-conversion"]["post"]["responses"][201]["content"]["application/json"];
+
 
 // ---------------------------------------------------------------------------
 // #489 phase 8 — the LAST conversion-sync slice
@@ -130,6 +144,12 @@ export type ConversionSyncCatalogWriteInput =
   paths["/api/v1/conversion-sync/catalog"]["put"]["requestBody"]["content"]["application/json"];
 export type ConversionSyncCatalogWriteResponse =
   paths["/api/v1/conversion-sync/catalog"]["put"]["responses"][200]["content"]["application/json"];
+
+/** #2209 — the health-data question, Conversion Sync's first setup step. */
+export type ConversionSyncHealthDataAnswerInput =
+  paths["/api/v1/conversion-sync/health-data-answer"]["post"]["requestBody"]["content"]["application/json"];
+export type ConversionSyncHealthDataAnswerResponse =
+  paths["/api/v1/conversion-sync/health-data-answer"]["post"]["responses"][200]["content"]["application/json"];
 
 /** #2146 — the Outcome Catalog behind «Qué enviar». */
 export type ConversionSyncOutcomeCatalogResponse =
@@ -153,20 +173,51 @@ export type PlatformSafeProvisionInput =
   NonNullable<paths["/api/v1/conversion-sync/platform-safe/provision"]["post"]["requestBody"]>["content"]["application/json"];
 export type PlatformSafeProvisionResponse =
   paths["/api/v1/conversion-sync/platform-safe/provision"]["post"]["responses"][200]["content"]["application/json"];
-export type PlatformSafeRepointPreviewResponse =
-  paths["/api/v1/conversion-sync/platform-safe/repoint"]["get"]["responses"][200]["content"]["application/json"];
-export type PlatformSafeRepointApplyInput =
-  paths["/api/v1/conversion-sync/platform-safe/repoint"]["post"]["requestBody"]["content"]["application/json"];
-export type PlatformSafeRepointApplyResponse =
-  paths["/api/v1/conversion-sync/platform-safe/repoint"]["post"]["responses"][200]["content"]["application/json"];
-export type PlatformSafeGoLiveInput =
-  paths["/api/v1/conversion-sync/platform-safe/go-live"]["post"]["requestBody"]["content"]["application/json"];
-export type PlatformSafeGoLiveResponse =
-  paths["/api/v1/conversion-sync/platform-safe/go-live"]["post"]["responses"][200]["content"]["application/json"];
 export type PlatformSafeTargetInput =
   paths["/api/v1/conversion-sync/platform-safe/target"]["post"]["requestBody"]["content"]["application/json"];
 export type PlatformSafeTargetResponse =
   paths["/api/v1/conversion-sync/platform-safe/target"]["post"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeSendingInput =
+  paths["/api/v1/conversion-sync/platform-safe/sending"]["post"]["requestBody"]["content"]["application/json"];
+export type PlatformSafeSendingResponse =
+  paths["/api/v1/conversion-sync/platform-safe/sending"]["post"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeServiceDatasetsResponse =
+  paths["/api/v1/conversion-sync/platform-safe/service-datasets"]["get"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeServiceDatasetAddInput =
+  paths["/api/v1/conversion-sync/platform-safe/service-datasets"]["post"]["requestBody"]["content"]["application/json"];
+export type PlatformSafeServiceDatasetAddResponse =
+  paths["/api/v1/conversion-sync/platform-safe/service-datasets"]["post"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeServiceDatasetUpdateInput =
+  paths["/api/v1/conversion-sync/platform-safe/service-datasets/{key}"]["patch"]["requestBody"]["content"]["application/json"];
+export type PlatformSafeServiceDatasetUpdateResponse =
+  paths["/api/v1/conversion-sync/platform-safe/service-datasets/{key}"]["patch"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeCleanDatasetActionSourceInput =
+  paths["/api/v1/conversion-sync/platform-safe/clean-datasets/action-source"]["put"]["requestBody"]["content"]["application/json"];
+export type PlatformSafeCleanDatasetActionSourceResponse =
+  paths["/api/v1/conversion-sync/platform-safe/clean-datasets/action-source"]["put"]["responses"][200]["content"]["application/json"];
+export type PlatformSafeLandingPagesResponse =
+  paths["/api/v1/conversion-sync/platform-safe/landing-pages"]["get"]["responses"][200]["content"]["application/json"];
+export type GoogleConversionActionsResponse =
+  paths["/api/v1/conversion-sync/google/conversion-actions"]["get"]["responses"][200]["content"]["application/json"];
+export type GoogleConversionActionProvisionInput = NonNullable<
+  paths["/api/v1/conversion-sync/google/conversion-actions"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type GoogleConversionActionProvisionResponse =
+  paths["/api/v1/conversion-sync/google/conversion-actions"]["post"]["responses"][200]["content"]["application/json"];
+export type GoogleCampaignGoalsResponse =
+  paths["/api/v1/conversion-sync/google/campaign-goals"]["get"]["responses"][200]["content"]["application/json"];
+export type GoogleCampaignGoalAssignInput =
+  paths["/api/v1/conversion-sync/google/campaign-goals/assign"]["post"]["requestBody"]["content"]["application/json"];
+export type GoogleCampaignGoalChangeResponse =
+  paths["/api/v1/conversion-sync/google/campaign-goals/assign"]["post"]["responses"][201]["content"]["application/json"];
+export type GoogleServiceDestinationUpdateInput =
+  paths["/api/v1/conversion-sync/google/service-destinations/{key}"]["patch"]["requestBody"]["content"]["application/json"];
+export type GoogleServiceDestinationUpdateResponse =
+  paths["/api/v1/conversion-sync/google/service-destinations/{key}"]["patch"]["responses"][200]["content"]["application/json"];
+export type GoogleTagLabelMapInput =
+  paths["/api/v1/conversion-sync/google/tag-labels"]["put"]["requestBody"]["content"]["application/json"];
+export type GoogleTagLabelMapResponse =
+  paths["/api/v1/conversion-sync/google/tag-labels"]["put"]["responses"][200]["content"]["application/json"];
 
 // ---------------------------------------------------------------------------
 // Platform-Safe Mode (#489 phase 3)
@@ -230,6 +281,18 @@ export type ConversionSyncMatchQualityOptions = MatchQualityQuery & ReadExtras;
 /** #2151 — the setup checklist's «Verificar» step. */
 export type ConversionSyncVerifyResponse =
   paths["/api/v1/conversion-sync/verify"]["get"]["responses"][200]["content"]["application/json"];
+
+/** #2437 — landing Pixels / Customer Labs, and a second sender in Meta's dataset stats. */
+export type ConversionSyncOtherSendersResponse =
+  paths["/api/v1/conversion-sync/other-senders"]["get"]["responses"][200]["content"]["application/json"];
+
+/** #2689 — `rule_id` and/or `event_name`, optional `dataset_id`, `from`, `to`. */
+export type ConversionSyncMetaParityOptions = NonNullable<
+  paths["/api/v1/conversion-sync/meta-parity"]["get"]["parameters"]["query"]
+> &
+  ReadExtras;
+export type ConversionSyncMetaParityResponse =
+  paths["/api/v1/conversion-sync/meta-parity"]["get"]["responses"][200]["content"]["application/json"];
 
 export type ConversionSyncEmqRecommendationsResponse =
   paths["/api/v1/conversion-sync/emq-recommendations"]["get"]["responses"][200]["content"]["application/json"];
@@ -486,13 +549,35 @@ export class ConversionSyncResource {
   }
 
   /**
+   * In-place vs Recreate for one rule's offerable ad sets (#2173) — the
+   * validate_only probes {@link campaignWiring} skips under `edit_mode: "skip"`.
+   * Ad sets absent from the answer were not probed: treat them as `unknown`.
+   */
+  async campaignWiringEditModes(
+    options: ConversionSyncCampaignWiringEditModesOptions,
+  ): Promise<ConversionSyncCampaignWiringEditModesResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<ConversionSyncCampaignWiringEditModesResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/wiring/campaigns/edit-modes",
+      query,
+      signal,
+    });
+  }
+
+  /**
    * Point up to 20 ad sets at this rule's conversion event.
    *
    * Ad sets Meta froze at publish come back in `needs_duplicate_swap`
-   * untouched — rebuilding costs a new ad set id, a learning reset and (in
-   * `switch` mode) a pause of the original, so it needs a second explicit
-   * yes: re-send with `confirm_duplicate_swap: true` AND a
-   * `duplicate_swap_mode`. There is no default mode on purpose.
+   * untouched — rebuilding (a Recreate) costs a new ad set id and a learning
+   * reset, so it needs a second explicit yes: re-send with
+   * `confirm_duplicate_swap: true`.
+   *
+   * #2207 — every ad set that will be recreated also needs its own answer in
+   * `pause_original` (keyed by ad set id): `true` pauses the original once the
+   * replacement is live, `false` leaves both running. No default on purpose;
+   * a missing answer throws `validation_error` (400) naming the ad sets, with
+   * nothing queued. In-place edits need no answer.
    *
    * #306 — with an API key or MCP user token, that second yes must also carry
    * `consent: { version, text_hash, accepted_by, accepted_at }` for the current
@@ -532,6 +617,7 @@ export class ConversionSyncResource {
   /**
    * After saving the edit (#2150): re-wire the accepted ad sets to the rule's
    * new event as one background operation (Recreates), or record the decline.
+   * A `rewire` needs `pause_original` on every ad set it moves (#2207).
    */
   async rewire(
     input: ConversionSyncRewireInput,
@@ -615,6 +701,37 @@ export class ConversionSyncResource {
     return this.http.request<ConversionSyncNewCustomerPurchaseConversionResponse>({
       method: "POST",
       path: "/api/v1/conversion-sync/wiring/new-customer-purchase-conversion",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Which event a WhatsApp dataset's ad sets should optimize on: the deepest
+   * funnel step with ≥ 20 sent events a week, and the Custom Conversion that
+   * names it.
+   */
+  async messagingOptimization(
+    query: { destination_id: string },
+    options: ReadExtras = {},
+  ): Promise<ConversionSyncMessagingOptimizationResponse> {
+    return this.http.request<ConversionSyncMessagingOptimizationResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/messaging-optimization",
+      query,
+      signal: options.signal,
+    });
+  }
+
+  /** Create the Custom Conversion covering every booking (InitiateCheckout OR OrderCreated). */
+  async createMessagingBookingConversion(
+    input: ConversionSyncMessagingBookingConversionInput,
+    options: WriteExtras = {},
+  ): Promise<ConversionSyncMessagingBookingConversionResponse> {
+    return this.http.request<ConversionSyncMessagingBookingConversionResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/messaging-optimization/booking-conversion",
       body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
@@ -811,6 +928,33 @@ export class ConversionSyncResource {
       method: "GET",
       path: "/api/v1/conversion-sync/verify",
       signal: options.signal,
+    });
+  }
+
+  /**
+   * What else sends to the profile's Meta datasets: Meta Pixels and Customer
+   * Labs on the landing pages (fetched server-side, no JavaScript), and events
+   * Meta counted that Atribu did not send, over the last 7 complete days.
+   */
+  async otherSenders(options: ReadExtras = {}): Promise<ConversionSyncOtherSendersResponse> {
+    return this.http.request<ConversionSyncOtherSendersResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/other-senders",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2689 — per UTC day, what a Sync Rule in Meta dry run would have sent
+   * against the dataset's own count for one event. No Meta call.
+   */
+  async metaParity(options: ConversionSyncMetaParityOptions): Promise<ConversionSyncMetaParityResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<ConversionSyncMetaParityResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/meta-parity",
+      query,
+      signal,
     });
   }
 
@@ -1164,6 +1308,28 @@ export class ConversionSyncResource {
     });
   }
 
+  /**
+   * Answer «does this business handle health data?» (#2209). `no` →
+   * `standard`; `platform_safe_clean` / `platform_safe_existing` →
+   * `platform_safe` with that target; `hipaa` → `hipaa`. Stamps
+   * `health_data_answered_at`. Database only — a Clean Dataset is created by
+   * `provisionPlatformSafe()` (`clean_dataset_provisioned` says whether one
+   * exists). Changing the mode or target needs a workspace owner or admin when
+   * the caller is a person.
+   */
+  async answerHealthDataQuestion(
+    input: ConversionSyncHealthDataAnswerInput,
+    options: WriteExtras = {},
+  ): Promise<ConversionSyncHealthDataAnswerResponse> {
+    return this.http.request<ConversionSyncHealthDataAnswerResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/health-data-answer",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
   /** The connected ad account's campaigns, live from Meta. */
   async campaigns(options: ReadExtras = {}): Promise<ConversionSyncCampaignsResponse> {
     return this.http.request<ConversionSyncCampaignsResponse>({
@@ -1308,9 +1474,9 @@ export class ConversionSyncResource {
    * `existing` (the default) sends to the ordinary Meta dataset(s), so the
    * live ad sets keep optimizing with no recreation. `clean` is the
    * remediation once Meta restricts that dataset: it provisions the Clean
-   * Dataset, flips the target only when one exists (an `action_required`
-   * provision leaves it on `existing`, `switched: false`), and lists the ad
-   * sets to recreate. Going back to `existing` is refused with `409
+   * Dataset, flips the target (even on an `action_required` provision — the
+   * profile then sends Meta nothing until a Clean Dataset exists), and lists
+   * the ad sets to recreate. Needs the accepted DPA (`409 dpa_required`). Going back to `existing` is refused with `409
    * clean_dataset_has_live_ad_sets` while Clean Dataset ad sets still deliver,
    * unless `confirm_live_ad_sets: true`. Only in `platform_safe` mode (`409
    * platform_safe_required`); owners and admins only when the caller is a person.
@@ -1328,42 +1494,20 @@ export class ConversionSyncResource {
     });
   }
 
-  /** Which live ad sets would move at go-live, and by which path. Read-only. */
-  async platformSafeRepointPreview(
-    options: ReadExtras = {},
-  ): Promise<PlatformSafeRepointPreviewResponse> {
-    return this.http.request<PlatformSafeRepointPreviewResponse>({
-      method: "GET",
-      path: "/api/v1/conversion-sync/platform-safe/repoint",
-      signal: options.signal,
-    });
-  }
-
   /**
-   * Apply the go-live change. Targets are recomputed server-side, so a stale
-   * preview cannot send an ad set somewhere unexpected. A partial result is
-   * normal: `needs_recreate` holds the ad sets Meta froze, which need a second
-   * yes (`confirm_recreate: true`) because rebuilding costs a new ad set id and
-   * a learning reset. Owners and admins only when the caller is a person.
-   *
-   * #306 — with an API key or MCP user token, `confirm_recreate: true` must
-   * also carry `consent: { version, text_hash, accepted_by, accepted_at }` for
-   * the current consent text, or it throws `consent_required` (409) with
-   * `error.consent` naming the current version. Every rebuild is stated in
-   * `warnings`.
-   *
-   * @deprecated Since 2026-10-21 (#2154). Use {@link startPlatformSafeGoLive}:
-   * the whole selection (up to 500 ad sets) as ONE background operation, with
-   * the same `confirm_recreate` + `consent` contract. Still served; no removal
-   * date yet.
+   * «Enviar conversiones a Meta» — turn a health profile's Meta sending on or
+   * off (`export_meta_enabled`). A newly provisioned Clean Dataset starts OFF.
+   * `enabled: true` is a signed-in owner/admin's act only (a key gets `403`)
+   * and needs the accepted DPA (`409 dpa_required`) and, in Platform-Safe, the
+   * Clean Dataset (`409 invalid_state`); `false` is always allowed.
    */
-  async applyPlatformSafeRepoint(
-    input: PlatformSafeRepointApplyInput,
+  async setPlatformSafeSending(
+    input: PlatformSafeSendingInput,
     options: WriteExtras = {},
-  ): Promise<PlatformSafeRepointApplyResponse> {
-    return this.http.request<PlatformSafeRepointApplyResponse>({
+  ): Promise<PlatformSafeSendingResponse> {
+    return this.http.request<PlatformSafeSendingResponse>({
       method: "POST",
-      path: "/api/v1/conversion-sync/platform-safe/repoint",
+      path: "/api/v1/conversion-sync/platform-safe/sending",
       body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,
@@ -1371,19 +1515,185 @@ export class ConversionSyncResource {
   }
 
   /**
-   * #2152 — start the go-live as ONE background operation and return at once.
-   * Every ad set tries the in-place edit first; only those Meta froze are
-   * recreated, and only with `confirm_recreate: true` (plus `consent` from an
-   * API key or MCP user token, as for `applyPlatformSafeRepoint`). Follow it
-   * with `operation(data.operation.operation_id)`.
+   * #2296 — the profile's Clean Datasets: the default row plus every
+   * per-service row, with its route and Meta's dataset name.
    */
-  async startPlatformSafeGoLive(
-    input: PlatformSafeGoLiveInput,
+  async platformSafeServiceDatasets(options: ReadExtras = {}): Promise<PlatformSafeServiceDatasetsResponse> {
+    return this.http.request<PlatformSafeServiceDatasetsResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/platform-safe/service-datasets",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2296 — attach a per-service Clean Dataset, adopted by id: share it with
+   * the ad account, create its neutral custom conversions, insert the service
+   * row. `dry_run: true` performs every read and no write. Operator-only.
+   */
+  async addPlatformSafeServiceDataset(
+    input: PlatformSafeServiceDatasetAddInput,
     options: WriteExtras = {},
-  ): Promise<PlatformSafeGoLiveResponse> {
-    return this.http.request<PlatformSafeGoLiveResponse>({
+  ): Promise<PlatformSafeServiceDatasetAddResponse> {
+    return this.http.request<PlatformSafeServiceDatasetAddResponse>({
       method: "POST",
-      path: "/api/v1/conversion-sync/platform-safe/go-live",
+      path: "/api/v1/conversion-sync/platform-safe/service-datasets",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2296 — the profile's lead landing pages over 30 days (host + first path
+   * segment; never a query string) and the Clean Dataset each goes to.
+   */
+  async platformSafeLandingPages(options: ReadExtras = {}): Promise<PlatformSafeLandingPagesResponse> {
+    return this.http.request<PlatformSafeLandingPagesResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/platform-safe/landing-pages",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2353 — the Google Ads account's live conversion actions, and which one is
+   * the profile's default Google Clean Destination.
+   */
+  async googleConversionActions(options: ReadExtras = {}): Promise<GoogleConversionActionsResponse> {
+    return this.http.request<GoogleConversionActionsResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/google/conversion-actions",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2353 — provision the default Google Clean Destination: create-or-adopt
+   * «Atribu · Lead» (secondary, Import from clicks) by its coded name, or adopt
+   * `conversion_action_id`. Idempotent. Operator-only.
+   */
+  async provisionGoogleConversionAction(
+    input: GoogleConversionActionProvisionInput = {},
+    options: WriteExtras = {},
+  ): Promise<GoogleConversionActionProvisionResponse> {
+    return this.http.request<GoogleConversionActionProvisionResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/google/conversion-actions",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2354 — the Google goal step's preview: every ENABLED campaign with the
+   * conversion action(s) it bids on now, the action an assign would make its
+   * only primary, the learning warning (7–14 days) and the latest changes.
+   */
+  async googleCampaignGoals(
+    query: { destination_id?: string } = {},
+    options: ReadExtras = {},
+  ): Promise<GoogleCampaignGoalsResponse> {
+    return this.http.request<GoogleCampaignGoalsResponse>({
+      method: "GET",
+      path: "/api/v1/conversion-sync/google/campaign-goals",
+      query,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2354 — make Atribu's Conversion Action ONE campaign's only primary goal,
+   * in place and synchronously. `confirm: true` is required. Audited with the
+   * previous goal; revert with {@link revertGoogleCampaignGoal}. Operator-only.
+   */
+  async assignGoogleCampaignGoal(
+    input: GoogleCampaignGoalAssignInput,
+    options: WriteExtras = {},
+  ): Promise<GoogleCampaignGoalChangeResponse> {
+    return this.http.request<GoogleCampaignGoalChangeResponse>({
+      method: "POST",
+      path: "/api/v1/conversion-sync/google/campaign-goals/assign",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** #2354 — restore the goal config an assign's audit entry recorded. Operator-only. */
+  async revertGoogleCampaignGoal(changeId: string, options: WriteExtras = {}): Promise<GoogleCampaignGoalChangeResponse> {
+    return this.http.request<GoogleCampaignGoalChangeResponse>({
+      method: "POST",
+      path: `/api/v1/conversion-sync/google/campaign-goals/changes/${encodeURIComponent(changeId)}/revert`,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2357 — edit a per-service Google Clean Destination's route (campaign ids,
+   * landing pages, pipelines, label). The key is immutable. Operator-only.
+   */
+  async updateGoogleServiceDestination(
+    key: string,
+    input: GoogleServiceDestinationUpdateInput,
+    options: WriteExtras = {},
+  ): Promise<GoogleServiceDestinationUpdateResponse> {
+    return this.http.request<GoogleServiceDestinationUpdateResponse>({
+      method: "PATCH",
+      path: `/api/v1/conversion-sync/google/service-destinations/${encodeURIComponent(key)}`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2362 — map the site's own Google tag label (`send_to`) to an Outcome; the
+   * Google destination adopts the label's conversion action (resolved from its
+   * tag snippet, or `conversion_action_id`). Refused on Platform-Safe. Operator-only.
+   */
+  async mapGoogleTagLabel(
+    input: GoogleTagLabelMapInput,
+    options: WriteExtras = {},
+  ): Promise<GoogleTagLabelMapResponse> {
+    return this.http.request<GoogleTagLabelMapResponse>({
+      method: "PUT",
+      path: "/api/v1/conversion-sync/google/tag-labels",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * #2391 — turn a System-generated Clean Dataset on (`system_generated`) or off
+   * (`automatic`): one Clean Dataset (`dataset_id`) or all of the profile's.
+   * Operator-only.
+   */
+  async setPlatformSafeCleanDatasetActionSource(
+    input: PlatformSafeCleanDatasetActionSourceInput,
+    options: WriteExtras = {},
+  ): Promise<PlatformSafeCleanDatasetActionSourceResponse> {
+    return this.http.request<PlatformSafeCleanDatasetActionSourceResponse>({
+      method: "PUT",
+      path: "/api/v1/conversion-sync/platform-safe/clean-datasets/action-source",
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** #2296 — edit a service Clean Dataset's route. The key is immutable. Operator-only. */
+  async updatePlatformSafeServiceDataset(
+    key: string,
+    input: PlatformSafeServiceDatasetUpdateInput,
+    options: WriteExtras = {},
+  ): Promise<PlatformSafeServiceDatasetUpdateResponse> {
+    return this.http.request<PlatformSafeServiceDatasetUpdateResponse>({
+      method: "PATCH",
+      path: `/api/v1/conversion-sync/platform-safe/service-datasets/${encodeURIComponent(key)}`,
       body: input,
       idempotencyKey: options.idempotencyKey,
       signal: options.signal,

@@ -12,6 +12,18 @@ type PixelsResponse =
 
 export type Connection = ListResponse["data"][number];
 
+type AdsBillingResponse =
+  paths["/api/v1/partner/ads/billing"]["get"]["responses"][200]["content"]["application/json"];
+
+/**
+ * One ad account connected to the profile, with its daily spend and (Meta
+ * only) every billing event Meta recorded on it — what {@link
+ * ConnectionsResource.adsBilling} returns (#2545). Derived from the generated
+ * types, not restated.
+ */
+export type AdAccountBilling = AdsBillingResponse["data"][number];
+export type AdAccountBillingCharge = AdAccountBilling["charges"][number];
+
 /**
  * One pixel on a Meta Ads connection's ad account — what {@link
  * ConnectionsResource.pixels} returns.
@@ -194,6 +206,26 @@ export class ConnectionsResource {
    *
    * Requires `exports:read`.
    */
+  /**
+   * `GET /api/v1/partner/ads/billing` (#2545): per ad account connected to the
+   * profile, the daily spend and — for Meta — every charge, refund, chargeback
+   * and decline with its amount and transaction id. Stored rows only, at most
+   * 92 days (both ends included). `ads_billing:read` or `campaigns:read`.
+   */
+  async adsBilling(opts: {
+    date_from: string;
+    date_to: string;
+    signal?: AbortSignal;
+  }): Promise<AdAccountBilling[]> {
+    const qs = new URLSearchParams({ date_from: opts.date_from, date_to: opts.date_to }).toString();
+    const res = await this.http.request<AdsBillingResponse>({
+      method: "GET",
+      path: `/api/v1/partner/ads/billing?${qs}`,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
   async pixels(id: string, opts: { signal?: AbortSignal } = {}): Promise<ConnectionPixel[]> {
     const res = await this.http.request<PixelsResponse>({
       method: "GET",
@@ -282,10 +314,14 @@ export class ConnectionsResource {
    * one authorization. While you hold another authorization here, they are left
    * alone.
    *
-   * Does NOT disconnect the underlying data_connection (other consumers + the
-   * Atribu UI still see it). Direct admin keys reject this call with 400, and
-   * any other `kind` answers 404 — only messaging connections carry a
-   * per-connection authorization to revoke.
+   * Does NOT delete the underlying data_connection. When this was its last
+   * live authorization, access ENDS for the messaging channels, the read-only
+   * calendar overlays, and (on a profile your app provisioned) the email inbox
+   * and booking calendar: the provider token is wiped, `status` becomes
+   * `revoked`, and a Google refresh token is revoked at Google unless another
+   * live connection shares that Google account's grant. Direct admin keys
+   * reject this call with 400, and any other `kind` answers 404 — only
+   * messaging connections carry a per-connection authorization to revoke.
    *
    * **The key on this client is usually one of the keys revoked.** This call
    * completes; the next one with the same key throws `unauthorized`. Mint a

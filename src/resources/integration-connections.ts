@@ -24,6 +24,69 @@ type GhlOutcomePrefillResponse =
   paths["/api/v1/integrations/lhg/outcomes/prefill"]["get"]["responses"][200]["content"]["application/json"];
 export type GhlOutcomePrefill = GhlOutcomePrefillResponse["data"];
 
+// #2436 (ADR 0029) — workflows that send to Meta.
+type GhlWorkflowMetaChecklistResponse =
+  paths["/api/v1/integrations/lhg/workflows/meta-steps"]["get"]["responses"][200]["content"]["application/json"];
+export type GhlWorkflowMetaChecklist = GhlWorkflowMetaChecklistResponse["data"];
+export type GhlWorkflowMetaLocation = GhlWorkflowMetaChecklist["locations"][number];
+
+// #2519 — Conversion Sync «Automatizaciones de GoHighLevel»: scan, apply, restore.
+type GhlAutomationsResponse =
+  paths["/api/v1/integrations/lhg/workflows/automations"]["get"]["responses"][200]["content"]["application/json"];
+export type GhlAutomations = GhlAutomationsResponse["data"];
+export type GhlAutomationLocation = GhlAutomations["locations"][number];
+export type GhlAutomationWorkflow = GhlAutomationLocation["workflows"][number];
+export type GhlAutomationChange = GhlAutomationLocation["changes"][number];
+export type GhlAutomationScanInput = NonNullable<
+  paths["/api/v1/integrations/lhg/workflows/automations/scan"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type GhlAutomationApplyInput = NonNullable<
+  paths["/api/v1/integrations/lhg/workflows/automations/apply"]["post"]["requestBody"]
+>["content"]["application/json"];
+type GhlAutomationApplyResponse =
+  paths["/api/v1/integrations/lhg/workflows/automations/apply"]["post"]["responses"][200]["content"]["application/json"];
+export type GhlAutomationApply = GhlAutomationApplyResponse["data"];
+export type GhlAutomationRestoreInput = NonNullable<
+  paths["/api/v1/integrations/lhg/workflows/automations/restore"]["post"]["requestBody"]
+>["content"]["application/json"];
+type GhlAutomationRestoreResponse =
+  paths["/api/v1/integrations/lhg/workflows/automations/restore"]["post"]["responses"][200]["content"]["application/json"];
+export type GhlAutomationRestore = GhlAutomationRestoreResponse["data"];
+
+// #2517 — funnel pages missing the Atribu tracker.
+type GhlFunnelTrackerChecksResponse =
+  paths["/api/v1/integrations/lhg/funnels/tracker-checks"]["get"]["responses"][200]["content"]["application/json"];
+export type GhlFunnelTrackerChecks = GhlFunnelTrackerChecksResponse["data"];
+export type GhlFunnelTrackerLocation = GhlFunnelTrackerChecks["locations"][number];
+export type GhlFunnelTrackerRecheckBody = NonNullable<
+  paths["/api/v1/integrations/lhg/funnels/tracker-checks/recheck"]["post"]["requestBody"]
+>["content"]["application/json"];
+
+// #2564 — click-to-WhatsApp ad referrals in GoHighLevel conversations.
+type GhlCtwaDetectionsResponse =
+  paths["/api/v1/integrations/lhg/conversations/ctwa-detections"]["get"]["responses"][200]["content"]["application/json"];
+export type GhlCtwaDetections = GhlCtwaDetectionsResponse["data"];
+type GhlCtwaScanResponse =
+  paths["/api/v1/integrations/lhg/conversations/ctwa-detections/scan"]["post"]["responses"][200]["content"]["application/json"];
+export type GhlCtwaScan = GhlCtwaScanResponse["data"];
+export type GhlCtwaScanBody = NonNullable<
+  paths["/api/v1/integrations/lhg/conversations/ctwa-detections/scan"]["post"]["requestBody"]
+>["content"]["application/json"];
+
+// #2518 — GoHighLevel bookings -> Dentalink citas through Vitrina.
+type GhlDentalinkGetResponse =
+  paths["/api/v1/integrations/lhg/dentalink"]["get"]["responses"][200]["content"]["application/json"];
+export type GhlDentalinkSettings = GhlDentalinkGetResponse["data"];
+export type GhlDentalinkCalendar = GhlDentalinkSettings["calendars"][number];
+export type GhlDentalinkBooking = GhlDentalinkSettings["bookings"][number];
+export type SaveGhlDentalinkSettingsInput = NonNullable<
+  paths["/api/v1/integrations/lhg/dentalink"]["put"]["requestBody"]
+>["content"]["application/json"];
+type GhlDentalinkPutResponse =
+  paths["/api/v1/integrations/lhg/dentalink"]["put"]["responses"][200]["content"]["application/json"];
+type GhlDentalinkDeleteResponse =
+  paths["/api/v1/integrations/lhg/dentalink"]["delete"]["responses"][200]["content"]["application/json"];
+
 // ---------------------------------------------------------------------------
 // ManyChat
 // ---------------------------------------------------------------------------
@@ -120,6 +183,163 @@ export class IntegrationConnectionsResource {
     const res = await this.http.request<GhlOutcomePrefillResponse>({
       method: "GET",
       path: "/api/v1/integrations/lhg/outcomes/prefill",
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Per connected GoHighLevel location, the workflows holding a step that
+   * sends to Meta (#2436). Read-only against GoHighLevel; a location without
+   * the workflow scopes reads `needs_reconnect`, one HighLevel has not enabled
+   * reads `pending_enablement`.
+   */
+  async ghlWorkflowMetaSteps(opts: RequestOptions = {}): Promise<GhlWorkflowMetaChecklist> {
+    const res = await this.http.request<GhlWorkflowMetaChecklistResponse>({
+      method: "GET",
+      path: "/api/v1/integrations/lhg/workflows/meta-steps",
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * GoHighLevel bookings -> Dentalink citas through Vitrina (#2518): each
+   * calendar with the professional it books, the clinic's Dentalink
+   * professionals, and the recent bookings with their state.
+   */
+  async ghlDentalinkSettings(opts: RequestOptions = {}): Promise<GhlDentalinkSettings> {
+    const res = await this.http.request<GhlDentalinkGetResponse>({
+      method: "GET",
+      path: "/api/v1/integrations/lhg/dentalink",
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** Save the Vitrina key (validated against Vitrina) and replace the calendar mapping (#2518). */
+  async saveGhlDentalinkSettings(
+    input: SaveGhlDentalinkSettingsInput,
+    opts: MutationOptions = {},
+  ): Promise<GhlDentalinkSettings> {
+    const res = await this.http.request<GhlDentalinkPutResponse>({
+      method: "PUT",
+      path: "/api/v1/integrations/lhg/dentalink",
+      body: input,
+      idempotencyKey: opts.idempotencyKey,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** Remove the Vitrina key: the Profile stops booking GoHighLevel appointments in Dentalink (#2518). */
+  async disableGhlDentalink(opts: MutationOptions = {}): Promise<{ disabled: true }> {
+    const res = await this.http.request<GhlDentalinkDeleteResponse>({
+      method: "DELETE",
+      path: "/api/v1/integrations/lhg/dentalink",
+      idempotencyKey: opts.idempotencyKey,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Per connected GoHighLevel location, each published funnel page's stored
+   * tracker check (#2517). No GoHighLevel call; {@link ghlFunnelTrackerRecheck} runs it.
+   */
+  async ghlFunnelTrackerChecks(opts: RequestOptions = {}): Promise<GhlFunnelTrackerChecks> {
+    const res = await this.http.request<GhlFunnelTrackerChecksResponse>({
+      method: "GET",
+      path: "/api/v1/integrations/lhg/funnels/tracker-checks",
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** Re-check the funnel pages (one funnel, one location, or all) and return the stored result. */
+  async ghlFunnelTrackerRecheck(
+    body: GhlFunnelTrackerRecheckBody = {},
+    opts: RequestOptions = {},
+  ): Promise<GhlFunnelTrackerChecks> {
+    const res = await this.http.request<GhlFunnelTrackerChecksResponse>({
+      method: "POST",
+      path: "/api/v1/integrations/lhg/funnels/tracker-checks/recheck",
+      body,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #2519 — this Profile's GoHighLevel workflows, from Atribu's cached scan
+   * (no GoHighLevel call): published workflows sorted into
+   * `native_meta_capi` / `event_relay` / `ok`, each flagged one with its steps
+   * before → after, plus every workflow Atribu changed (restorable).
+   */
+  async ghlWorkflowAutomations(opts: RequestOptions = {}): Promise<GhlAutomations> {
+    const res = await this.http.request<GhlAutomationsResponse>({
+      method: "GET",
+      path: "/api/v1/integrations/lhg/workflows/automations",
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** #2519 — read every location again and cache it. Read-only against GoHighLevel. */
+  async ghlWorkflowAutomationsScan(input: GhlAutomationScanInput = {}, opts: RequestOptions = {}): Promise<GhlAutomations> {
+    const res = await this.http.request<GhlAutomationsResponse>({
+      method: "POST",
+      path: "/api/v1/integrations/lhg/workflows/automations/scan",
+      body: input,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #2519 — apply the proposal (unpublish, or remove the event-sending steps).
+   * A workspace owner or admin acting as a person; per-workflow results.
+   */
+  async ghlWorkflowAutomationsApply(input: GhlAutomationApplyInput = {}, opts: RequestOptions = {}): Promise<GhlAutomationApply> {
+    const res = await this.http.request<GhlAutomationApplyResponse>({
+      method: "POST",
+      path: "/api/v1/integrations/lhg/workflows/automations/apply",
+      body: input,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** #2519 — put one workflow Atribu changed back to its backed-up definition and status. Idempotent. */
+  async ghlWorkflowAutomationsRestore(input: GhlAutomationRestoreInput, opts: RequestOptions = {}): Promise<GhlAutomationRestore> {
+    const res = await this.http.request<GhlAutomationRestoreResponse>({
+      method: "POST",
+      path: "/api/v1/integrations/lhg/workflows/automations/restore",
+      body: input,
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Click-to-WhatsApp ad referrals found in GoHighLevel conversation messages
+   * (#2564), and each location's conversation-scope state. No GoHighLevel call.
+   */
+  async ghlCtwaDetections(opts: RequestOptions = {}): Promise<GhlCtwaDetections> {
+    const res = await this.http.request<GhlCtwaDetectionsResponse>({
+      method: "GET",
+      path: "/api/v1/integrations/lhg/conversations/ctwa-detections",
+      signal: opts.signal,
+    });
+    return res.data;
+  }
+
+  /** One bounded slice of the conversation scan; continue with `scan.next_cursor` until null. */
+  async ghlCtwaScan(body: GhlCtwaScanBody = {}, opts: RequestOptions = {}): Promise<GhlCtwaScan> {
+    const res = await this.http.request<GhlCtwaScanResponse>({
+      method: "POST",
+      path: "/api/v1/integrations/lhg/conversations/ctwa-detections/scan",
+      body,
       signal: opts.signal,
     });
     return res.data;

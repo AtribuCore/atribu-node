@@ -15,6 +15,37 @@
 import type { paths } from "../__generated__/api";
 import type { BinaryResponse, HttpClientLike } from "../http";
 import type { ReadExtras, WriteExtras } from "./common";
+import type {
+  GhlAutomationApply,
+  GhlAutomationApplyInput,
+  GhlAutomations,
+  GhlAutomationScanInput,
+} from "./integration-connections";
+
+// #2521 — the GoHighLevel opportunity template check against a reference clinic.
+type TemplatePath = paths["/api/v1/workspaces/{workspaceId}/ghl-workflow-automations/opportunity-template"];
+export type GhlOpportunityTemplate =
+  TemplatePath["get"]["responses"][200]["content"]["application/json"]["data"];
+export type GhlTemplateLocation = GhlOpportunityTemplate["locations"][number];
+export type GhlTemplateProposal = GhlTemplateLocation["proposals"][number];
+export type GhlWorkflowCreation = GhlTemplateLocation["created"][number];
+export type GhlTemplateApplyInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/ghl-workflow-automations/opportunity-template/apply"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type GhlOpportunityTemplateApply =
+  paths["/api/v1/workspaces/{workspaceId}/ghl-workflow-automations/opportunity-template/apply"]["post"]["responses"][200]["content"]["application/json"]["data"];
+export type GhlCreatedWorkflowStatus =
+  paths["/api/v1/workspaces/{workspaceId}/ghl-workflow-automations/created/{creationId}/publish"]["post"]["responses"][200]["content"]["application/json"]["data"];
+// #2523 — GoHighLevel workflow recipes.
+export type GhlWorkflowRecipes =
+  paths["/api/v1/workspaces/{workspaceId}/ghl-workflow-automations/recipes"]["get"]["responses"][200]["content"]["application/json"]["data"];
+export type GhlWorkflowRecipe = GhlWorkflowRecipes["recipes"][number];
+export type GhlRecipeLocation = GhlWorkflowRecipes["locations"][number];
+export type GhlWorkflowRecipeCreateInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/ghl-workflow-automations/recipes/{recipeId}/create"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type GhlWorkflowRecipeCreate =
+  paths["/api/v1/workspaces/{workspaceId}/ghl-workflow-automations/recipes/{recipeId}/create"]["post"]["responses"][200]["content"]["application/json"]["data"];
 
 export type WorkspaceTopPerformersExportBody = NonNullable<
   paths["/api/v1/workspaces/{workspaceId}/top-performers/export"]["post"]["requestBody"]
@@ -42,6 +73,18 @@ export type WorkspaceCreativePatternsOptions = WorkspaceCreativePatternsQuery & 
 export type WorkspaceProfilesListResponse =
   paths["/api/v1/workspaces/{workspaceId}/profiles"]["get"]["responses"][200]["content"]["application/json"];
 
+/** #2455 — Atribu's sends vs the events Meta counted, per profile × dataset × event. */
+export type WorkspaceDatasetBlockRateResponse =
+  paths["/api/v1/workspaces/{workspaceId}/dataset-block-rate"]["get"]["responses"][200]["content"]["application/json"];
+
+/** #2445 — the agency roll-up: every accessible profile's funnel for one range. */
+export type WorkspaceOutcomeFunnelOptions =
+  paths["/api/v1/workspaces/{workspaceId}/outcome-funnel"]["get"]["parameters"]["query"] & ReadExtras;
+export type WorkspaceOutcomeFunnelResponse =
+  paths["/api/v1/workspaces/{workspaceId}/outcome-funnel"]["get"]["responses"][200]["content"]["application/json"];
+export type WorkspaceAccountCheckSummaryResponse =
+  paths["/api/v1/workspaces/{workspaceId}/account-checks/summary"]["get"]["responses"][200]["content"]["application/json"];
+
 type WorkspaceAuditQuery = NonNullable<
   paths["/api/v1/workspaces/{workspaceId}/audit"]["get"]["parameters"]["query"]
 >;
@@ -65,9 +108,41 @@ export type WorkspaceApiUsageResponse =
   paths["/api/v1/workspaces/{workspaceId}/api-usage"]["get"]["responses"][200]["content"]["application/json"];
 export type WorkspaceApiUsageOptions = WorkspaceApiUsageQuery & ReadExtras;
 
+// SPEC 2026-10-24 — Namecheap tracking-domain automation (the agency screen).
+export type WorkspaceDnsAccountsResponse =
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts"]["get"]["responses"][200]["content"]["application/json"];
+export type CreateWorkspaceDnsAccountInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type CreateWorkspaceDnsAccountResponse =
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts"]["post"]["responses"][201]["content"]["application/json"];
+export type DeleteWorkspaceDnsAccountResponse =
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts/{id}"]["delete"]["responses"][200]["content"]["application/json"];
+export type StartWorkspaceNamecheapMcpInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts/namecheap-mcp/start"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type StartWorkspaceNamecheapMcpResponse =
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts/namecheap-mcp/start"]["post"]["responses"][200]["content"]["application/json"];
+export type CompleteWorkspaceNamecheapMcpInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts/namecheap-mcp/complete"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type CompleteWorkspaceNamecheapMcpResponse =
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts/namecheap-mcp/complete"]["post"]["responses"][201]["content"]["application/json"];
+export type WorkspaceDnsAccountDomainsResponse =
+  paths["/api/v1/workspaces/{workspaceId}/dns-accounts/{id}/domains"]["get"]["responses"][200]["content"]["application/json"];
+export type WorkspaceTrackingBulkSetupInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/tracking/bulk-setup"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type WorkspaceTrackingBulkSetupResponse =
+  paths["/api/v1/workspaces/{workspaceId}/tracking/bulk-setup"]["post"]["responses"][200]["content"]["application/json"];
+
 // #488 (PR-2) — the workspace subscription read.
 export type WorkspaceSubscription =
   paths["/api/v1/workspaces/{workspaceId}/subscription"]["get"]["responses"][200]["content"]["application/json"]["data"];
+
+// #2254 — the usage meter.
+export type WorkspaceUsage =
+  paths["/api/v1/workspaces/{workspaceId}/usage"]["get"]["responses"][200]["content"]["application/json"]["data"];
 
 // #1052 — the plan-checkout hand-off.
 export type CheckoutSessionInput = NonNullable<
@@ -81,6 +156,18 @@ export type CheckoutHandoff =
 // and each route refuses the other's workspaces.
 export type BillingPortalSession =
   paths["/api/v1/workspaces/{workspaceId}/billing-portal-session"]["post"]["responses"][200]["content"]["application/json"]["data"];
+
+// #2258 — the in-app plan change (preview, then confirm).
+export type PlanChangePreviewInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/plan-change/preview"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type PlanChangePreview =
+  paths["/api/v1/workspaces/{workspaceId}/plan-change/preview"]["post"]["responses"][200]["content"]["application/json"]["data"];
+export type PlanChangeInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/plan-change"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type PlanChangeResult =
+  paths["/api/v1/workspaces/{workspaceId}/plan-change"]["post"]["responses"][200]["content"]["application/json"]["data"];
 export type ShopifyPlanSelectionInput = NonNullable<
   paths["/api/v1/workspaces/{workspaceId}/shopify-plan-selection"]["post"]["requestBody"]
 >["content"]["application/json"];
@@ -96,6 +183,22 @@ type WorkspacePatternDimensionsQuery = NonNullable<
 export type WorkspacePatternDimensionsResponse =
   paths["/api/v1/workspaces/{workspaceId}/creative-patterns/dimensions"]["get"]["responses"][200]["content"]["application/json"];
 export type WorkspacePatternDimensionsOptions = WorkspacePatternDimensionsQuery & ReadExtras;
+
+// #2591 — Creative Labels vs cost per Goal Step, within each profile and pooled.
+type WorkspaceCreativeLabelComparisonQuery = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/creative-label-comparison"]["get"]["parameters"]["query"]
+>;
+export type WorkspaceCreativeLabelComparisonResponse =
+  paths["/api/v1/workspaces/{workspaceId}/creative-label-comparison"]["get"]["responses"][200]["content"]["application/json"];
+export type WorkspaceCreativeLabelComparisonOptions = WorkspaceCreativeLabelComparisonQuery & ReadExtras;
+
+// #2752 — the next-creative text brief for one profile.
+type WorkspaceNextCreativeBriefQuery = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/next-creative-brief"]["get"]["parameters"]["query"]
+>;
+export type WorkspaceNextCreativeBriefResponse =
+  paths["/api/v1/workspaces/{workspaceId}/next-creative-brief"]["get"]["responses"][200]["content"]["application/json"];
+export type WorkspaceNextCreativeBriefOptions = WorkspaceNextCreativeBriefQuery & ReadExtras;
 
 type WorkspaceArchetypesQuery = NonNullable<
   paths["/api/v1/workspaces/{workspaceId}/creative-archetypes"]["get"]["parameters"]["query"]
@@ -114,6 +217,8 @@ export type WorkspaceTopPerformersBriefResponse =
   paths["/api/v1/workspaces/{workspaceId}/top-performers/brief"]["get"]["responses"][200]["content"]["application/json"];
 export type WorkspaceTopPerformersBriefOptions = WorkspaceTopPerformersBriefQuery & ReadExtras;
 
+export type WorkspaceCreativeAnalysisCoverageResponse =
+  paths["/api/v1/workspaces/{workspaceId}/creative-analysis/coverage"]["get"]["responses"][200]["content"]["application/json"];
 export type WorkspaceTabCountsResponse =
   paths["/api/v1/workspaces/{workspaceId}/tab-counts"]["get"]["responses"][200]["content"]["application/json"];
 
@@ -168,6 +273,19 @@ export type ReportSchedulesBulkInput = NonNullable<
 >["content"]["application/json"];
 export type ReportSchedulesBulkResponse =
   paths["/api/v1/workspaces/{workspaceId}/reports/schedules/bulk"]["post"]["responses"][200]["content"]["application/json"];
+
+// #2594 — Friday preview, Monday send, bulk recipients.
+export type ReportPreviewsResponse =
+  paths["/api/v1/workspaces/{workspaceId}/reports/previews"]["get"]["responses"][200]["content"]["application/json"];
+export type ReportPreviewHoldResponse =
+  paths["/api/v1/workspaces/{workspaceId}/reports/previews/{previewId}"]["patch"]["responses"][200]["content"]["application/json"];
+export type ReportRecipientsResponse =
+  paths["/api/v1/workspaces/{workspaceId}/reports/recipients"]["get"]["responses"][200]["content"]["application/json"];
+export type ReportRecipientsPutInput = NonNullable<
+  paths["/api/v1/workspaces/{workspaceId}/reports/recipients"]["put"]["requestBody"]
+>["content"]["application/json"];
+export type ReportRecipientsPutResponse =
+  paths["/api/v1/workspaces/{workspaceId}/reports/recipients"]["put"]["responses"][200]["content"]["application/json"];
 
 export type ReportBulkGenerateInput = NonNullable<
   paths["/api/v1/workspaces/{workspaceId}/reports/bulk-generate"]["post"]["requestBody"]
@@ -242,6 +360,13 @@ export type WorkspaceOAuthAppsResponse =
 export type WorkspaceOAuthAppDpaAcceptBody = NonNullable<
   paths["/api/v1/workspaces/{workspaceId}/oauth-apps/{appId}/dpa/accept"]["post"]["requestBody"]
 >["content"]["application/json"];
+// The workspace-grain DPA (#2554).
+type WorkspaceDpaAcceptPath = paths["/api/v1/workspaces/{workspaceId}/legal/dpa/accept"]["post"];
+type WorkspaceDpaHandoffPath = paths["/api/v1/workspaces/{workspaceId}/legal/dpa/handoff"]["post"];
+export type WorkspaceDpaAcceptBody = NonNullable<WorkspaceDpaAcceptPath["requestBody"]>["content"]["application/json"];
+export type WorkspaceDpaAcceptResponse = WorkspaceDpaAcceptPath["responses"][200]["content"]["application/json"];
+export type WorkspaceDpaHandoffBody = NonNullable<WorkspaceDpaHandoffPath["requestBody"]>["content"]["application/json"];
+export type WorkspaceDpaHandoffResponse = WorkspaceDpaHandoffPath["responses"][200]["content"]["application/json"];
 export type WorkspaceOAuthAppDpaDecisionResponse =
   paths["/api/v1/workspaces/{workspaceId}/oauth-apps/{appId}/dpa/accept"]["post"]["responses"][200]["content"]["application/json"];
 
@@ -273,12 +398,12 @@ export interface CreateWorkspaceInput {
   name: string;
   timezone?: string;
   /**
-   * Defaults to `starter` (Free). `growth` / `agency` immediately create a
-   * `trialing` subscription at that plan's real limits rather than waiting
-   * for the workspace's first profile, AND mint a Stripe Checkout hand-off.
-   * See `checkout` on the response.
+   * Defaults to `esencial`, the default tier. `pro` / `scale` / `agency`
+   * immediately create a `trialing` subscription at that plan's real limits
+   * rather than waiting for the workspace's first profile, AND attempt a Stripe
+   * Checkout hand-off. See `checkout` on the response.
    */
-  plan?: "starter" | "growth" | "agency";
+  plan?: "esencial" | "pro" | "scale" | "agency";
 }
 
 /** A real Stripe Checkout hand-off — give `url` to a human, poll
@@ -301,8 +426,8 @@ export interface CreatedWorkspace {
   /** `false` on an idempotent replay — see this interface's doc above. */
   created: boolean;
   /**
-   * A real Checkout hand-off for a `plan: "growth" | "agency"` request.
-   * `null` for `starter`/absent, always `null` on the app-credential branch,
+   * A real Checkout hand-off for a paid `plan` request.
+   * `null` for `esencial`/absent, always `null` on the app-credential branch,
    * and `null` when a mint was attempted but could not complete — see
    * `warnings`. Workspace creation is never blocked on it either way.
    */
@@ -386,6 +511,140 @@ export class WorkspacesResource {
     return res.data;
   }
 
+
+  /**
+   * #2519 — the agency view of «Automatizaciones de GoHighLevel»: every
+   * GoHighLevel location of every Profile in the workspace, from Atribu's
+   * cached scan. Session bearers only; owner/admin only.
+   */
+  async ghlWorkflowAutomations(workspaceId: string, options: ReadExtras = {}): Promise<GhlAutomations> {
+    const res = await this.http.request<{ data: GhlAutomations }>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations`,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** #2519 — re-scan every clinic's locations (or these). Read-only against GoHighLevel. */
+  async ghlWorkflowAutomationsScan(
+    workspaceId: string,
+    input: GhlAutomationScanInput = {},
+    options: ReadExtras = {},
+  ): Promise<GhlAutomations> {
+    const res = await this.http.request<{ data: GhlAutomations }>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/scan`,
+      body: input,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** #2519 — apply the proposal across the agency (or these clinics) in one batch; per-workflow results. */
+  async ghlWorkflowAutomationsApply(
+    workspaceId: string,
+    input: GhlAutomationApplyInput = {},
+    options: WriteExtras = {},
+  ): Promise<GhlAutomationApply> {
+    const res = await this.http.request<{ data: GhlAutomationApply }>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/apply`,
+      body: input,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #2521 — every clinic's GoHighLevel opportunity workflows against the
+   * workspace's reference clinic, from Atribu's caches (no GoHighLevel call).
+   * Owner/admin only.
+   */
+  async ghlOpportunityTemplate(workspaceId: string, options: ReadExtras = {}): Promise<GhlOpportunityTemplate> {
+    const res = await this.http.request<{ data: GhlOpportunityTemplate }>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/opportunity-template`,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** #2521 — choose the reference clinic (a GoHighLevel `connection_id`), or clear it with `null`. */
+  async ghlOpportunityTemplateSetReference(
+    workspaceId: string,
+    connectionId: string | null,
+    options: WriteExtras = {},
+  ): Promise<GhlOpportunityTemplate> {
+    const res = await this.http.request<{ data: GhlOpportunityTemplate }>({
+      method: "PUT",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/opportunity-template/reference`,
+      body: { connection_id: connectionId },
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** #2521 — create the missing opportunity rules as DRAFT workflows (per-proposal results). */
+  async ghlOpportunityTemplateApply(
+    workspaceId: string,
+    input: GhlTemplateApplyInput = {},
+    options: WriteExtras = {},
+  ): Promise<GhlOpportunityTemplateApply> {
+    const res = await this.http.request<{ data: GhlOpportunityTemplateApply }>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/opportunity-template/apply`,
+      body: input,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** #2521 — publish a workflow Atribu created (`target: "published"`) or set it back to draft (`"draft"`, «Restaurar»). */
+  async ghlCreatedWorkflowSetStatus(
+    workspaceId: string,
+    creationId: string,
+    target: "published" | "draft",
+    options: WriteExtras = {},
+  ): Promise<GhlCreatedWorkflowStatus> {
+    const action = target === "published" ? "publish" : "restore";
+    const res = await this.http.request<{ data: GhlCreatedWorkflowStatus }>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/created/${encodeURIComponent(creationId)}/${action}`,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * #2523 — the GoHighLevel workflow recipes (params as JSON Schema) and, per
+   * location, whether each can be created there and the options for its params,
+   * from Atribu's caches. Owner/admin only.
+   */
+  async ghlWorkflowRecipes(workspaceId: string, options: ReadExtras = {}): Promise<GhlWorkflowRecipes> {
+    const res = await this.http.request<{ data: GhlWorkflowRecipes }>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/recipes`,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /** #2523 — create a recipe's workflow in one location as a DRAFT (publish it with `ghlCreatedWorkflowSetStatus`). */
+  async ghlWorkflowRecipeCreate(
+    workspaceId: string,
+    recipeId: string,
+    input: GhlWorkflowRecipeCreateInput,
+    options: WriteExtras = {},
+  ): Promise<GhlWorkflowRecipeCreate> {
+    const res = await this.http.request<{ data: GhlWorkflowRecipeCreate }>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/ghl-workflow-automations/recipes/${encodeURIComponent(recipeId)}/create`,
+      body: input,
+      signal: options.signal,
+    });
+    return res.data;
+  }
 
   /**
    * Archive a workspace — **owner only, and terminal: there is no un-archive.**
@@ -575,6 +834,57 @@ export class WorkspacesResource {
   }
 
   /**
+   * The measured dataset block rate (#2455): per accessible profile × website
+   * Meta dataset, what Atribu sent and what Meta's own stats counted per event
+   * over the last 7 settled days, with the rate where Atribu is the only
+   * sender. Session bearers only.
+   */
+  async datasetBlockRate(
+    workspaceId: string,
+    options: ReadExtras = {},
+  ): Promise<WorkspaceDatasetBlockRateResponse> {
+    return this.http.request<WorkspaceDatasetBlockRateResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/dataset-block-rate`,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * The agency «Diagnóstico» list: one row per profile the caller can open —
+   * open account-check findings by severity, the most urgent one, the last
+   * run. Worst first. Session bearers only.
+   */
+  async accountCheckSummary(
+    workspaceId: string,
+    options: ReadExtras = {},
+  ): Promise<WorkspaceAccountCheckSummaryResponse> {
+    return this.http.request<WorkspaceAccountCheckSummaryResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/account-checks/summary`,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * The agency roll-up (#2445): one row per profile the caller can open, each
+   * with its per-clinic funnel (`analytics.outcomeFunnel`) for the same range,
+   * each profile in its own time zone. Session bearers only.
+   */
+  async outcomeFunnel(
+    workspaceId: string,
+    options: WorkspaceOutcomeFunnelOptions,
+  ): Promise<WorkspaceOutcomeFunnelResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<WorkspaceOutcomeFunnelResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/outcome-funnel`,
+      query,
+      signal,
+    });
+  }
+
+  /**
    * Recorded changes to the workspace's classification settings (#647) — who
    * edited the channel rules or the conversion definitions, and when.
    *
@@ -687,6 +997,23 @@ export class WorkspacesResource {
   }
 
   /**
+   * The workspace's usage this billing period (#2254): events and Attributable
+   * Conversions, pooled across its Profiles, each beside the plan's Allowance.
+   *
+   * `used: null` means the meter could not answer — show it as unavailable,
+   * never as 0. `allowance: null` means a contract plan with no published
+   * Allowance. Today's usage is included: the number moves during the day.
+   */
+  async usage(workspaceId: string, options: ReadExtras = {}): Promise<WorkspaceUsage> {
+    const res = await this.http.request<{ data: WorkspaceUsage }>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/usage`,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
    * Start a plan upgrade (#1052) — mint a Stripe Checkout hand-off.
    *
    * Your agent cannot enter a card. This returns a hand-off: give `url` to a
@@ -750,6 +1077,44 @@ export class WorkspacesResource {
     return this.http.request<WorkspacePatternDimensionsResponse>({
       method: "GET",
       path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/creative-patterns/dimensions`,
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * #2591 — which Creative Labels go with cheaper Goal Steps: per profile
+   * against its own usual cost, and pooled across profiles on the same Goal
+   * Step with each profile's usual cost normalised out. Session-only.
+   */
+  async creativeLabelComparison(
+    workspaceId: string,
+    options: WorkspaceCreativeLabelComparisonOptions = {},
+  ): Promise<WorkspaceCreativeLabelComparisonResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<WorkspaceCreativeLabelComparisonResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/creative-label-comparison`,
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * #2752 — what one profile's next ad should be (hook, claim, format, camera,
+   * call to action), from its own winning Creative Labels and Creative
+   * Patterns, each element with its evidence. `narrative: "true"` adds a short
+   * paragraph and spends one unit of the daily creative-brief allowance.
+   * Session-only.
+   */
+  async nextCreativeBrief(
+    workspaceId: string,
+    options: WorkspaceNextCreativeBriefOptions,
+  ): Promise<WorkspaceNextCreativeBriefResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<WorkspaceNextCreativeBriefResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/next-creative-brief`,
       query,
       signal,
     });
@@ -846,6 +1211,22 @@ export class WorkspacesResource {
       query: { format: "prompt" },
       body: input,
       timeoutMs: 120_000,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Creative-analysis coverage per profile: of the ads that delivered in the
+   * trailing 28 days, how many and how much of their spend carry an analysis at
+   * the current version. `spend_pct` is null (not 0) for a profile with no spend.
+   */
+  async creativeAnalysisCoverage(
+    workspaceId: string,
+    options: ReadExtras = {},
+  ): Promise<WorkspaceCreativeAnalysisCoverageResponse> {
+    return this.http.request<WorkspaceCreativeAnalysisCoverageResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/creative-analysis/coverage`,
       signal: options.signal,
     });
   }
@@ -1046,6 +1427,59 @@ export class WorkspacesResource {
     return this.http.request<WorkspaceReportsHubResponse>({
       method: "GET",
       path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/reports/hub`,
+      signal: options.signal,
+    });
+  }
+
+  /** The weekly clinic report previews the worker froze on Friday (America/Santiago). */
+  async reportPreviews(
+    workspaceId: string,
+    options: ReadExtras = {},
+  ): Promise<ReportPreviewsResponse> {
+    return this.http.request<ReportPreviewsResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/reports/previews`,
+      signal: options.signal,
+    });
+  }
+
+  /** Hold (`held: true`) or release (`held: false`) one clinic report preview. 409 once it is sending, sent or expired. */
+  async setReportPreviewHeld(
+    workspaceId: string,
+    previewId: string,
+    held: boolean,
+    options: ReadExtras = {},
+  ): Promise<ReportPreviewHoldResponse> {
+    return this.http.request<ReportPreviewHoldResponse>({
+      method: "PATCH",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/reports/previews/${encodeURIComponent(previewId)}`,
+      body: { held },
+      signal: options.signal,
+    });
+  }
+
+  /** Every reachable clinic's report recipients (0–3 each) and whether its weekly report is on. */
+  async reportRecipients(
+    workspaceId: string,
+    options: ReadExtras = {},
+  ): Promise<ReportRecipientsResponse> {
+    return this.http.request<ReportRecipientsResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/reports/recipients`,
+      signal: options.signal,
+    });
+  }
+
+  /** Replace the recipients of many clinics at once and switch their weekly report on/off. Per-clinic results. */
+  async putReportRecipients(
+    workspaceId: string,
+    body: ReportRecipientsPutInput,
+    options: ReadExtras = {},
+  ): Promise<ReportRecipientsPutResponse> {
+    return this.http.request<ReportRecipientsPutResponse>({
+      method: "PUT",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/reports/recipients`,
+      body,
       signal: options.signal,
     });
   }
@@ -1395,6 +1829,41 @@ export class WorkspacesResource {
     });
   }
 
+  /**
+   * Accept the DPA once for every live profile of the workspace still missing
+   * it (or `profile_ids`). Each profile gets its own acceptance record. A
+   * signed-in owner/admin SESSION only (#2554).
+   */
+  async acceptDpaForProfiles(
+    workspaceId: string,
+    body: WorkspaceDpaAcceptBody = {},
+    options: ReadExtras = {},
+  ): Promise<WorkspaceDpaAcceptResponse> {
+    return this.http.request<WorkspaceDpaAcceptResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/legal/dpa/accept`,
+      body,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Mint ONE signing link covering every live profile of the workspace still
+   * missing the DPA (or `profile_ids`), for the agency's signatory (#2554).
+   */
+  async requestDpaSignature(
+    workspaceId: string,
+    body: WorkspaceDpaHandoffBody = {},
+    options: ReadExtras = {},
+  ): Promise<WorkspaceDpaHandoffResponse> {
+    return this.http.request<WorkspaceDpaHandoffResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/legal/dpa/handoff`,
+      body,
+      signal: options.signal,
+    });
+  }
+
   /** Set whether this workspace is a healthcare agency (drives the HIPAA-specific gates elsewhere). */
   async updateComplianceOverview(
     workspaceId: string,
@@ -1559,15 +2028,56 @@ export class WorkspacesResource {
   }
 
   /**
+   * Preview switching a paying workspace to another plan and/or billing cadence
+   * (#2258) — Stripe's own numbers for the exact change: what is charged today
+   * (`charged_now` / `due_now_amount`), any credit, and what each following term
+   * costs. Writes nothing. Owner/admin people only.
+   */
+  async previewPlanChange(
+    workspaceId: string,
+    input: PlanChangePreviewInput,
+    options: WriteExtras = {},
+  ): Promise<PlanChangePreview> {
+    const res = await this.http.request<{ data: PlanChangePreview }>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/plan-change/preview`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
+   * Apply a plan change a {@link previewPlanChange} quoted — pass its
+   * `prorated_at` back (#2258). It charges the card on file, so only a SIGNED-IN
+   * SESSION may call it (an MCP user token is a 403). A preview older than 15
+   * minutes is a 409: preview again.
+   */
+  async changePlan(
+    workspaceId: string,
+    input: PlanChangeInput,
+    options: WriteExtras = {},
+  ): Promise<PlanChangeResult> {
+    const res = await this.http.request<{ data: PlanChangeResult }>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/plan-change`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+    return res.data;
+  }
+
+  /**
    * Choose a plan on a workspace that arrived through the Shopify App Store
    * (#489) — the Shopify counterpart to {@link startCheckout}.
    *
-   * **Paid tiers are sold by Shopify.** Managed Pricing rejects
-   * `appSubscriptionCreate`, so `growth` and `agency` both resolve to the same
-   * absolute link to Shopify's hosted plan page; the merchant confirms the tier
-   * there and a webhook mirrors it back. `free` is the one that decides
-   * anything here — it writes a $0 subscription and answers with a relative app
-   * path.
+   * **Every plan is sold by Shopify** (#2263). Managed Pricing rejects
+   * `appSubscriptionCreate`, so `esencial`, `pro` and `scale` all resolve to
+   * the same absolute link to Shopify's hosted plan page; the merchant confirms
+   * the plan there and a webhook mirrors it back. There is no Free plan, and
+   * Agency is not sold on Shopify (422).
    *
    * A workspace on the Stripe rail is a 403: use {@link startCheckout} instead.
    */
@@ -1584,5 +2094,108 @@ export class WorkspacesResource {
       signal: options.signal,
     });
     return res.data;
+  }
+
+  /** Every DNS-provider account in the workspace (session / user token only). Never the key. */
+  async dnsAccounts(
+    workspaceId: string,
+    options: ReadExtras = {},
+  ): Promise<WorkspaceDnsAccountsResponse> {
+    return this.http.request<WorkspaceDnsAccountsResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/dns-accounts`,
+      signal: options.signal,
+    });
+  }
+
+  /** Connect a workspace-shared Namecheap account (owner/admin). Test-called first. */
+  async createDnsAccount(
+    workspaceId: string,
+    input: CreateWorkspaceDnsAccountInput,
+    options: WriteExtras = {},
+  ): Promise<CreateWorkspaceDnsAccountResponse> {
+    return this.http.request<CreateWorkspaceDnsAccountResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/dns-accounts`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Start connecting a workspace-shared Namecheap account through its MCP server (OAuth). */
+  async startNamecheapMcp(
+    workspaceId: string,
+    input: StartWorkspaceNamecheapMcpInput = {},
+    options: WriteExtras = {},
+  ): Promise<StartWorkspaceNamecheapMcpResponse> {
+    return this.http.request<StartWorkspaceNamecheapMcpResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/dns-accounts/namecheap-mcp/start`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Finish the workspace Namecheap MCP connection with the pasted callback address. */
+  async completeNamecheapMcp(
+    workspaceId: string,
+    input: CompleteWorkspaceNamecheapMcpInput,
+    options: WriteExtras = {},
+  ): Promise<CompleteWorkspaceNamecheapMcpResponse> {
+    return this.http.request<CompleteWorkspaceNamecheapMcpResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/dns-accounts/namecheap-mcp/complete`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Disconnect a DNS-provider account (owner/admin). */
+  async deleteDnsAccount(
+    workspaceId: string,
+    accountId: string,
+    options: WriteExtras = {},
+  ): Promise<DeleteWorkspaceDnsAccountResponse> {
+    return this.http.request<DeleteWorkspaceDnsAccountResponse>({
+      method: "DELETE",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/dns-accounts/${encodeURIComponent(accountId)}`,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  /** Every domain in a Namecheap account, with its DNS kind and the matching profile. */
+  async dnsAccountDomains(
+    workspaceId: string,
+    accountId: string,
+    options: ReadExtras = {},
+  ): Promise<WorkspaceDnsAccountDomainsResponse> {
+    return this.http.request<WorkspaceDnsAccountDomainsResponse>({
+      method: "GET",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/dns-accounts/${encodeURIComponent(accountId)}/domains`,
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Set up tracking domains for many profiles at once (≤ 100 items). Items
+   * returned as `not_attempted` (`remaining`) ran out of the request's time
+   * budget — send them again; every step is idempotent.
+   */
+  async trackingBulkSetup(
+    workspaceId: string,
+    input: WorkspaceTrackingBulkSetupInput,
+    options: WriteExtras = {},
+  ): Promise<WorkspaceTrackingBulkSetupResponse> {
+    return this.http.request<WorkspaceTrackingBulkSetupResponse>({
+      method: "POST",
+      path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tracking/bulk-setup`,
+      body: input,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
   }
 }

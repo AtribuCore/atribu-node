@@ -109,10 +109,28 @@ export type DrillResponse =
  */
 export type DrillOptions = Omit<DrillQuery, "format"> & ReadExtras;
 
+type DrillPeopleQuery = paths["/api/v1/drill/people"]["get"]["parameters"]["query"];
+export type DrillPeopleResponse =
+  paths["/api/v1/drill/people"]["get"]["responses"][200]["content"]["application/json"];
+export type DrillPeopleOptions = DrillPeopleQuery & ReadExtras;
+
 type FunnelsQuery = paths["/api/v1/funnels"]["get"]["parameters"]["query"];
 export type FunnelsResponse =
   paths["/api/v1/funnels"]["get"]["responses"][200]["content"]["application/json"];
 export type FunnelsOptions = FunnelsQuery & ReadExtras;
+
+export type AccountCheckFindingsResponse =
+  paths["/api/v1/account-checks/findings"]["get"]["responses"][200]["content"]["application/json"];
+export type AccountCheckReviewCreateBody = NonNullable<
+  paths["/api/v1/account-checks/review"]["post"]["requestBody"]
+>["content"]["application/json"];
+export type AccountCheckReviewCreateResponse =
+  paths["/api/v1/account-checks/review"]["post"]["responses"][201]["content"]["application/json"];
+
+type OutcomeFunnelQuery = paths["/api/v1/outcome-funnel"]["get"]["parameters"]["query"];
+export type OutcomeFunnelResponse =
+  paths["/api/v1/outcome-funnel"]["get"]["responses"][200]["content"]["application/json"];
+export type OutcomeFunnelOptions = OutcomeFunnelQuery & ReadExtras;
 
 type NewVsReturningQuery =
   paths["/api/v1/cohorts/new-vs-returning"]["get"]["parameters"]["query"];
@@ -195,6 +213,13 @@ type CustomerSearchQuery = NonNullable<
 export type CustomerSearchResponse =
   paths["/api/v1/customers/search"]["get"]["responses"][200]["content"]["application/json"];
 export type CustomerSearchOptions = Omit<CustomerSearchQuery, "q"> & ReadExtras;
+
+type CustomerPossibleDuplicatesQuery = NonNullable<
+  paths["/api/v1/customers/{id}/possible-duplicates"]["get"]["parameters"]["query"]
+>;
+export type CustomerPossibleDuplicatesResponse =
+  paths["/api/v1/customers/{id}/possible-duplicates"]["get"]["responses"][200]["content"]["application/json"];
+export type CustomerPossibleDuplicatesOptions = CustomerPossibleDuplicatesQuery & ReadExtras;
 
 export type CustomerJourneySummaryResponse =
   paths["/api/v1/customers/{id}/journey-summary"]["get"]["responses"][200]["content"]["application/json"];
@@ -461,12 +486,72 @@ export class AnalyticsResource {
     });
   }
 
+  /**
+   * #2448 — the people behind a dashboard figure (leads, bookings, attended,
+   * payments, customers, cash). `total_count` / `total_value` equal the
+   * figure; `rows` (name, RUT, amount) only with `customers:read`.
+   */
+  async drillPeople(options: DrillPeopleOptions): Promise<DrillPeopleResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<DrillPeopleResponse>({
+      method: "GET",
+      path: "/api/v1/drill/people",
+      query,
+      signal,
+    });
+  }
+
   /** Stage-by-stage conversion for one funnel definition. */
   async funnels(options: FunnelsOptions): Promise<FunnelsResponse> {
     const { signal, ...query } = options;
     return this.http.request<FunnelsResponse>({
       method: "GET",
       path: "/api/v1/funnels",
+      query,
+      signal,
+    });
+  }
+
+  /**
+   * #2444 — the per-clinic funnel: lead → booked → attended → closed with
+   * stage rates, cost per lead and per booking; Unknown Origin leads apart.
+   */
+  /**
+   * What the automatic daily account checks found for the profile: open
+   * findings (most urgent first), the ones resolved in the last 30 days, and
+   * the latest run with every check's state — ok, does not apply, or could
+   * not check, with the reason. Read-only.
+   */
+  async accountCheckFindings(options: ReadExtras = {}): Promise<AccountCheckFindingsResponse> {
+    return this.http.request<AccountCheckFindingsResponse>({
+      method: "GET",
+      path: "/api/v1/account-checks/findings",
+      signal: options.signal,
+    });
+  }
+
+  /**
+   * Build the written account review from the latest account-check run and
+   * store it as a `review` report. Stores only — nothing is sent.
+   */
+  async createAccountCheckReview(
+    body: AccountCheckReviewCreateBody = {},
+    options: WriteExtras = {},
+  ): Promise<AccountCheckReviewCreateResponse> {
+    return this.http.request<AccountCheckReviewCreateResponse>({
+      method: "POST",
+      path: "/api/v1/account-checks/review",
+      body,
+      idempotencyKey: options.idempotencyKey,
+      signal: options.signal,
+    });
+  }
+
+  async outcomeFunnel(options: OutcomeFunnelOptions): Promise<OutcomeFunnelResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<OutcomeFunnelResponse>({
+      method: "GET",
+      path: "/api/v1/outcome-funnel",
       query,
       signal,
     });
@@ -726,6 +811,24 @@ export class AnalyticsResource {
       method: "GET",
       path: "/api/v1/customers/search",
       query: { ...query, q },
+      signal,
+    });
+  }
+
+  /**
+   * Customers of the profile who are probably the same person as this one
+   * (names sharing two words), closest first — the merge dialog's
+   * suggestions. Read-only; nothing merges.
+   */
+  async customerPossibleDuplicates(
+    customerProfileId: string,
+    options: CustomerPossibleDuplicatesOptions = {},
+  ): Promise<CustomerPossibleDuplicatesResponse> {
+    const { signal, ...query } = options;
+    return this.http.request<CustomerPossibleDuplicatesResponse>({
+      method: "GET",
+      path: `/api/v1/customers/${encodeURIComponent(customerProfileId)}/possible-duplicates`,
+      query,
       signal,
     });
   }

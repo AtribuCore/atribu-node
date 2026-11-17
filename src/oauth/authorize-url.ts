@@ -28,7 +28,8 @@ export type OauthScope =
   | "attribution_write"
   | "connections"
   | "attribution"
-  | "commerce";
+  | "commerce"
+  | "ads_billing";
 
 export interface BuildAuthorizeUrlInput {
   baseUrl?: string;
